@@ -44,12 +44,6 @@ export interface Contacto {
     estado: string;
   } | null;
 }
-  created_at:        string;
-  updated_at:        string;
-  // Offline
-  _local_id?:        string;   // UUID local para sync
-  _pendiente_sync?:  boolean;
-}
 
 export type EstadoExpediente =
   | 'en_proceso'
@@ -101,12 +95,14 @@ export interface Documento {
 
 export interface Ubicacion {
   id?:          number;
-  contacto_id?: number;   // opcional — visitas desde mapa no tienen contacto asociado
+  contacto_id?: number;
+  contacto?:    string;       // nombre del contacto (viene del endpoint /mapa)
   latitud:      number;
   longitud:     number;
   tipo:         'visita_cliente' | 'propiedad';
   notas?:       string;
-  visitado_en:  string;   // ISO string
+  visitado_en:  string;
+  fotos?:       { id: number; url: string }[];
   _local_id?:   string;
   _pendiente_sync?: boolean;
 }

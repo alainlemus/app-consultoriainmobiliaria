@@ -3,12 +3,14 @@
  * Ruta: /mapa
  */
 
+import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -17,11 +19,12 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
-import MapView, { Callout, Marker, Region } from 'react-native-maps';
+import MapView, { Marker, Region } from 'react-native-maps';
 
-import { getUbicacionesMapa, registrarUbicacion } from '../src/services/api';
+import { getUbicacionesMapa, registrarUbicacion, subirFotosVisita } from '../src/services/api';
 import { Colors, Radius, Spacing, Typography } from '../src/theme';
 import type { Ubicacion } from '../src/types';
 
@@ -50,6 +53,8 @@ export default function MapaScreen() {
   const [notas, setNotas]               = useState('');
   const [tipo, setTipo]                 = useState<'visita_cliente' | 'propiedad'>('visita_cliente');
   const [filtro, setFiltro]             = useState<string>('todos');
+  const [fotosSeleccionadas, setFotosSeleccionadas] = useState<ImagePicker.ImagePickerAsset[]>([]);
+  const [detalle, setDetalle]           = useState<Ubicacion | null>(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -98,20 +103,58 @@ export default function MapaScreen() {
     setUserLoc(loc);
     setNotas('');
     setTipo('visita_cliente');
+    setFotosSeleccionadas([]);
     setModalVisible(true);
+  };
+
+  const agregarFotos = async (origen: 'camara' | 'galeria') => {
+    const permisos = origen === 'camara'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (permisos.status !== 'granted') {
+      Alert.alert('Permiso requerido', `Activa el acceso a ${origen === 'camara' ? 'la cámara' : 'la galería'} en Configuración.`);
+      return;
+    }
+
+    const result = origen === 'camara'
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.5, allowsMultipleSelection: false })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.5, allowsMultipleSelection: true, selectionLimit: 5 });
+
+    if (!result.canceled) {
+      setFotosSeleccionadas(prev => {
+        const nuevas = [...prev, ...result.assets];
+        return nuevas.slice(0, 5); // máximo 5
+      });
+    }
+  };
+
+  const quitarFoto = (index: number) => {
+    setFotosSeleccionadas(prev => prev.filter((_, i) => i !== index));
   };
 
   const registrar = async () => {
     if (!userLoc) return;
     setRegistrando(true);
     try {
-      await registrarUbicacion({
+      const ubicacion = await registrarUbicacion({
         latitud:     userLoc.lat,
         longitud:    userLoc.lng,
         tipo,
         notas:       notas || undefined,
         visitado_en: new Date().toISOString(),
       });
+
+      // Subir fotos si hay
+      if (fotosSeleccionadas.length > 0 && ubicacion.id) {
+        const fotos = fotosSeleccionadas.map((f, i) => ({
+          uri:  f.uri,
+          name: f.fileName ?? `foto_${i + 1}.jpg`,
+          type: f.mimeType ?? 'image/jpeg',
+        }));
+        await subirFotosVisita(ubicacion.id, fotos);
+      }
+
       setModalVisible(false);
       await cargar();
     } catch (e: unknown) {
@@ -163,19 +206,16 @@ export default function MapaScreen() {
               key={u.id ?? `l-${i}`}
               coordinate={{ latitude: u.latitud, longitude: u.longitud }}
               pinColor={TIPO_COLOR[u.tipo]}
+              onPress={() => setDetalle(u)}
             >
               <View style={[s.pin, { borderColor: TIPO_COLOR[u.tipo] }]}>
                 <Text style={s.pinIcon}>{TIPO_ICON[u.tipo]}</Text>
+                {(u.fotos?.length ?? 0) > 0 && (
+                  <View style={s.fotoBadge}>
+                    <Text style={s.fotoBadgeText}>{u.fotos!.length}</Text>
+                  </View>
+                )}
               </View>
-              <Callout tooltip>
-                <View style={s.callout}>
-                  <Text style={s.calloutTipo}>{u.tipo === 'visita_cliente' ? 'Visita cliente' : 'Propiedad'}</Text>
-                  {u.notas ? <Text style={s.calloutNotas}>{u.notas}</Text> : null}
-                  <Text style={s.calloutFecha}>
-                    {new Date(u.visitado_en).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </Text>
-                </View>
-              </Callout>
             </Marker>
           ))}
         </MapView>
@@ -232,6 +272,33 @@ export default function MapaScreen() {
                 blurOnSubmit
               />
 
+              {/* Fotos */}
+              <Text style={s.sheetLabel}>
+                Fotos{fotosSeleccionadas.length > 0 ? ` (${fotosSeleccionadas.length}/5)` : ' (opcional)'}
+              </Text>
+              <View style={s.fotosRow}>
+                {fotosSeleccionadas.map((f, i) => (
+                  <View key={i} style={s.fotoThumb}>
+                    <Image source={{ uri: f.uri }} style={s.fotoImg} />
+                    <TouchableOpacity style={s.fotoRemove} onPress={() => quitarFoto(i)}>
+                      <Text style={{ color: Colors.white, fontSize: 10, fontWeight: 'bold' }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {fotosSeleccionadas.length < 5 && (
+                  <View style={s.fotosBtns}>
+                    <TouchableOpacity style={s.fotoBtn} onPress={() => agregarFotos('camara')}>
+                      <Text style={s.fotoBtnIcon}>📷</Text>
+                      <Text style={s.fotoBtnText}>Cámara</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.fotoBtn} onPress={() => agregarFotos('galeria')}>
+                      <Text style={s.fotoBtnIcon}>🖼️</Text>
+                      <Text style={s.fotoBtnText}>Galería</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+
               {userLoc && (
                 <Text style={s.coords}>
                   📍 {userLoc.lat.toFixed(5)}, {userLoc.lng.toFixed(5)}
@@ -247,6 +314,71 @@ export default function MapaScreen() {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal detalle de visita con fotos */}
+      <Modal visible={!!detalle} animationType="slide" transparent onRequestClose={() => setDetalle(null)}>
+        <Pressable style={s.backdrop} onPress={() => setDetalle(null)} />
+        <View style={s.sheet}>
+          <View style={s.handle} />
+          {detalle && (
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+              {/* Tipo */}
+              <View style={s.detalleHeader}>
+                <Text style={s.detalleIconGrande}>{TIPO_ICON[detalle.tipo]}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.detalleTipo}>
+                    {detalle.tipo === 'visita_cliente' ? 'Visita cliente' : 'Propiedad'}
+                  </Text>
+                  <Text style={s.detalleFecha}>
+                    {new Date(detalle.visitado_en).toLocaleDateString('es-MX', {
+                      day: '2-digit', month: 'long', year: 'numeric',
+                    })}
+                  </Text>
+                </View>
+                <Pressable onPress={() => setDetalle(null)} style={s.detalleClose}>
+                  <Text style={{ color: Colors.dark[500], fontSize: 18 }}>✕</Text>
+                </Pressable>
+              </View>
+
+              {/* Info */}
+              {detalle.contacto && (
+                <View style={s.detalleRow}>
+                  <Text style={s.detalleLabel}>Cliente</Text>
+                  <Text style={s.detalleVal}>{detalle.contacto}</Text>
+                </View>
+              )}
+              {detalle.notas ? (
+                <View style={s.detalleRow}>
+                  <Text style={s.detalleLabel}>Notas</Text>
+                  <Text style={s.detalleVal}>{detalle.notas}</Text>
+                </View>
+              ) : null}
+              <View style={s.detalleRow}>
+                <Text style={s.detalleLabel}>Coordenadas</Text>
+                <Text style={s.detalleVal}>{detalle.latitud.toFixed(6)}, {detalle.longitud.toFixed(6)}</Text>
+              </View>
+
+              {/* Fotos */}
+              {(detalle.fotos?.length ?? 0) > 0 && (
+                <>
+                  <Text style={[s.sheetLabel, { marginTop: Spacing.base }]}>
+                    Fotos ({detalle.fotos!.length})
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                      {detalle.fotos!.map(f => (
+                        <View key={f.id} style={s.detalleThumb}>
+                          <Image source={{ uri: f.url }} style={s.detalleImg} resizeMode="cover" />
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </>
+              )}
+            </ScrollView>
+          )}
+        </View>
       </Modal>
     </View>
   );
@@ -394,4 +526,66 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.bold,
     color: Colors.white,
   },
+
+  // Fotos
+  fotosRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.base },
+  fotoThumb: { width: 72, height: 72, borderRadius: Radius.md, overflow: 'hidden', position: 'relative' },
+  fotoImg:   { width: '100%', height: '100%' },
+  fotoRemove: {
+    position: 'absolute', top: 3, right: 3,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  fotosBtns: { flexDirection: 'row', gap: Spacing.sm },
+  fotoBtn: {
+    width: 72, height: 72, borderRadius: Radius.md,
+    borderWidth: 1.5, borderStyle: 'dashed',
+    borderColor: Colors.dark[300],
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.white, gap: 2,
+  },
+  fotoBtnIcon: { fontSize: 22 },
+  fotoBtnText: { fontSize: 9, color: Colors.dark[500], fontWeight: Typography.fontWeight.semibold },
+
+  // Badge de foto en el pin del mapa
+  fotoBadge: {
+    position: 'absolute', top: -4, right: -4,
+    width: 16, height: 16, borderRadius: 8,
+    backgroundColor: Colors.gold[400], borderWidth: 1.5, borderColor: Colors.white,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  fotoBadgeText: { fontSize: 9, color: Colors.white, fontWeight: Typography.fontWeight.bold },
+
+  // Modal detalle
+  detalleHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: Spacing.md, marginBottom: Spacing.base,
+  },
+  detalleIconGrande: { fontSize: 32 },
+  detalleTipo: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.dark[900],
+  },
+  detalleFecha: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
+  detalleClose: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: Colors.cream[200],
+    alignItems: 'center', justifyContent: 'center',
+  },
+  detalleRow: {
+    flexDirection: 'row', gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: Colors.cream[200],
+  },
+  detalleLabel: {
+    width: 90, fontSize: Typography.fontSize.sm,
+    color: Colors.dark[500], fontWeight: Typography.fontWeight.semibold,
+  },
+  detalleVal: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[900] },
+  detalleThumb: {
+    width: 120, height: 120, borderRadius: Radius.md, overflow: 'hidden',
+  },
+  detalleImg: { width: '100%', height: '100%' },
 });

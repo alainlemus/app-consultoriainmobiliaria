@@ -236,6 +236,36 @@ export async function registrarUbicacion(data: Omit<Ubicacion, 'id'>): Promise<U
 
 export async function getUbicacionesMapa(): Promise<Ubicacion[]> {
   const res = await apiFetch<ApiResponse<Ubicacion[]>>('/ubicaciones/mapa');
+  // Resolver URLs de fotos para acceso desde móvil en dev
+  return res.data.map(u => ({
+    ...u,
+    fotos: u.fotos?.map(f => ({ ...f, url: resolveStorageUrl(f.url) ?? f.url })),
+  }));
+}
+
+export async function subirFotosVisita(
+  ubicacionId: number,
+  fotos: { uri: string; name: string; type: string }[],
+): Promise<{ id: number; url: string }[]> {
+  const token = await getToken();
+  const form  = new FormData();
+
+  fotos.forEach((f) => {
+    form.append('fotos[]', { uri: f.uri, name: f.name, type: f.type } as unknown as Blob);
+  });
+
+  const response = await fetch(`${API_BASE}/ubicaciones/${ubicacionId}/fotos`, {
+    method:  'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body:    form,
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err?.message ?? `Error ${response.status} al subir fotos`);
+  }
+
+  const res = await response.json();
   return res.data;
 }
 
