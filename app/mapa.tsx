@@ -5,7 +5,7 @@
 
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -24,9 +24,9 @@ import {
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 
-import { getUbicacionesMapa, registrarUbicacion, subirFotosVisita } from '../src/services/api';
+import { getContactos, getUbicacionesMapa, registrarUbicacion, subirFotosVisita } from '../src/services/api';
 import { Colors, Radius, Spacing, Typography } from '../src/theme';
-import type { Ubicacion } from '../src/types';
+import type { Contacto, Ubicacion } from '../src/types';
 
 const TIPO_COLOR: Record<string, string> = {
   visita_cliente: Colors.gold[400],
@@ -44,6 +44,7 @@ const REGION_CDMX: Region = {
 
 export default function MapaScreen() {
   const mapRef = useRef<MapView>(null);
+  const { contacto_id, contacto_nombre } = useLocalSearchParams<{ contacto_id?: string; contacto_nombre?: string }>();
 
   const [ubicaciones, setUbicaciones]   = useState<Ubicacion[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -53,6 +54,11 @@ export default function MapaScreen() {
   const [notas, setNotas]               = useState('');
   const [tipo, setTipo]                 = useState<'visita_cliente' | 'propiedad'>('visita_cliente');
   const [filtro, setFiltro]             = useState<string>('todos');
+  const [municipio, setMunicipio]       = useState('');
+  const [estadoVal, setEstadoVal]       = useState('');
+  const [contactoId, setContactoId]     = useState<number | null>(null);
+  const [prospectos, setProspectos]     = useState<Contacto[]>([]);
+  const [busqProspecto, setBusqProspecto] = useState('');
   const [fotosSeleccionadas, setFotosSeleccionadas] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [detalle, setDetalle]           = useState<Ubicacion | null>(null);
 
@@ -77,6 +83,21 @@ export default function MapaScreen() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  // Si llegamos desde el detalle de un prospecto, abrir modal con ese prospecto pre-seleccionado
+  useEffect(() => {
+    if (contacto_id && contacto_nombre) {
+      const id = parseInt(contacto_id, 10);
+      if (!isNaN(id)) {
+        setContactoId(id);
+        setBusqProspecto(contacto_nombre);
+        // Pequeño delay para que el mapa cargue primero
+        setTimeout(() => abrirRegistro(id, contacto_nombre), 500);
+      }
+    }
+  // Solo al montar — los params no cambian
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const obtenerGPS = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -97,13 +118,24 @@ export default function MapaScreen() {
     }, 600);
   };
 
-  const abrirRegistro = async () => {
+  const abrirRegistro = async (preContactoId?: number, preContactoNombre?: string) => {
     const loc = await obtenerGPS();
     if (!loc) return;
     setUserLoc(loc);
     setNotas('');
     setTipo('visita_cliente');
+    setMunicipio('');
+    setEstadoVal('');
+    setContactoId(preContactoId ?? null);
+    setBusqProspecto(preContactoNombre ?? '');
     setFotosSeleccionadas([]);
+    // Cargar prospectos solo si no viene uno pre-seleccionado
+    if (!preContactoId) {
+      try {
+        const res = await getContactos({ page: 1 });
+        setProspectos(res.data);
+      } catch { /* silencioso */ }
+    }
     setModalVisible(true);
   };
 
@@ -138,11 +170,14 @@ export default function MapaScreen() {
     setRegistrando(true);
     try {
       const ubicacion = await registrarUbicacion({
-        latitud:     userLoc.lat,
-        longitud:    userLoc.lng,
+        latitud:      userLoc.lat,
+        longitud:     userLoc.lng,
         tipo,
-        notas:       notas || undefined,
-        visitado_en: new Date().toISOString(),
+        notas:        notas     || undefined,
+        municipio:    municipio || undefined,
+        estado:       estadoVal || undefined,
+        contacto_id:  contactoId ?? undefined,
+        visitado_en:  new Date().toISOString(),
       });
 
       // Subir fotos si hay
@@ -156,6 +191,12 @@ export default function MapaScreen() {
       }
 
       setModalVisible(false);
+      setNotas('');
+      setMunicipio('');
+      setEstadoVal('');
+      setContactoId(null);
+      setBusqProspecto('');
+      setFotosSeleccionadas([]);
       await cargar();
     } catch (e: unknown) {
       Alert.alert('Error al registrar', e instanceof Error ? e.message : 'Error desconocido');
@@ -225,7 +266,7 @@ export default function MapaScreen() {
           <Pressable style={s.fabSec} onPress={centrarEnMi}>
             <Text style={s.fabIcon}>🎯</Text>
           </Pressable>
-          <Pressable style={s.fab} onPress={abrirRegistro}>
+          <Pressable style={s.fab} onPress={() => abrirRegistro()}>
             <Text style={s.fabIcon}>＋</Text>
           </Pressable>
         </View>
@@ -259,6 +300,52 @@ export default function MapaScreen() {
                 ))}
               </View>
 
+              {/* Prospecto vinculado */}
+              <Text style={s.sheetLabel}>
+                Prospecto{contactoId ? ' ✓' : ' (opcional)'}
+              </Text>
+              {contactoId ? (
+                // Pre-seleccionado — solo lectura con opción de quitar
+                <View style={s.prospFijo}>
+                  <Text style={s.prospFijoText}>{busqProspecto}</Text>
+                  <Pressable onPress={() => { setContactoId(null); setBusqProspecto(''); }}>
+                    <Text style={{ color: Colors.dark[400], fontSize: 16 }}>✕</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <>
+                  <TextInput
+                    style={[s.sheetInput, { marginBottom: Spacing.sm }]}
+                    placeholder="Buscar por nombre..."
+                    placeholderTextColor={Colors.dark[400]}
+                    value={busqProspecto}
+                    onChangeText={setBusqProspecto}
+                    returnKeyType="search"
+                    blurOnSubmit
+                  />
+                  {busqProspecto.length > 0 && (
+                    <View style={s.prospDropdown}>
+                      {prospectos
+                        .filter(p => p.nombre.toLowerCase().includes(busqProspecto.toLowerCase()))
+                        .slice(0, 5)
+                        .map(p => (
+                          <Pressable
+                            key={p.id}
+                            style={s.prospItem}
+                            onPress={() => { setContactoId(p.id); setBusqProspecto(p.nombre); }}
+                          >
+                            <Text style={s.prospItemText}>{p.nombre}</Text>
+                          </Pressable>
+                        ))
+                      }
+                      {prospectos.filter(p => p.nombre.toLowerCase().includes(busqProspecto.toLowerCase())).length === 0 && (
+                        <Text style={s.prospVacio}>Sin resultados</Text>
+                      )}
+                    </View>
+                  )}
+                </>
+              )}
+
               <Text style={s.sheetLabel}>Notas</Text>
               <TextInput
                 style={s.sheetInput}
@@ -271,6 +358,35 @@ export default function MapaScreen() {
                 returnKeyType="done"
                 blurOnSubmit
               />
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.sheetLabel}>Municipio</Text>
+                  <TextInput
+                    style={[s.sheetInput, { marginBottom: 0 }]}
+                    placeholder="Ej: Pachuca"
+                    placeholderTextColor={Colors.dark[400]}
+                    value={municipio}
+                    onChangeText={setMunicipio}
+                    returnKeyType="next"
+                    blurOnSubmit
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.sheetLabel}>Estado</Text>
+                  <TextInput
+                    style={[s.sheetInput, { marginBottom: 0 }]}
+                    placeholder="Ej: Hidalgo"
+                    placeholderTextColor={Colors.dark[400]}
+                    value={estadoVal}
+                    onChangeText={setEstadoVal}
+                    returnKeyType="done"
+                    blurOnSubmit
+                  />
+                </View>
+              </View>
+
+              <View style={{ height: 14 }} />
 
               {/* Fotos */}
               <Text style={s.sheetLabel}>
@@ -547,6 +663,32 @@ const s = StyleSheet.create({
   },
   fotoBtnIcon: { fontSize: 22 },
   fotoBtnText: { fontSize: 9, color: Colors.dark[500], fontWeight: Typography.fontWeight.semibold },
+
+  // Prospecto selector
+  prospDropdown: {
+    backgroundColor: Colors.white,
+    borderWidth: 1, borderColor: Colors.dark[300],
+    borderRadius: Radius.md, marginBottom: Spacing.sm,
+    overflow: 'hidden',
+  },
+  prospItem: {
+    paddingHorizontal: Spacing.md, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: Colors.cream[200],
+  },
+  prospItemActivo: { backgroundColor: Colors.gold[400] },
+  prospItemText: { fontSize: Typography.fontSize.sm, color: Colors.dark[900] },
+  prospItemTextActivo: { color: Colors.white, fontWeight: Typography.fontWeight.semibold },
+  prospVacio: { padding: Spacing.md, fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center' },
+  prospLimpiar: { marginBottom: Spacing.sm, alignSelf: 'flex-start' },
+  prospLimpiarText: { fontSize: Typography.fontSize.xs, color: Colors.dark[500] },
+  prospFijo: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.gold[50] ?? '#fffbeb',
+    borderWidth: 1, borderColor: Colors.gold[400],
+    borderRadius: Radius.md, paddingHorizontal: Spacing.md,
+    paddingVertical: 10, marginBottom: Spacing.md,
+  },
+  prospFijoText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900], flex: 1 },
 
   // Badge de foto en el pin del mapa
   fotoBadge: {

@@ -189,7 +189,10 @@ export default function DetalleProspectoScreen() {
                 })}
               />
             )}
-            <ActionRow icon="📍" label="Registrar visita"   onPress={() => router.push('/mapa')} border />
+            <ActionRow icon="📍" label="Registrar visita" onPress={() => router.push({
+                  pathname: '/mapa',
+                  params: { contacto_id: String(contacto.id), contacto_nombre: contacto.nombre },
+                })} border />
             <ActionRow icon="✏️" label="Editar prospecto"   onPress={() => setEditing(true)} />
           </View>
         </ScrollView>

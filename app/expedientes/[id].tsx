@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
-  TouchableOpacity, ActivityIndicator, Alert, Linking,
+  TouchableOpacity, ActivityIndicator, Alert,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -108,7 +109,9 @@ export default function DetalleExpedienteScreen() {
   const handleVer = async (doc: Documento) => {
     try {
       const url = await getDocumentoUrl(exp!.id, doc.id);
-      await Linking.openURL(url);
+      await WebBrowser.openBrowserAsync(url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+      });
     } catch {
       Alert.alert('Error', 'No se pudo abrir el documento. Inténtalo de nuevo.');
     }

@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento } from '../types';
+import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Comision, ResumenComisiones } from '../types';
 
 // Lee la URL del API desde app.config.ts > extra.apiUrl
 // Fallback: localhost para desarrollo en Expo Go
@@ -101,7 +101,51 @@ export async function logout(): Promise<void> {
 
 export async function getMe(): Promise<AuthState['user']> {
   const res = await apiFetch<ApiResponse<AuthState['user']>>('/auth/me');
+  const u = res.data;
+  if (u?.foto_perfil_url) {
+    u.foto_perfil_url = resolveStorageUrl(u.foto_perfil_url);
+  }
+  return u;
+}
+
+export async function updatePerfil(data: {
+  name?: string;
+  telefono?: string;
+  banco?: string;
+  clabe?: string;
+}): Promise<AuthState['user']> {
+  const res = await apiFetch<{ message: string; data: AuthState['user'] }>('/auth/perfil', {
+    method: 'PUT',
+    body:   JSON.stringify(data),
+  });
   return res.data;
+}
+
+export async function subirFotoPerfil(uri: string): Promise<string | null> {
+  const token = await getToken();
+  const formData = new FormData();
+  formData.append('foto', {
+    uri,
+    name: 'selfie.jpg',
+    type: 'image/jpeg',
+  } as unknown as Blob);
+
+  const response = await fetch(`${API_BASE}/auth/perfil/foto`, {
+    method:  'POST',
+    headers: {
+      'Accept':        'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.message ?? `Error ${response.status}`);
+  }
+
+  const res = await response.json();
+  return resolveStorageUrl(res.foto_perfil_url) ?? null;
 }
 
 // ── Prospectos ─────────────────────────────────────────────────────────────
@@ -147,15 +191,7 @@ export async function getExpedientes(params?: { estado?: string }): Promise<Pagi
 
 export async function getExpediente(id: number): Promise<Expediente> {
   const res = await apiFetch<ApiResponse<Expediente>>(`/expedientes/${id}`);
-  const exp = res.data;
-  // Normalizar URLs de documentos para que el móvil pueda resolverlas
-  if (exp.documentos) {
-    exp.documentos = exp.documentos.map(doc => ({
-      ...doc,
-      url: resolveStorageUrl(doc.url),
-    }));
-  }
-  return exp;
+  return res.data;
 }
 
 export async function createExpediente(data: Partial<Expediente>): Promise<Expediente> {
@@ -202,9 +238,8 @@ export async function getDocumentoUrl(expedienteId: number, documentoId: number)
   const res = await apiFetch<{ url: string; expira_en: number }>(
     `/expedientes/${expedienteId}/documentos/${documentoId}/ver`
   );
-  // La URL ya viene con el host correcto de APP_URL; reemplazamos el origen
-  // por el de API_BASE igual que con las URLs de storage.
-  return resolveStorageUrl(res.url) ?? res.url;
+  // La URL ya viene generada con MOBILE_URL desde el backend — no modificar
+  return res.url;
 }
 
 export async function reemplazarDocumento(expedienteId: number, documentoId: number, uri: string): Promise<Documento> {
@@ -285,4 +320,22 @@ export async function registrarDispositivo(fcmToken: string, plataforma: 'ios' |
     method: 'POST',
     body:   JSON.stringify({ fcm_token: fcmToken, plataforma }),
   });
+}
+
+// ── Comisiones ─────────────────────────────────────────────────────────────
+
+export async function getComisiones(params?: {
+  estado?: 'pagada' | 'pendiente';
+  page?: number;
+}): Promise<{ data: Comision[]; current_page: number; last_page: number; total: number }> {
+  const p: Record<string, string> = {};
+  if (params?.estado) p['estado'] = params.estado;
+  if (params?.page)   p['page']   = String(params.page);
+  const qs = new URLSearchParams(p).toString();
+  return apiFetch(`/comisiones${qs ? `?${qs}` : ''}`);
+}
+
+export async function getResumenComisiones(): Promise<ResumenComisiones> {
+  const res = await apiFetch<ApiResponse<ResumenComisiones>>('/comisiones/resumen');
+  return res.data;
 }

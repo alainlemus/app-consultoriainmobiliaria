@@ -64,6 +64,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="comisiones"
+        options={{
+          title:      'Comisiones',
+          tabBarIcon: ({ focused }) => <TabIcon icon="💰" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="perfil"
         options={{
           title:      'Perfil',

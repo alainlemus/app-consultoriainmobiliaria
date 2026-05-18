@@ -7,6 +7,7 @@ export interface User {
   telefono?: string;
   banco?: string;
   clabe?: string;
+  foto_perfil_url?: string | null;
   roles: string[];
 }
 
@@ -96,11 +97,13 @@ export interface Documento {
 export interface Ubicacion {
   id?:          number;
   contacto_id?: number;
-  contacto?:    string;       // nombre del contacto (viene del endpoint /mapa)
+  contacto?:    string;
   latitud:      number;
   longitud:     number;
   tipo:         'visita_cliente' | 'propiedad';
   notas?:       string;
+  municipio?:   string;
+  estado?:      string;
   visitado_en:  string;
   fotos?:       { id: number; url: string }[];
   _local_id?:   string;
@@ -152,4 +155,29 @@ export interface SyncResponse {
   resultados: SyncResultado[];
   procesados?: number;
   errores?:    number;
+}
+
+export type EstadoComision = 'pendiente' | 'aprobada' | 'pagada' | 'rechazada';
+
+export interface Comision {
+  id:                   number;
+  expediente_id:        number;
+  acreditado?:          string;
+  monto_credito?:       number;
+  expediente_estado?:   string;
+  monto_base:           number;
+  porcentaje_comision:  number;
+  monto_comision:       number;
+  estado:               EstadoComision;
+  fecha_generacion?:    string;
+  fecha_aprobacion?:    string;
+  fecha_pago?:          string;
+  notas?:               string;
+}
+
+export interface ResumenComisiones {
+  total_pagado:        number;
+  total_pendiente:     number;
+  cantidad_pagadas:    number;
+  cantidad_pendientes: number;
 }
