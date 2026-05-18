@@ -149,10 +149,15 @@ export default function DashboardScreen() {
                 <View style={styles.avatar}>
                   <Text style={styles.avatarLetter}>{(c.nombre?.[0] ?? '?').toUpperCase()}</Text>
                 </View>
-                <View style={styles.recentInfo}>
-                  <Text style={styles.recentNombre}>{c.nombre}</Text>
-                  <Text style={styles.recentSub}>{c.email ?? c.telefono ?? '—'}</Text>
-                </View>
+                 <View style={styles.recentInfo}>
+                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                     <Text style={styles.recentNombre}>{c.nombre}</Text>
+                     {c.estado_prospecto === 'en_tramite' && (
+                       <Text style={{ fontSize: 14 }}>📂</Text>
+                     )}
+                   </View>
+                   <Text style={styles.recentSub}>{c.email ?? c.telefono ?? '—'}</Text>
+                 </View>
                 <Badge
                   label={c.estado_prospecto}
                   variant={ESTADO_PROSPECTO_BADGE[c.estado_prospecto] ?? 'gray'}

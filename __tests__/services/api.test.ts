@@ -37,13 +37,13 @@ function mockFetch(status: number, body: unknown) {
 
 const MOCK_USER = { id: 1, name: 'Asesor Test', email: 'a@test.com', role: 'asesor' as const };
 const MOCK_CONTACTO = {
-  id: 1, nombre: 'Juan', apellido_paterno: 'Pérez', apellido_materno: '',
+  id: 1, nombre: 'Juan Pérez',
   email: 'juan@test.com', telefono: '5500000000', estado_prospecto: 'nuevo',
-  created_at: '2025-01-01',
+  created_at: '2025-01-01', updated_at: '2025-01-01',
 };
 const MOCK_EXPEDIENTE = {
-  id: 1, folio: 'EXP-001', contacto_id: 1, tipo_tramite_id: 1,
-  etapa_tramite_id: 1, estado: 'en_proceso', created_at: '2025-01-01',
+  id: 1, folio: 'EXP-001', contacto_id: 1, asesor_id: 1, tipo_tramite_id: 1,
+  etapa_tramite_id: 1, estado: 'en_proceso', created_at: '2025-01-01', updated_at: '2025-01-01',
 };
 
 // ── Token storage ──────────────────────────────────────────────────────────
@@ -127,12 +127,12 @@ describe('Contactos', () => {
     mockFetch(200, { data: MOCK_CONTACTO });
     const c = await getContacto(1);
     expect(c.id).toBe(1);
-    expect(c.nombre).toBe('Juan');
+    expect(c.nombre).toBe('Juan Pérez');
   });
 
   it('createContacto envía POST y retorna contacto creado', async () => {
     mockFetch(201, { data: MOCK_CONTACTO });
-    const c = await createContacto({ nombre: 'Juan', apellido_paterno: 'Pérez' });
+    const c = await createContacto({ nombre: 'Juan Pérez' });
     expect(c.id).toBe(1);
     const [url, opts] = (global.fetch as jest.Mock).mock.calls.at(-1);
     expect(opts.method).toBe('POST');
@@ -200,13 +200,13 @@ describe('Documentos', () => {
 describe('Ubicaciones', () => {
   const MOCK_UBICACION = {
     id: 1, contacto_id: 1, latitud: 19.43, longitud: -99.13,
-    tipo: 'visita' as const, notas: 'primer visita', created_at: '2025-01-01',
+    tipo: 'visita_cliente' as const, notas: 'primer visita', created_at: '2025-01-01',
   };
 
   it('registrarUbicacion envía POST', async () => {
     mockFetch(201, { data: MOCK_UBICACION });
-    const u = await registrarUbicacion({ contacto_id: 1, latitud: 19.43, longitud: -99.13, tipo: 'visita' });
-    expect(u.tipo).toBe('visita');
+    const u = await registrarUbicacion({ contacto_id: 1, latitud: 19.43, longitud: -99.13, tipo: 'visita_cliente', visitado_en: '2025-01-01' });
+    expect(u.tipo).toBe('visita_cliente');
     const [, opts] = (global.fetch as jest.Mock).mock.calls.at(-1);
     expect(opts.method).toBe('POST');
   });

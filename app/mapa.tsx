@@ -9,8 +9,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -103,7 +106,6 @@ export default function MapaScreen() {
     setRegistrando(true);
     try {
       await registrarUbicacion({
-        contacto_id: 0,
         latitud:     userLoc.lat,
         longitud:    userLoc.lng,
         tipo,
@@ -191,47 +193,60 @@ export default function MapaScreen() {
 
       {/* Modal nueva visita */}
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-        <Pressable style={s.backdrop} onPress={() => setModalVisible(false)} />
-        <View style={s.sheet}>
-          <View style={s.handle} />
-          <Text style={s.sheetTitle}>Registrar visita</Text>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={s.backdrop} onPress={() => setModalVisible(false)} />
+          <View style={s.sheet}>
+            <View style={s.handle} />
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 8 }}
+            >
+              <Text style={s.sheetTitle}>Registrar visita</Text>
 
-          <Text style={s.sheetLabel}>Tipo</Text>
-          <View style={s.tipoRow}>
-            {(['visita_cliente', 'propiedad'] as const).map(t => (
-              <Pressable key={t} style={[s.tipoBtn, tipo === t && s.tipoBtnActivo]} onPress={() => setTipo(t)}>
-                <Text style={s.tipoBtnIcon}>{TIPO_ICON[t]}</Text>
-                <Text style={[s.tipoBtnText, tipo === t && s.tipoBtnTextActivo]}>
-                  {t === 'visita_cliente' ? 'Cliente' : 'Propiedad'}
+              <Text style={s.sheetLabel}>Tipo</Text>
+              <View style={s.tipoRow}>
+                {(['visita_cliente', 'propiedad'] as const).map(t => (
+                  <Pressable key={t} style={[s.tipoBtn, tipo === t && s.tipoBtnActivo]} onPress={() => setTipo(t)}>
+                    <Text style={s.tipoBtnIcon}>{TIPO_ICON[t]}</Text>
+                    <Text style={[s.tipoBtnText, tipo === t && s.tipoBtnTextActivo]}>
+                      {t === 'visita_cliente' ? 'Cliente' : 'Propiedad'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={s.sheetLabel}>Notas</Text>
+              <TextInput
+                style={s.sheetInput}
+                placeholder="Ej: Primera visita, interesado en crédito FOVISSSTE"
+                placeholderTextColor={Colors.dark[400]}
+                value={notas}
+                onChangeText={setNotas}
+                multiline
+                numberOfLines={3}
+                returnKeyType="done"
+                blurOnSubmit
+              />
+
+              {userLoc && (
+                <Text style={s.coords}>
+                  📍 {userLoc.lat.toFixed(5)}, {userLoc.lng.toFixed(5)}
                 </Text>
+              )}
+
+              <Pressable style={[s.btnGuardar, registrando && s.btnDisabled]} onPress={registrar} disabled={registrando}>
+                {registrando
+                  ? <ActivityIndicator color={Colors.white} />
+                  : <Text style={s.btnGuardarText}>Guardar visita</Text>
+                }
               </Pressable>
-            ))}
+            </ScrollView>
           </View>
-
-          <Text style={s.sheetLabel}>Notas</Text>
-          <TextInput
-            style={s.sheetInput}
-            placeholder="Ej: Primera visita, interesado en crédito FOVISSSTE"
-            placeholderTextColor={Colors.dark[400]}
-            value={notas}
-            onChangeText={setNotas}
-            multiline
-            numberOfLines={3}
-          />
-
-          {userLoc && (
-            <Text style={s.coords}>
-              📍 {userLoc.lat.toFixed(5)}, {userLoc.lng.toFixed(5)}
-            </Text>
-          )}
-
-          <Pressable style={[s.btnGuardar, registrando && s.btnDisabled]} onPress={registrar} disabled={registrando}>
-            {registrando
-              ? <ActivityIndicator color={Colors.white} />
-              : <Text style={s.btnGuardarText}>Guardar visita</Text>
-            }
-          </Pressable>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -334,7 +349,7 @@ const s = StyleSheet.create({
   sheet: {
     backgroundColor: Colors.cream[50],
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: Spacing.base, paddingBottom: 48, minHeight: 360,
+    padding: Spacing.base, paddingBottom: 32,
   },
   handle: {
     width: 40, height: 4, borderRadius: 2,

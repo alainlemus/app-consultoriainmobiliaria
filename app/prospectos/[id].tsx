@@ -172,14 +172,23 @@ export default function DetalleProspectoScreen() {
           {/* Acciones rápidas */}
           <SectionLabel>Acciones</SectionLabel>
           <View style={styles.actionsCard}>
-            <ActionRow
-              icon="📁"
-              label="Iniciar expediente"
-              onPress={() => router.push({
-                pathname: '/expedientes/nuevo',
-                params: { contacto_id: String(contacto.id), contacto_nombre: contacto.nombre },
-              })}
-            />
+            {contacto.expediente_activo ? (
+              <ActionRow
+                icon="📂"
+                label={`Ver expediente${contacto.expediente_activo.folio ? ` ${contacto.expediente_activo.folio}` : ''}`}
+                sublabel={`Estado: ${contacto.expediente_activo.estado.replace('_', ' ')}`}
+                onPress={() => router.push(`/expedientes/${contacto.expediente_activo!.id}`)}
+              />
+            ) : (
+              <ActionRow
+                icon="📁"
+                label="Iniciar expediente"
+                onPress={() => router.push({
+                  pathname: '/expedientes/nuevo',
+                  params: { contacto_id: String(contacto.id), contacto_nombre: contacto.nombre },
+                })}
+              />
+            )}
             <ActionRow icon="📍" label="Registrar visita"   onPress={() => router.push('/mapa')} border />
             <ActionRow icon="✏️" label="Editar prospecto"   onPress={() => setEditing(true)} />
           </View>
@@ -365,7 +374,7 @@ function InfoRow({ label, value, last }: { label: string; value: string; last?: 
   );
 }
 
-function ActionRow({ icon, label, onPress, border }: { icon: string; label: string; onPress: () => void; border?: boolean }) {
+function ActionRow({ icon, label, sublabel, onPress, border }: { icon: string; label: string; sublabel?: string; onPress: () => void; border?: boolean }) {
   return (
     <TouchableOpacity
       style={[styles.actionRow, border && styles.actionRowBorder]}
@@ -373,7 +382,10 @@ function ActionRow({ icon, label, onPress, border }: { icon: string; label: stri
       activeOpacity={0.75}
     >
       <Text style={styles.actionIcon}>{icon}</Text>
-      <Text style={styles.actionLabel}>{label}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.actionLabel}>{label}</Text>
+        {sublabel ? <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 1 }}>{sublabel}</Text> : null}
+      </View>
       <Text style={styles.chevron}>›</Text>
     </TouchableOpacity>
   );

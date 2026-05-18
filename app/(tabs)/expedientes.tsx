@@ -12,6 +12,15 @@ import type { Expediente } from '../../src/types';
 
 const ESTADOS_EXP = ['todos', 'en_proceso', 'documentacion', 'autorizado', 'escrituracion', 'cerrado', 'cancelado'];
 
+const ESTADO_LABEL: Record<string, string> = {
+  en_proceso:    'En proceso',
+  documentacion: 'Documentación',
+  autorizado:    'Autorizado',
+  escrituracion: 'Escrituración',
+  cerrado:       'Cerrado',
+  cancelado:     'Cancelado',
+};
+
 export default function ExpedientesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -39,8 +48,19 @@ export default function ExpedientesScreen() {
     <View style={[styles.flex, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerSub}>CRM</Text>
-        <Text style={styles.headerTitle}>Expedientes</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.headerSub}>CRM</Text>
+            <Text style={styles.headerTitle}>Expedientes</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.newBtn}
+            onPress={() => router.push('/expedientes/nuevo')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.newBtnText}>+ Nuevo</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.goldLine} />
 
         <FlatList
@@ -55,7 +75,7 @@ export default function ExpedientesScreen() {
               onPress={() => setEstado(e)}
             >
               <Text style={[styles.filterText, estado === e && styles.filterTextActive]}>
-                {e === 'todos' ? 'Todos' : e.replace('_', ' ')}
+                {e === 'todos' ? 'Todos' : (ESTADO_LABEL[e] ?? e)}
               </Text>
             </TouchableOpacity>
           )}
@@ -80,11 +100,13 @@ export default function ExpedientesScreen() {
               activeOpacity={0.8}
             >
               <View style={styles.folioBox}>
-                <Text style={styles.folioText}>{exp.folio}</Text>
+                <Text style={styles.folioText} numberOfLines={2}>
+                  {exp.folio ?? `#${exp.id}`}
+                </Text>
               </View>
               <View style={styles.info}>
                 <Text style={styles.nombre}>
-                  {exp.contacto ? `${exp.contacto.nombre} ${exp.contacto.apellido_paterno}` : `Exp. #${exp.id}`}
+                  {exp.contacto?.nombre ?? `Expediente #${exp.id}`}
                 </Text>
                 <Text style={styles.tipo}>{exp.tipo_tramite?.nombre ?? '—'}</Text>
                 {exp.monto_credito ? (
@@ -94,7 +116,7 @@ export default function ExpedientesScreen() {
                 ) : null}
               </View>
               <View style={styles.rowRight}>
-                <Badge label={exp.estado} variant={ESTADO_EXPEDIENTE_BADGE[exp.estado] ?? 'gray'} small />
+                <Badge label={ESTADO_LABEL[exp.estado] ?? exp.estado} variant={ESTADO_EXPEDIENTE_BADGE[exp.estado] ?? 'gray'} small />
                 <Text style={styles.chevron}>›</Text>
               </View>
             </TouchableOpacity>
@@ -110,9 +132,12 @@ const styles = StyleSheet.create({
   center: { flex: 1, marginTop: 60 },
 
   header:     { backgroundColor: Colors.dark[900], paddingHorizontal: Spacing.base, paddingBottom: Spacing.sm, paddingTop: Spacing.md },
+  headerRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerSub:  { fontSize: Typography.fontSize.xs, color: Colors.gold[400], fontWeight: Typography.fontWeight.semibold, letterSpacing: Typography.letterSpacing.widest },
   headerTitle:{ fontSize: Typography.fontSize['2xl'], fontWeight: Typography.fontWeight.black, color: Colors.cream[50] },
   goldLine:   { width: 32, height: 2, backgroundColor: Colors.gold[400], marginVertical: Spacing.sm },
+  newBtn:     { backgroundColor: Colors.gold[400], borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  newBtnText: { color: Colors.dark[900], fontWeight: Typography.fontWeight.bold, fontSize: Typography.fontSize.sm },
 
   filterList: { gap: Spacing.xs, paddingBottom: Spacing.sm },
   filterChip: { paddingHorizontal: Spacing.md, paddingVertical: 4, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.dark[600] },

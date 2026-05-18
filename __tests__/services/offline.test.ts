@@ -33,8 +33,8 @@ import { syncBatch } from '../../src/services/api';
 const mockSyncBatch = syncBatch as jest.Mock;
 
 // ── helpers ────────────────────────────────────────────────────────────────
-const CONTACTO = { id: 1, nombre: 'Ana', apellido_paterno: 'Gómez', apellido_materno: '', email: 'ana@test.com', telefono: '5500', estado_prospecto: 'nuevo', created_at: '2025-01-01' };
-const EXPEDIENTE = { id: 1, folio: 'EXP-001', contacto_id: 1, tipo_tramite_id: 1, etapa_tramite_id: 1, estado: 'en_proceso', created_at: '2025-01-01' };
+const CONTACTO = { id: 1, nombre: 'Ana Gómez', email: 'ana@test.com', telefono: '5500', estado_prospecto: 'nuevo' as const, created_at: '2025-01-01', updated_at: '2025-01-01' };
+const EXPEDIENTE = { id: 1, folio: 'EXP-001', contacto_id: 1, asesor_id: 1, tipo_tramite_id: 1, etapa_tramite_id: 1, estado: 'en_proceso' as const, created_at: '2025-01-01', updated_at: '2025-01-01' };
 
 beforeEach(async () => {
   // limpiar AsyncStorage simulado entre tests
@@ -56,7 +56,7 @@ describe('Cache: Contactos', () => {
     await cacheContactos([CONTACTO]);
     const data = await getCacheContactos();
     expect(data).toHaveLength(1);
-    expect(data[0].nombre).toBe('Ana');
+    expect(data[0].nombre).toBe('Ana Gómez');
   });
 
   it('getCacheContactos retorna [] si AsyncStorage falla', async () => {

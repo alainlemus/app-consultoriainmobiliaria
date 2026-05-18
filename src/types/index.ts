@@ -26,16 +26,24 @@ export type EstadoProspecto =
 
 export interface Contacto {
   id:               number;
-  nombre:           string;           // nombre completo
+  nombre:           string;
   telefono?:        string;
   email?:           string;
   servicio?:        'FOVISSSTE' | 'INFONAVIT';
   estado_prospecto: EstadoProspecto;
   asesor_id?:       number;
   notas?:           string;
-  // GPS — se agrega con la app
   latitud?:          number;
   longitud?:         number;
+  updated_at?:      string;
+  created_at?:      string;
+  // Expediente activo — solo viene en el endpoint show (detalle)
+  expediente_activo?: {
+    id:     number;
+    folio?: string | null;
+    estado: string;
+  } | null;
+}
   created_at:        string;
   updated_at:        string;
   // Offline
@@ -53,7 +61,7 @@ export type EstadoExpediente =
 
 export interface Expediente {
   id:                number;
-  folio:             string;
+  folio?:            string | null;
   contacto_id:       number;
   contacto?:         Contacto;
   asesor_id:         number;
@@ -61,10 +69,12 @@ export interface Expediente {
   tipo_tramite?:     { id: number; nombre: string };
   estado:            EstadoExpediente;
   etapa_tramite_id?: number;
-  etapa_tramite?:    { id: number; nombre: string };
+  etapa_tramite?:    { id: number; nombre: string }; // alias frontend
+  etapa?:            { id: number; nombre: string }; // nombre real en API
   monto_credito?:    number;
   honorarios_monto?: number;
   notas?:            string;
+  notas_internas?:   string;
   created_at:        string;
   updated_at:        string;
   documentos?:       Documento[];
@@ -76,10 +86,13 @@ export interface Documento {
   id:              number;
   expediente_id:   number;
   nombre:          string;
-  tipo_documento:  string;
-  url?:            string;
-  uri_local?:      string;   // ruta local antes de subir
-  estado:          'pendiente_revision' | 'aprobado' | 'rechazado';
+  tipo:            string;
+  tipo_documento?: string;
+  ruta_archivo?:   string | null;
+  tiene_archivo:   boolean;          // true = hay archivo subido
+  url?:            string | null;    // siempre null en listado; se obtiene via getDocumentoUrl()
+  uri_local?:      string;
+  estado:          'pendiente' | 'recibido' | 'no_aplica';
   notas?:          string;
   created_at:      string;
   _local_id?:      string;
@@ -88,7 +101,7 @@ export interface Documento {
 
 export interface Ubicacion {
   id?:          number;
-  contacto_id:  number;
+  contacto_id?: number;   // opcional — visitas desde mapa no tienen contacto asociado
   latitud:      number;
   longitud:     number;
   tipo:         'visita_cliente' | 'propiedad';
@@ -141,4 +154,6 @@ export interface SyncResultado {
 
 export interface SyncResponse {
   resultados: SyncResultado[];
+  procesados?: number;
+  errores?:    number;
 }

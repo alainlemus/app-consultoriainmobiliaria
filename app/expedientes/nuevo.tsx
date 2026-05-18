@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: Colors.cream[100],
   },
   tipoRowActive: { backgroundColor: Colors.gold[50] },
-  radio:         { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: Colors.cream[400] },
+  radio:         { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: Colors.cream[300] },
   radioActive:   { borderColor: Colors.gold[500], backgroundColor: Colors.gold[400] },
   tipoLabel:     { fontSize: Typography.fontSize.sm, color: Colors.dark[700], flex: 1 },
   tipoLabelActive: { color: Colors.gold[700], fontWeight: Typography.fontWeight.semibold },

@@ -1,6 +1,6 @@
 /**
  * Pantalla: Subir / Escanear Documento
- * Ruta: /expedientes/documentos/subir?expedienteId=X&tipo=Y
+ * Ruta: /expedientes/documentos/subir?expedienteId=X
  */
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -18,29 +18,30 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { uploadDocumento } from '../../../src/services/api';
 import { Colors, Radius, Spacing, Typography } from '../../../src/theme';
 
-// ── Tipos de documento ────────────────────────────────────────────────────────
-
 const TIPOS_DOCUMENTO = [
-  { value: 'identificacion_oficial',  label: 'Identificación oficial' },
-  { value: 'curp',                    label: 'CURP' },
-  { value: 'comprobante_domicilio',   label: 'Comprobante domicilio' },
-  { value: 'estado_cuenta',          label: 'Estado de cuenta' },
-  { value: 'comprobante_ingresos',   label: 'Comprobante ingresos' },
-  { value: 'acta_nacimiento',        label: 'Acta de nacimiento' },
-  { value: 'poder_notarial',         label: 'Poder notarial' },
-  { value: 'otro',                   label: 'Otro' },
+  { value: 'identificacion_oficial', label: 'Identificación oficial' },
+  { value: 'curp',                   label: 'CURP' },
+  { value: 'comprobante_domicilio',  label: 'Comprobante domicilio' },
+  { value: 'estado_cuenta',         label: 'Estado de cuenta' },
+  { value: 'comprobante_ingresos',  label: 'Comprobante ingresos' },
+  { value: 'acta_nacimiento',       label: 'Acta de nacimiento' },
+  { value: 'poder_notarial',        label: 'Poder notarial' },
+  { value: 'otro',                  label: 'Otro' },
 ] as const;
 
 type TipoDocumento = typeof TIPOS_DOCUMENTO[number]['value'];
 type Mode = 'selector' | 'camara' | 'preview';
 
 export default function SubirDocumentoScreen() {
+  const insets = useSafeAreaInsets();
   const { expedienteId, tipo: tipoParam } = useLocalSearchParams<{
     expedienteId: string;
     tipo?: string;
@@ -49,14 +50,14 @@ export default function SubirDocumentoScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
-  const [mode, setMode]           = useState<Mode>('selector');
-  const [imageUri, setImageUri]   = useState<string | null>(null);
-  const [tipo, setTipo]           = useState<TipoDocumento>(
+  const [mode,      setMode]      = useState<Mode>('selector');
+  const [imageUri,  setImageUri]  = useState<string | null>(null);
+  const [tipo,      setTipo]      = useState<TipoDocumento>(
     (tipoParam as TipoDocumento) ?? 'identificacion_oficial',
   );
-  const [notas, setNotas]         = useState('');
+  const [notas,     setNotas]     = useState('');
   const [uploading, setUploading] = useState(false);
-  const [facing, setFacing]       = useState<'front' | 'back'>('back');
+  const [facing,    setFacing]    = useState<'front' | 'back'>('back');
 
   const abrirCamara = async () => {
     if (!permission?.granted) {
@@ -112,56 +113,69 @@ export default function SubirDocumentoScreen() {
     }
   };
 
-  // ── Selector ──────────────────────────────────────────────────────────────
+  // ── Selector ────────────────────────────────────────────────────────────────
   if (mode === 'selector') {
     return (
-      <View style={s.container}>
-        <Text style={s.title}>Agregar documento</Text>
-        <Text style={s.subtitle}>Expediente #{expedienteId}</Text>
-
-        <Text style={s.label}>Tipo de documento</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}>
-          {TIPOS_DOCUMENTO.map((t) => (
-            <Pressable
-              key={t.value}
-              style={[s.chip, tipo === t.value && s.chipActivo]}
-              onPress={() => setTipo(t.value)}
-            >
-              <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>{t.label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        <Text style={s.label}>Notas (opcional)</Text>
-        <TextInput
-          style={s.input}
-          placeholder="Ej: INE vigente, anverso y reverso"
-          placeholderTextColor={Colors.dark[400]}
-          value={notas}
-          onChangeText={setNotas}
-          multiline
-          numberOfLines={3}
-        />
-
-        <View style={s.actions}>
-          <Pressable style={s.btnCamara} onPress={abrirCamara}>
-            <Text style={s.btnIcon}>📷</Text>
-            <Text style={s.btnLabel}>Tomar foto</Text>
-          </Pressable>
-          <Pressable style={s.btnGaleria} onPress={seleccionarGaleria}>
-            <Text style={s.btnIcon}>🖼️</Text>
-            <Text style={s.btnLabel}>Galería</Text>
-          </Pressable>
+      <KeyboardAvoidingView
+        style={[s.flex, { backgroundColor: Colors.cream[50] }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        {/* Header */}
+        <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+            <Text style={s.backIcon}>←</Text>
+          </TouchableOpacity>
+          <Text style={s.topTitle}>Agregar documento</Text>
+          <View style={{ width: 40 }} />
         </View>
 
-        <Pressable style={s.btnCancelar} onPress={() => router.back()}>
-          <Text style={s.btnCancelarText}>Cancelar</Text>
-        </Pressable>
-      </View>
+        <ScrollView
+          contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 32 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={s.sectionLabel}>Tipo de documento</Text>
+          <View style={s.chipWrap}>
+            {TIPOS_DOCUMENTO.map(t => (
+              <Pressable
+                key={t.value}
+                style={[s.chip, tipo === t.value && s.chipActivo]}
+                onPress={() => setTipo(t.value)}
+              >
+                <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
+                  {t.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={s.sectionLabel}>Notas (opcional)</Text>
+          <TextInput
+            style={s.input}
+            placeholder="Ej: INE vigente, anverso y reverso"
+            placeholderTextColor={Colors.dark[400]}
+            value={notas}
+            onChangeText={setNotas}
+            multiline
+            numberOfLines={3}
+          />
+
+          <View style={s.actions}>
+            <Pressable style={s.btnCamara} onPress={abrirCamara}>
+              <Text style={s.btnIcon}>📷</Text>
+              <Text style={s.btnLabel}>Tomar foto</Text>
+            </Pressable>
+            <Pressable style={s.btnGaleria} onPress={seleccionarGaleria}>
+              <Text style={s.btnIcon}>🖼️</Text>
+              <Text style={s.btnLabel}>Galería</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     );
   }
 
-  // ── Cámara ────────────────────────────────────────────────────────────────
+  // ── Cámara ──────────────────────────────────────────────────────────────────
   if (mode === 'camara') {
     return (
       <View style={s.cameraContainer}>
@@ -169,7 +183,7 @@ export default function SubirDocumentoScreen() {
           <View style={s.cameraOverlay}>
             <View style={s.cameraFrame} />
           </View>
-          <View style={s.cameraControls}>
+          <View style={[s.cameraControls, { paddingBottom: insets.bottom + 24 }]}>
             <Pressable style={s.camBtn} onPress={() => setMode('selector')}>
               <Text style={s.camBtnTxt}>✕</Text>
             </Pressable>
@@ -185,26 +199,49 @@ export default function SubirDocumentoScreen() {
     );
   }
 
-  // ── Preview ───────────────────────────────────────────────────────────────
+  // ── Preview ─────────────────────────────────────────────────────────────────
   return (
-    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={s.previewScroll}>
-        <Text style={s.title}>Revisar documento</Text>
-        {imageUri && <Image source={{ uri: imageUri }} style={s.previewImg} resizeMode="contain" />}
+    <KeyboardAvoidingView
+      style={[s.flex, { backgroundColor: Colors.cream[50] }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      {/* Header */}
+      <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity onPress={() => setMode('selector')} style={s.backBtn}>
+          <Text style={s.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={s.topTitle}>Revisar documento</Text>
+        <View style={{ width: 40 }} />
+      </View>
 
-        <Text style={s.label}>Tipo de documento</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}>
-          {TIPOS_DOCUMENTO.map((t) => (
-            <Pressable key={t.value} style={[s.chip, tipo === t.value && s.chipActivo]} onPress={() => setTipo(t.value)}>
-              <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>{t.label}</Text>
+      <ScrollView
+        contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 32 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {imageUri && (
+          <Image source={{ uri: imageUri }} style={s.previewImg} resizeMode="contain" />
+        )}
+
+        <Text style={s.sectionLabel}>Tipo de documento</Text>
+        <View style={s.chipWrap}>
+          {TIPOS_DOCUMENTO.map(t => (
+            <Pressable
+              key={t.value}
+              style={[s.chip, tipo === t.value && s.chipActivo]}
+              onPress={() => setTipo(t.value)}
+            >
+              <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
+                {t.label}
+              </Text>
             </Pressable>
           ))}
-        </ScrollView>
+        </View>
 
-        <Text style={s.label}>Notas</Text>
+        <Text style={s.sectionLabel}>Notas (opcional)</Text>
         <TextInput
           style={s.input}
-          placeholder="Descripción del documento..."
+          placeholder="Descripción del documento…"
           placeholderTextColor={Colors.dark[400]}
           value={notas}
           onChangeText={setNotas}
@@ -212,14 +249,19 @@ export default function SubirDocumentoScreen() {
           numberOfLines={3}
         />
 
-        <Pressable style={[s.btnSubir, uploading && s.btnDisabled]} onPress={subir} disabled={uploading}>
+        <Pressable
+          style={[s.btnSubir, uploading && s.btnDisabled]}
+          onPress={subir}
+          disabled={uploading}
+        >
           {uploading
-            ? <ActivityIndicator color={Colors.cream[50]} />
+            ? <ActivityIndicator color={Colors.white} />
             : <Text style={s.btnSubirText}>Subir documento</Text>
           }
         </Pressable>
-        <Pressable style={s.btnCancelar} onPress={() => setMode('selector')}>
-          <Text style={s.btnCancelarText}>Volver a capturar</Text>
+
+        <Pressable style={s.btnSecundario} onPress={() => setMode('selector')}>
+          <Text style={s.btnSecundarioText}>← Volver a capturar</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -229,168 +271,91 @@ export default function SubirDocumentoScreen() {
 // ── Estilos ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.cream[50],
-    padding: Spacing.base,
+  flex: { flex: 1 },
+
+  topBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.base, paddingBottom: Spacing.md,
+    backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.cream[300],
   },
-  title: {
-    fontSize: Typography.fontSize['2xl'],
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.dark[900],
-    marginBottom: Spacing.xs,
+  backBtn:  { width: 40, height: 40, justifyContent: 'center' },
+  backIcon: { fontSize: 22, color: Colors.dark[700] },
+  topTitle: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
+
+  body: { padding: Spacing.base },
+
+  sectionLabel: {
+    fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold,
+    color: Colors.dark[500], letterSpacing: 1, textTransform: 'uppercase',
+    marginTop: Spacing.base, marginBottom: Spacing.sm,
   },
-  subtitle: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.dark[500],
-    marginBottom: Spacing.lg,
-  },
-  label: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.semibold,
-    color: Colors.dark[700],
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.base,
-  },
-  input: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.dark[300],
-    borderRadius: Radius.md,
-    padding: Spacing.md,
-    color: Colors.dark[900],
-    fontSize: Typography.fontSize.base,
-    textAlignVertical: 'top',
-  },
-  chipRow: {
-    flexGrow: 0,
-    marginBottom: Spacing.sm,
+
+  // Chips en grid (wrap)
+  chipWrap: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs,
   },
   chip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.dark[300],
-    marginRight: Spacing.sm,
+    paddingHorizontal: Spacing.md, paddingVertical: 7,
+    borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.cream[300],
     backgroundColor: Colors.white,
   },
-  chipActivo: {
-    backgroundColor: Colors.gold[400],
-    borderColor: Colors.gold[400],
+  chipActivo:     { backgroundColor: Colors.dark[900], borderColor: Colors.dark[900] },
+  chipText:       { fontSize: Typography.fontSize.xs, color: Colors.dark[700], fontWeight: '500' },
+  chipTextActivo: { color: Colors.white, fontWeight: Typography.fontWeight.bold },
+
+  input: {
+    backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cream[300],
+    borderRadius: Radius.md, padding: Spacing.md, color: Colors.dark[900],
+    fontSize: Typography.fontSize.sm, textAlignVertical: 'top', minHeight: 80,
   },
-  chipText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.dark[700],
-  },
-  chipTextActivo: {
-    color: Colors.white,
-    fontWeight: Typography.fontWeight.bold,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: Spacing.base,
-    marginTop: Spacing.xl,
-  },
+
+  actions: { flexDirection: 'row', gap: Spacing.base, marginTop: Spacing.xl },
   btnCamara: {
-    flex: 1,
-    backgroundColor: Colors.gold[400],
-    borderRadius: Radius.lg,
-    paddingVertical: Spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
+    flex: 1, backgroundColor: Colors.gold[400], borderRadius: Radius.lg,
+    paddingVertical: Spacing.lg, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
   },
   btnGaleria: {
-    flex: 1,
-    backgroundColor: Colors.dark[800],
-    borderRadius: Radius.lg,
-    paddingVertical: Spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
+    flex: 1, backgroundColor: Colors.dark[800], borderRadius: Radius.lg,
+    paddingVertical: Spacing.lg, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
   },
-  btnIcon: { fontSize: 28 },
-  btnLabel: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.semibold,
-    color: Colors.white,
-  },
-  btnCancelar: {
-    marginTop: Spacing.base,
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
-  },
-  btnCancelarText: {
-    fontSize: Typography.fontSize.base,
-    color: Colors.dark[500],
-  },
+  btnIcon:  { fontSize: 28 },
+  btnLabel: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.white },
+
   // Cámara
-  cameraContainer: { flex: 1, backgroundColor: Colors.black },
-  camera: { flex: 1 },
-  cameraOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  cameraContainer: { flex: 1, backgroundColor: '#000' },
+  camera:          { flex: 1 },
+  cameraOverlay:   { flex: 1, justifyContent: 'center', alignItems: 'center' },
   cameraFrame: {
-    width: 280,
-    height: 200,
-    borderWidth: 2,
-    borderColor: Colors.gold[400],
-    borderRadius: Radius.md,
+    width: 280, height: 200, borderWidth: 2,
+    borderColor: Colors.gold[400], borderRadius: Radius.md,
   },
   cameraControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingBottom: 50,
-    paddingHorizontal: Spacing.xl,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
+    paddingTop: Spacing.lg, paddingHorizontal: Spacing.xl,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   camBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center',
   },
   camBtnTxt: { fontSize: 22 },
   shutter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 4,
-    borderColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 72, height: 72, borderRadius: 36, borderWidth: 4,
+    borderColor: Colors.white, alignItems: 'center', justifyContent: 'center',
   },
-  shutterInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.white,
-  },
+  shutterInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.white },
+
   // Preview
-  previewScroll: {
-    padding: Spacing.base,
-    paddingBottom: Spacing['4xl'],
-  },
   previewImg: {
-    width: '100%',
-    height: 260,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.dark[900],
-    marginBottom: Spacing.base,
+    width: '100%', height: 260, borderRadius: Radius.lg,
+    backgroundColor: Colors.dark[900], marginBottom: Spacing.sm,
   },
   btnSubir: {
-    backgroundColor: Colors.gold[400],
-    borderRadius: Radius.lg,
-    paddingVertical: Spacing.base,
-    alignItems: 'center',
-    marginTop: Spacing.xl,
+    backgroundColor: Colors.gold[400], borderRadius: Radius.lg,
+    paddingVertical: Spacing.base, alignItems: 'center', marginTop: Spacing.xl,
   },
-  btnDisabled: { opacity: 0.6 },
-  btnSubirText: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.white,
-  },
+  btnDisabled:      { opacity: 0.6 },
+  btnSubirText:     { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.white },
+  btnSecundario:    { marginTop: Spacing.sm, paddingVertical: Spacing.md, alignItems: 'center' },
+  btnSecundarioText:{ fontSize: Typography.fontSize.sm, color: Colors.dark[500] },
 });

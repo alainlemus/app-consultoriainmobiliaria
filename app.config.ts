@@ -80,7 +80,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       apiUrl,
       appEnv: process.env.APP_ENV ?? 'development',
       eas: {
-        projectId: process.env.EAS_PROJECT_ID ?? '',
+        projectId: process.env.EAS_PROJECT_ID ?? '0e90bae8-ab6a-412f-a91d-01433afe689d',
       },
     },
   };

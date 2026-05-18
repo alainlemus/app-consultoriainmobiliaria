@@ -11,6 +11,29 @@ const API_BASE: string =
 
 const TOKEN_KEY = 'auth_token';
 
+/**
+ * Las URLs de Storage generadas por Laravel usan APP_URL (ej. http://consultoriaInmobiliaria.test).
+ * En desarrollo desde la app móvil necesitamos reemplazar el origen por el de API_BASE
+ * para que el dispositivo pueda resolver la URL.
+ *
+ * Ejemplo:
+ *   http://consultoriaInmobiliaria.test/storage/expedientes/1/docs/ine.jpg
+ *   → http://192.168.100.7:8080/storage/expedientes/1/docs/ine.jpg
+ */
+function resolveStorageUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const apiOrigin = new URL(API_BASE).origin;          // http://192.168.100.7:8080
+    const storageUrl = new URL(url);
+    storageUrl.protocol = new URL(apiOrigin).protocol;
+    storageUrl.hostname = new URL(apiOrigin).hostname;
+    storageUrl.port     = new URL(apiOrigin).port;
+    return storageUrl.toString();
+  } catch {
+    return url;
+  }
+}
+
 // ── Token storage ──────────────────────────────────────────────────────────
 
 export async function saveToken(token: string): Promise<void> {
@@ -116,13 +139,23 @@ export async function updateContacto(id: number, data: Partial<Contacto>): Promi
 // ── Expedientes ────────────────────────────────────────────────────────────
 
 export async function getExpedientes(params?: { estado?: string }): Promise<PaginatedResponse<Expediente>> {
-  const qs = new URLSearchParams(params as Record<string, string>).toString();
+  const qs = new URLSearchParams(
+    Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== ''))
+  ).toString();
   return apiFetch<PaginatedResponse<Expediente>>(`/expedientes${qs ? `?${qs}` : ''}`);
 }
 
 export async function getExpediente(id: number): Promise<Expediente> {
   const res = await apiFetch<ApiResponse<Expediente>>(`/expedientes/${id}`);
-  return res.data;
+  const exp = res.data;
+  // Normalizar URLs de documentos para que el móvil pueda resolverlas
+  if (exp.documentos) {
+    exp.documentos = exp.documentos.map(doc => ({
+      ...doc,
+      url: resolveStorageUrl(doc.url),
+    }));
+  }
+  return exp;
 }
 
 export async function createExpediente(data: Partial<Expediente>): Promise<Expediente> {
@@ -153,7 +186,42 @@ export async function uploadDocumento(expedienteId: number, uri: string, tipo: s
 
   if (!response.ok) throw new Error(`Error al subir documento: ${response.status}`);
   const res = await response.json();
-  return res.data;
+  const doc: Documento = res.data;
+  return { ...doc, url: resolveStorageUrl(doc.url) };
+}
+
+export async function deleteDocumento(expedienteId: number, documentoId: number): Promise<void> {
+  await apiFetch(`/expedientes/${expedienteId}/documentos/${documentoId}`, { method: 'DELETE' });
+}
+
+/**
+ * Obtiene una URL firmada temporal (5 min) para ver/descargar el documento.
+ * La URL apunta al endpoint de descarga de Laravel, no al archivo directamente.
+ */
+export async function getDocumentoUrl(expedienteId: number, documentoId: number): Promise<string> {
+  const res = await apiFetch<{ url: string; expira_en: number }>(
+    `/expedientes/${expedienteId}/documentos/${documentoId}/ver`
+  );
+  // La URL ya viene con el host correcto de APP_URL; reemplazamos el origen
+  // por el de API_BASE igual que con las URLs de storage.
+  return resolveStorageUrl(res.url) ?? res.url;
+}
+
+export async function reemplazarDocumento(expedienteId: number, documentoId: number, uri: string): Promise<Documento> {
+  const token = await getToken();
+  const formData = new FormData();
+  formData.append('archivo', { uri, type: 'image/jpeg', name: `doc_${Date.now()}.jpg` } as unknown as Blob);
+
+  const response = await fetch(`${API_BASE}/expedientes/${expedienteId}/documentos/${documentoId}/reemplazar`, {
+    method:  'POST',
+    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` },
+    body:    formData,
+  });
+
+  if (!response.ok) throw new Error(`Error al reemplazar documento: ${response.status}`);
+  const res = await response.json();
+  const doc: Documento = res.data;
+  return { ...doc, url: resolveStorageUrl(doc.url) };
 }
 
 // ── Ubicaciones ────────────────────────────────────────────────────────────
