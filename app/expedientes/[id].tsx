@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
   TouchableOpacity, ActivityIndicator, Alert,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
@@ -43,6 +43,16 @@ export default function DetalleExpedienteScreen() {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Recargar al volver desde subir/reemplazar
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return;
+      getExpediente(Number(id))
+        .then(setExp)
+        .catch(() => {});
+    }, [id])
+  );
 
   if (loading) return (
     <View style={styles.flex}>
@@ -109,10 +119,12 @@ export default function DetalleExpedienteScreen() {
   const handleVer = async (doc: Documento) => {
     try {
       const url = await getDocumentoUrl(exp!.id, doc.id);
+      console.log('[handleVer] url:', url);
       await WebBrowser.openBrowserAsync(url, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
       });
-    } catch {
+    } catch (e: any) {
+      console.log('[handleVer] error:', e?.message ?? e);
       Alert.alert('Error', 'No se pudo abrir el documento. Inténtalo de nuevo.');
     }
   };

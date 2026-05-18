@@ -220,7 +220,10 @@ export async function uploadDocumento(expedienteId: number, uri: string, tipo: s
     body: formData,
   });
 
-  if (!response.ok) throw new Error(`Error al subir documento: ${response.status}`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.message ?? `Error al subir documento: ${response.status}`);
+  }
   const res = await response.json();
   const doc: Documento = res.data;
   return { ...doc, url: resolveStorageUrl(doc.url) };
@@ -238,8 +241,11 @@ export async function getDocumentoUrl(expedienteId: number, documentoId: number)
   const res = await apiFetch<{ url: string; expira_en: number }>(
     `/expedientes/${expedienteId}/documentos/${documentoId}/ver`
   );
-  // La URL ya viene generada con MOBILE_URL desde el backend — no modificar
-  return res.url;
+  // La firma se generó con APP_URL (consultoriaInmobiliaria.test).
+  // Reemplazamos solo el origen para que el móvil pueda resolver la IP,
+  // pero mantenemos path+query intactos para que la firma siga siendo válida
+  // (Laravel valida contra el host del request entrante, que llega como APP_URL via nginx).
+  return resolveStorageUrl(res.url) ?? res.url;
 }
 
 export async function reemplazarDocumento(expedienteId: number, documentoId: number, uri: string): Promise<Documento> {
