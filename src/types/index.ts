@@ -64,11 +64,21 @@ export interface Expediente {
   tipo_tramite?:     { id: number; nombre: string };
   estado:            EstadoExpediente;
   etapa_tramite_id?: number;
-  etapa_tramite?:    { id: number; nombre: string }; // alias frontend
-  etapa?:            { id: number; nombre: string }; // nombre real en API
+  etapa_tramite?:    { id: number; nombre: string };
+  etapa?:            { id: number; nombre: string };
   monto_credito?:    number;
   honorarios_monto?: number;
   notas?:            string;
+  notas_internas?:   string;
+  created_at:        string;
+  updated_at:        string;
+  documentos?:       Documento[];
+  documentos_requeridos_total?:  number;
+  documentos_subidos_total?:     number;
+  documentos_pendientes_total?:  number;
+  _local_id?:        string;
+  _pendiente_sync?:  boolean;
+}
   notas_internas?:   string;
   created_at:        string;
   updated_at:        string;
@@ -78,18 +88,22 @@ export interface Expediente {
 }
 
 export interface Documento {
-  id:              number;
-  expediente_id:   number;
-  nombre:          string;
+  id:              number | null;  // null = requerido sin subir
+  expediente_id?:  number;
+  nombre?:         string;
   tipo:            string;
   tipo_documento?: string;
+  seccion?:        'acreditado' | 'vendedor' | 'vivienda' | 'otros';
+  orden?:          number;
+  obligatorio?:    boolean;
+  descripcion?:    string | null;
   ruta_archivo?:   string | null;
-  tiene_archivo:   boolean;          // true = hay archivo subido
-  url?:            string | null;    // siempre null en listado; se obtiene via getDocumentoUrl()
+  tiene_archivo:   boolean;
+  url?:            string | null;
   uri_local?:      string;
   estado:          'pendiente' | 'recibido' | 'no_aplica';
   notas?:          string;
-  created_at:      string;
+  created_at?:     string;
   _local_id?:      string;
   _pendiente_sync?: boolean;
 }

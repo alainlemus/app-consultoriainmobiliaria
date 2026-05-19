@@ -27,10 +27,24 @@ const DOC_ESTADO_COLOR: Record<string, { bg: string; text: string; label: string
   pendiente: { bg: '#fefce8', text: '#a16207', label: 'Pendiente' },
 };
 
+const SECCION_LABEL: Record<string, string> = {
+  acreditado: 'Acreditado (Comprador)',
+  vendedor:   'Vendedor',
+  vivienda:   'Vivienda / Propiedad',
+  otros:      'Otros documentos',
+};
+
+const SECCION_ICON: Record<string, string> = {
+  acreditado: '👤',
+  vendedor:   '🏷️',
+  vivienda:   '🏠',
+  otros:      '📎',
+};
+
 export default function DetalleExpedienteScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const router  = useRouter();
+  const insets  = useSafeAreaInsets();
+  const { id }  = useLocalSearchParams<{ id: string }>();
 
   const [exp,     setExp]     = useState<Expediente | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +58,6 @@ export default function DetalleExpedienteScreen() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Recargar al volver desde subir/reemplazar
   useFocusEffect(
     useCallback(() => {
       if (!id) return;
@@ -72,10 +85,24 @@ export default function DetalleExpedienteScreen() {
 
   const clienteNombre = exp.contacto?.nombre ?? `Expediente #${exp.id}`;
   const docs          = exp.documentos ?? [];
-  const recibidos     = docs.filter(d => d.estado === 'recibido').length;
-  const pendientes    = docs.filter(d => d.estado === 'pendiente').length;
+
+  // Totales desde el API (o calculados localmente como fallback)
+  const totalRequeridos = exp.documentos_requeridos_total ?? docs.length;
+  const totalSubidos    = exp.documentos_subidos_total    ?? docs.filter(d => d.tiene_archivo).length;
+  const totalPendientes = exp.documentos_pendientes_total ?? docs.filter(d => !d.tiene_archivo).length;
+
+  // Agrupar por sección
+  const secciones: Record<string, Documento[]> = {};
+  for (const doc of docs) {
+    const sec = doc.seccion ?? 'otros';
+    if (!secciones[sec]) secciones[sec] = [];
+    secciones[sec].push(doc);
+  }
+  const seccionOrder = ['acreditado', 'vendedor', 'vivienda', 'otros'];
+  const seccionesOrdenadas = seccionOrder.filter(s => secciones[s]?.length > 0);
 
   const handleEliminar = (doc: Documento) => {
+    if (!doc.id) return;
     Alert.alert(
       'Eliminar documento',
       `¿Eliminar "${doc.tipo_documento ?? doc.tipo}"? Esta acción no se puede deshacer.`,
@@ -85,7 +112,7 @@ export default function DetalleExpedienteScreen() {
           text: 'Eliminar', style: 'destructive',
           onPress: async () => {
             try {
-              await deleteDocumento(exp!.id, doc.id);
+              await deleteDocumento(exp!.id, doc.id as number);
               const updated = await getExpediente(exp!.id);
               setExp(updated);
             } catch (e: unknown) {
@@ -98,6 +125,7 @@ export default function DetalleExpedienteScreen() {
   };
 
   const handleReemplazar = async (doc: Documento) => {
+    if (!doc.id) return;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permiso requerido', 'Activa el acceso a la galería en Configuración.');
@@ -108,7 +136,7 @@ export default function DetalleExpedienteScreen() {
     });
     if (result.canceled || !result.assets[0]?.uri) return;
     try {
-      await reemplazarDocumento(exp!.id, doc.id, result.assets[0].uri);
+      await reemplazarDocumento(exp!.id, doc.id as number, result.assets[0].uri);
       const updated = await getExpediente(exp!.id);
       setExp(updated);
     } catch (e: unknown) {
@@ -117,14 +145,13 @@ export default function DetalleExpedienteScreen() {
   };
 
   const handleVer = async (doc: Documento) => {
+    if (!doc.id) return;
     try {
-      const url = await getDocumentoUrl(exp!.id, doc.id);
-      console.log('[handleVer] url:', url);
+      const url = await getDocumentoUrl(exp!.id, doc.id as number);
       await WebBrowser.openBrowserAsync(url, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
       });
-    } catch (e: any) {
-      console.log('[handleVer] error:', e?.message ?? e);
+    } catch {
       Alert.alert('Error', 'No se pudo abrir el documento. Inténtalo de nuevo.');
     }
   };
@@ -152,103 +179,134 @@ export default function DetalleExpedienteScreen() {
         {/* ── Datos generales ── */}
         <SectionLabel>Información del trámite</SectionLabel>
         <View style={styles.card}>
-          <InfoRow label="Cliente"       value={clienteNombre} />
-          <InfoRow label="Trámite"       value={exp.tipo_tramite?.nombre ?? '—'} />
-          <InfoRow label="Etapa"         value={(exp.etapa ?? exp.etapa_tramite)?.nombre ?? '—'} />
+          <InfoRow label="Cliente"   value={clienteNombre} />
+          <InfoRow label="Trámite"   value={exp.tipo_tramite?.nombre ?? '—'} />
+          <InfoRow label="Etapa"     value={(exp.etapa ?? exp.etapa_tramite)?.nombre ?? '—'} />
           {exp.monto_credito ? (
-            <InfoRow label="Monto"       value={`$${Number(exp.monto_credito).toLocaleString('es-MX')}`} />
+            <InfoRow label="Monto"   value={`$${Number(exp.monto_credito).toLocaleString('es-MX')}`} />
           ) : null}
-          <InfoRow label="Estado"        value={ESTADO_LABEL[exp.estado] ?? exp.estado} last />
+          <InfoRow label="Estado"    value={ESTADO_LABEL[exp.estado] ?? exp.estado} last />
         </View>
 
-        {/* ── Documentos ── */}
+        {/* ── Progreso de documentos ── */}
         <View style={styles.docHeader}>
           <SectionLabel>Documentos</SectionLabel>
           <View style={styles.docStats}>
             <Text style={styles.docStatText}>
-              <Text style={{ color: '#15803d', fontWeight: '700' }}>{recibidos}</Text>
-              /{docs.length} recibidos
+              <Text style={{ color: '#15803d', fontWeight: '700' }}>{totalSubidos}</Text>
+              /{totalRequeridos} subidos
             </Text>
-            {pendientes > 0 && (
+            {totalPendientes > 0 && (
               <View style={styles.pendienteBadge}>
-                <Text style={styles.pendienteBadgeText}>{pendientes} pendientes</Text>
+                <Text style={styles.pendienteBadgeText}>{totalPendientes} pendientes</Text>
               </View>
             )}
           </View>
         </View>
 
-        <View style={styles.card}>
-          {docs.length === 0 ? (
-            <Text style={styles.emptyDocs}>Sin documentos en el checklist.</Text>
-          ) : (
-            docs.map((doc, i) => {
-              const tieneArchivo = doc.tiene_archivo;
-              const esPendiente  = doc.estado === 'pendiente';
-              const estado       = DOC_ESTADO_COLOR[doc.estado] ?? DOC_ESTADO_COLOR['pendiente'];
-              const label        = doc.tipo_documento ?? doc.tipo ?? '—';
-
-              return (
-                <View key={doc.id} style={[styles.docRow, i > 0 && styles.docBorder]}>
-                  {/* Icono: archivo subido vs vacío */}
-                  <View style={[styles.docIconWrap, !tieneArchivo && styles.docIconWrapEmpty]}>
-                    <Text style={styles.docIcon}>{tieneArchivo ? '📄' : '📋'}</Text>
-                  </View>
-
-                  <View style={styles.docInfo}>
-                    <Text style={styles.docNombre} numberOfLines={1}>{label}</Text>
-
-                    {/* Estado visual */}
-                    {tieneArchivo ? (
-                      <View style={[styles.docEstadoPill, { backgroundColor: estado.bg, alignSelf: 'flex-start', marginTop: 3 }]}>
-                        <Text style={[styles.docEstadoText, { color: estado.text }]}>{estado.label}</Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.docSinArchivo}>Sin archivo — pendiente de subir</Text>
-                    )}
-
-                    {/* Acciones */}
-                    <View style={styles.docActions}>
-                      {tieneArchivo && (
-                        <TouchableOpacity style={styles.docActionBtn} onPress={() => handleVer(doc)}>
-                          <Text style={styles.docActionText}>👁 Ver</Text>
-                        </TouchableOpacity>
-                      )}
-                      {!tieneArchivo && (
-                        <TouchableOpacity
-                          style={[styles.docActionBtn, styles.docActionPrimary]}
-                          onPress={() => router.push(`/expedientes/documentos/subir?expedienteId=${exp.id}&tipo=${doc.tipo}`)}
-                        >
-                          <Text style={[styles.docActionText, styles.docActionPrimaryText]}>↑ Subir</Text>
-                        </TouchableOpacity>
-                      )}
-                      {tieneArchivo && esPendiente && (
-                        <>
-                          <TouchableOpacity style={styles.docActionBtn} onPress={() => handleReemplazar(doc)}>
-                            <Text style={styles.docActionText}>🔄 Reemplazar</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.docActionBtn, styles.docActionDanger]}
-                            onPress={() => handleEliminar(doc)}
-                          >
-                            <Text style={[styles.docActionText, styles.docActionDangerText]}>🗑 Eliminar</Text>
-                          </TouchableOpacity>
-                        </>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              );
-            })
-          )}
-
-          <TouchableOpacity
-            style={styles.addDocBtn}
-            onPress={() => router.push(`/expedientes/documentos/subir?expedienteId=${exp.id}`)}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.addDocText}>＋ Agregar documento</Text>
-          </TouchableOpacity>
+        {/* Barra de progreso */}
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${totalRequeridos > 0 ? (totalSubidos / totalRequeridos) * 100 : 0}%` as any }]} />
         </View>
+
+        {/* ── Documentos agrupados por sección ── */}
+        {seccionesOrdenadas.length === 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.emptyDocs}>Sin documentos en el checklist.</Text>
+          </View>
+        ) : (
+          seccionesOrdenadas.map(seccion => (
+            <View key={seccion} style={{ marginTop: Spacing.sm }}>
+              {/* Cabecera de sección */}
+              <View style={styles.seccionHeader}>
+                <Text style={styles.seccionIcon}>{SECCION_ICON[seccion] ?? '📎'}</Text>
+                <Text style={styles.seccionTitle}>{SECCION_LABEL[seccion] ?? seccion}</Text>
+                <Text style={styles.seccionCount}>
+                  {secciones[seccion].filter(d => d.tiene_archivo).length}/{secciones[seccion].length}
+                </Text>
+              </View>
+
+              <View style={styles.card}>
+                {secciones[seccion].map((doc, i) => {
+                  const tieneArchivo = doc.tiene_archivo;
+                  const esPendiente  = doc.estado === 'pendiente';
+                  const estado       = DOC_ESTADO_COLOR[doc.estado] ?? DOC_ESTADO_COLOR['pendiente'];
+                  const label        = doc.tipo_documento ?? doc.tipo ?? '—';
+
+                  return (
+                    <View key={`${doc.id ?? doc.tipo}-${i}`} style={[styles.docRow, i > 0 && styles.docBorder]}>
+                      {/* Icono */}
+                      <View style={[styles.docIconWrap, !tieneArchivo && styles.docIconWrapEmpty]}>
+                        <Text style={styles.docIcon}>{tieneArchivo ? '📄' : '📋'}</Text>
+                      </View>
+
+                      <View style={styles.docInfo}>
+                        <View style={styles.docNombreRow}>
+                          <Text style={styles.docNombre} numberOfLines={2}>{label}</Text>
+                          {doc.obligatorio === false && (
+                            <Text style={styles.opcionalTag}>Opcional</Text>
+                          )}
+                        </View>
+
+                        {doc.descripcion ? (
+                          <Text style={styles.docDescripcion} numberOfLines={2}>{doc.descripcion}</Text>
+                        ) : null}
+
+                        {/* Estado visual */}
+                        {tieneArchivo ? (
+                          <View style={[styles.docEstadoPill, { backgroundColor: estado.bg, alignSelf: 'flex-start', marginTop: 3 }]}>
+                            <Text style={[styles.docEstadoText, { color: estado.text }]}>{estado.label}</Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.docSinArchivo}>Sin archivo — pendiente de subir</Text>
+                        )}
+
+                        {/* Acciones */}
+                        <View style={styles.docActions}>
+                          {tieneArchivo && (
+                            <TouchableOpacity style={styles.docActionBtn} onPress={() => handleVer(doc)}>
+                              <Text style={styles.docActionText}>👁 Ver</Text>
+                            </TouchableOpacity>
+                          )}
+                          {!tieneArchivo && (
+                            <TouchableOpacity
+                              style={[styles.docActionBtn, styles.docActionPrimary]}
+                              onPress={() => router.push(`/expedientes/documentos/subir?expedienteId=${exp.id}&tipo=${encodeURIComponent(doc.tipo)}`)}
+                            >
+                              <Text style={[styles.docActionText, styles.docActionPrimaryText]}>↑ Subir</Text>
+                            </TouchableOpacity>
+                          )}
+                          {tieneArchivo && esPendiente && (
+                            <>
+                              <TouchableOpacity style={styles.docActionBtn} onPress={() => handleReemplazar(doc)}>
+                                <Text style={styles.docActionText}>🔄 Reemplazar</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[styles.docActionBtn, styles.docActionDanger]}
+                                onPress={() => handleEliminar(doc)}
+                              >
+                                <Text style={[styles.docActionText, styles.docActionDangerText]}>🗑 Eliminar</Text>
+                              </TouchableOpacity>
+                            </>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          ))
+        )}
+
+        {/* Botón agregar documento adicional */}
+        <TouchableOpacity
+          style={styles.addDocBtn}
+          onPress={() => router.push(`/expedientes/documentos/subir?expedienteId=${exp.id}`)}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.addDocText}>＋ Agregar documento adicional</Text>
+        </TouchableOpacity>
 
         {/* ── Prospecto relacionado ── */}
         {exp.contacto && (
@@ -272,7 +330,7 @@ export default function DetalleExpedienteScreen() {
           </>
         )}
 
-        {/* ── Meta ── */}
+        {/* ── Fechas ── */}
         <SectionLabel>Fechas</SectionLabel>
         <View style={styles.card}>
           <InfoRow label="Creado"      value={new Date(exp.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })} />
@@ -350,26 +408,36 @@ const styles = StyleSheet.create({
   infoLabel:     { fontSize: Typography.fontSize.sm, color: Colors.dark[500], fontWeight: '600', flex: 1 },
   infoValue:     { fontSize: Typography.fontSize.sm, color: Colors.dark[800], flex: 2, textAlign: 'right' },
 
-  // Documentos
-  docHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.base, marginBottom: Spacing.sm },
+  // Progreso
+  docHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.base, marginBottom: 4 },
   docStats:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   docStatText:{ fontSize: Typography.fontSize.xs, color: Colors.dark[500] },
   pendienteBadge:     { backgroundColor: '#fefce8', borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   pendienteBadgeText: { fontSize: Typography.fontSize.xs, color: '#a16207', fontWeight: '700' },
+  progressBar:  { height: 4, backgroundColor: Colors.cream[200], borderRadius: 2, marginBottom: Spacing.sm },
+  progressFill: { height: 4, backgroundColor: '#15803d', borderRadius: 2 },
 
-  docRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, gap: Spacing.sm },
+  // Sección
+  seccionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6, marginTop: 4 },
+  seccionIcon:   { fontSize: 14 },
+  seccionTitle:  { flex: 1, fontSize: Typography.fontSize.xs, fontWeight: '700', color: Colors.dark[700], textTransform: 'uppercase', letterSpacing: 0.5 },
+  seccionCount:  { fontSize: Typography.fontSize.xs, color: Colors.dark[400], fontWeight: '600' },
+
+  // Documentos
+  docRow:    { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, gap: Spacing.sm },
   docBorder: { borderTopWidth: 1, borderTopColor: Colors.cream[200] },
-  docIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: Colors.cream[100], alignItems: 'center', justifyContent: 'center' },
+  docIconWrap:      { width: 32, height: 32, borderRadius: 8, backgroundColor: Colors.cream[100], alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  docIconWrapEmpty: { backgroundColor: Colors.cream[100], borderWidth: 1, borderColor: Colors.cream[300], borderStyle: 'dashed' },
   docIcon:   { fontSize: 16 },
   docInfo:   { flex: 1 },
-  docNombre: { fontSize: Typography.fontSize.sm, fontWeight: '600', color: Colors.dark[800] },
-  docTipo:   { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 1 },
+  docNombreRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, flexWrap: 'wrap' },
+  docNombre: { fontSize: Typography.fontSize.sm, fontWeight: '600', color: Colors.dark[800], flex: 1 },
+  opcionalTag: { fontSize: 9, color: Colors.dark[400], backgroundColor: Colors.cream[100], paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, fontWeight: '600', marginTop: 2 },
+  docDescripcion: { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2, fontStyle: 'italic' },
   docEstadoPill: { borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 3 },
   docEstadoText: { fontSize: Typography.fontSize.xs, fontWeight: '700' },
-
-  docIconWrapEmpty: { backgroundColor: Colors.cream[100], borderWidth: 1, borderColor: Colors.cream[300], borderStyle: 'dashed' },
-  docSinArchivo:    { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2, fontStyle: 'italic' },
-  docActions:       { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.xs },
+  docSinArchivo: { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2, fontStyle: 'italic' },
+  docActions:    { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.xs },
   docActionBtn:        { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.sm, backgroundColor: Colors.cream[100], borderWidth: 1, borderColor: Colors.cream[300] },
   docActionText:       { fontSize: 10, color: Colors.dark[600], fontWeight: '600' },
   docActionPrimary:    { backgroundColor: Colors.gold[50] ?? '#fefce8', borderColor: Colors.gold[400] },
@@ -379,7 +447,7 @@ const styles = StyleSheet.create({
 
   emptyDocs: { fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center', paddingVertical: Spacing.lg, paddingHorizontal: Spacing.md },
 
-  addDocBtn:  { margin: Spacing.md, backgroundColor: Colors.cream[50], borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.cream[300], borderStyle: 'dashed' },
+  addDocBtn:  { marginTop: Spacing.md, backgroundColor: Colors.cream[50], borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.cream[300], borderStyle: 'dashed' },
   addDocText: { color: Colors.gold[600], fontWeight: '700', fontSize: Typography.fontSize.sm },
 
   prospectoCard:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.white, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[200], padding: Spacing.md },
