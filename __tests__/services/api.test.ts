@@ -190,7 +190,7 @@ describe('Documentos', () => {
   });
 
   it('uploadDocumento lanza error si la respuesta no es ok', async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 422 });
+    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 422, json: () => Promise.resolve({}) });
     await expect(uploadDocumento(1, 'file://test.jpg', 'ine')).rejects.toThrow('422');
   });
 });
