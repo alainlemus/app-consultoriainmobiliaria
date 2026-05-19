@@ -23,13 +23,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
-    name:    'app-consultoriainmobiliaria',
+    name:    'Consultoría Inmobiliaria',
     slug:    'app-consultoriainmobiliaria',
     version: '1.0.0',
     orientation: 'portrait',
     icon:    './assets/icon.png',
     userInterfaceStyle: 'light',
-    newArchEnabled: true,
     scheme: 'consultoriainmobiliaria',
     splash: {
       image:       './assets/splash-icon.png',

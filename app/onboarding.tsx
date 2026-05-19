@@ -11,7 +11,7 @@ import { Colors, Typography, Spacing, Radius } from '../src/theme';
 
 const { width, height } = Dimensions.get('window');
 
-export const ONBOARDING_KEY = 'onboarding_visto_v1';
+import { ONBOARDING_KEY } from '../src/constants/storage';
 
 interface Slide {
   id: string;
