@@ -542,8 +542,8 @@ const s = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.2)',
   },
   chipActivo: { backgroundColor: Colors.gold[400], borderColor: Colors.gold[400] },
-  chipText: { fontSize: Typography.fontSize.xs, color: 'rgba(255,255,255,0.6)' },
-  chipTextActivo: { color: Colors.white, fontWeight: Typography.fontWeight.bold },
+  chipText: { fontSize: Typography.fontSize.xs, color: '#ffffff' },
+  chipTextActivo: { color: Colors.dark[900], fontWeight: Typography.fontWeight.bold },
 
   mapWrap: { flex: 1, position: 'relative' },
   loadingOverlay: {

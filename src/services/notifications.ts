@@ -1,33 +1,58 @@
 /**
  * Servicio de Push Notifications (FCM / APNs via Expo)
  *
+ * NOTA SDK 53: expo-notifications fue removido de Expo Go en SDK 53.
+ * Este módulo detecta si corre en Expo Go y omite todo silenciosamente.
+ * Para usar push notifications en Android se requiere un development build
+ * (eas build --profile development) o build de producción.
+ *
  * Flujo:
  *  1. Solicita permisos al usuario
  *  2. Obtiene el Expo Push Token (que internamente mapea a FCM / APNs)
  *  3. Registra el token en el backend (POST /api/v1/dispositivos)
  *  4. Configura listeners para notificaciones en foreground y tap
- *
- * El backend puede usar el fcm_token para enviar notificaciones directamente
- * con FCM, o usar el Expo Push Token con la API de Expo Notifications.
  */
 
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { registrarDispositivo } from './api';
 
+// ── Detectar Expo Go ─────────────────────────────────────────────────────────
+
+/**
+ * En Expo Go (SDK 53+) expo-notifications no está disponible en Android.
+ * appOwnership === 'expo' indica que corre dentro de Expo Go.
+ */
+const esExpoGo = Constants.appOwnership === 'expo';
+
+// ── Importación dinámica segura ──────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let Notifications: any = null;
+
+if (!esExpoGo) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    Notifications = require('expo-notifications');
+  } catch {
+    // development build sin el módulo compilado aún
+  }
+}
+
 // ── Configuración global de presentación de notificaciones ──────────────────
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge:  true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Notifications) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert:  true,
+      shouldPlaySound:  true,
+      shouldSetBadge:   true,
+      shouldShowBanner: true,
+      shouldShowList:   true,
+    }),
+  });
+}
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +71,16 @@ export interface NotificacionData {
  * Llamar una sola vez tras el login exitoso.
  */
 export async function registrarPushToken(): Promise<string | null> {
+  if (esExpoGo) {
+    console.log('[FCM] Push notifications no disponibles en Expo Go (SDK 53+). Usa un development build.');
+    return null;
+  }
+
+  if (!Notifications) {
+    console.log('[FCM] expo-notifications no disponible');
+    return null;
+  }
+
   // Solo en dispositivos físicos (no en simulador/emulador)
   if (!Device.isDevice) {
     console.log('[FCM] Notificaciones no disponibles en simulador');
@@ -69,16 +104,15 @@ export async function registrarPushToken(): Promise<string | null> {
   // Canal Android (requerido para Android 8+)
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
-      name:       'Consultoría Inmobiliaria',
-      importance: Notifications.AndroidImportance.MAX,
+      name:             'Consultoría Inmobiliaria',
+      importance:       Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#cd9d36', // gold brand color
+      lightColor:       '#cd9d36',
     });
   }
 
   // Obtener token
   try {
-    // projectId requerido en SDK 49+. En Expo Go / dev sin EAS no existe — se omite.
     const projectId = Constants.expoConfig?.extra?.eas?.projectId
                    ?? (Constants as unknown as { easConfig?: { projectId?: string } }).easConfig?.projectId;
 
@@ -90,7 +124,6 @@ export async function registrarPushToken(): Promise<string | null> {
     const tokenData     = await Notifications.getExpoPushTokenAsync({ projectId });
     const expoPushToken = tokenData.data;
 
-    // Registrar en el backend
     const plataforma = Platform.OS === 'ios' ? 'ios' : 'android';
     await registrarDispositivo(expoPushToken, plataforma);
 
@@ -104,20 +137,24 @@ export async function registrarPushToken(): Promise<string | null> {
 
 // ── Listeners ────────────────────────────────────────────────────────────────
 
-type NotifHandler   = (notif: Notifications.Notification) => void;
-type ResponseHandler = (response: Notifications.NotificationResponse) => void;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type NotifHandler    = (notif: any) => void;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ResponseHandler = (response: any) => void;
 
 /**
- * Registra handlers para:
- *  - foreground: notificación recibida mientras la app está abierta
- *  - tap: usuario toca la notificación
- *
+ * Registra handlers para foreground y tap.
  * Retorna función para limpiar los listeners (usar en useEffect cleanup).
+ * En Expo Go retorna un no-op.
  */
 export function registrarListeners(
   onForeground: NotifHandler,
   onTap:        ResponseHandler,
 ): () => void {
+  if (esExpoGo || !Notifications) {
+    return () => {};
+  }
+
   const sub1 = Notifications.addNotificationReceivedListener(onForeground);
   const sub2 = Notifications.addNotificationResponseReceivedListener(onTap);
 
@@ -134,6 +171,8 @@ export async function mostrarNotificacionLocal(
   cuerpo:  string,
   datos?:  NotificacionData,
 ): Promise<void> {
+  if (esExpoGo || !Notifications) return;
+
   await Notifications.scheduleNotificationAsync({
     content: {
       title: titulo,
@@ -141,12 +180,13 @@ export async function mostrarNotificacionLocal(
       data:  datos ?? {},
       sound: true,
     },
-    trigger: null, // inmediata
+    trigger: null,
   });
 }
 
 // ── Limpiar badge ────────────────────────────────────────────────────────────
 
 export async function limpiarBadge(): Promise<void> {
+  if (esExpoGo || !Notifications) return;
   await Notifications.setBadgeCountAsync(0);
 }

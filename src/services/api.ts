@@ -118,7 +118,11 @@ export async function updatePerfil(data: {
     method: 'PUT',
     body:   JSON.stringify(data),
   });
-  return res.data;
+  const u = res.data;
+  if (u?.foto_perfil_url) {
+    u.foto_perfil_url = resolveStorageUrl(u.foto_perfil_url);
+  }
+  return u;
 }
 
 export async function subirFotoPerfil(uri: string): Promise<string | null> {
