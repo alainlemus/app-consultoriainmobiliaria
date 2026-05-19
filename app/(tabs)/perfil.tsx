@@ -202,6 +202,15 @@ export default function PerfilScreen() {
             )}
           </Card>
 
+          {/* ── Ayuda ── */}
+          <Card title="Ayuda" subtitle="Soporte" style={s.card}>
+            <TouchableOpacity style={s.ayudaBtn} onPress={() => router.push('/ayuda')}>
+              <Text style={s.ayudaIcon}>❓</Text>
+              <Text style={s.ayudaText}>Ver guía de uso</Text>
+              <Text style={s.ayudaChevron}>›</Text>
+            </TouchableOpacity>
+          </Card>
+
           {/* ── Sesión ── */}
           <Card title="Sesión" subtitle="Cuenta" style={s.card}>
             <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
@@ -299,4 +308,8 @@ const s = StyleSheet.create({
   // Logout
   logoutBtn:  { backgroundColor: Colors.crimson[600], borderRadius: Radius.sm, padding: Spacing.md, alignItems: 'center' },
   logoutText: { color: Colors.white, fontWeight: Typography.fontWeight.bold, fontSize: Typography.fontSize.sm, letterSpacing: Typography.letterSpacing.wider },
+  ayudaBtn:   { flexDirection: 'row', alignItems: 'center', gap: 10, padding: Spacing.md, backgroundColor: Colors.dark[800], borderRadius: Radius.sm },
+  ayudaIcon:  { fontSize: 18 },
+  ayudaText:  { flex: 1, color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.medium },
+  ayudaChevron: { fontSize: 20, color: Colors.gold[400] },
 });
