@@ -50,7 +50,7 @@ export async function removeToken(): Promise<void> {
 
 // ── Fetch base con auth ────────────────────────────────────────────────────
 
-async function apiFetch<T>(
+export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
@@ -88,6 +88,13 @@ export async function login(email: string, password: string): Promise<AuthState>
   });
   await saveToken(res.token!);
   return { user: res.user, token: res.token, isAuthenticated: true };
+}
+
+/** Restaura sesión desde un token guardado (usado por biometría) */
+export async function loginWithToken(token: string): Promise<AuthState> {
+  await saveToken(token);
+  const user = await getMe();
+  return { user, token, isAuthenticated: true };
 }
 
 export async function logout(): Promise<void> {

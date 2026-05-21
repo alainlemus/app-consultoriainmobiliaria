@@ -14,8 +14,10 @@ import type { ExpoConfig, ConfigContext } from 'expo/config';
  *   Constants.expoConfig?.extra?.apiUrl
  */
 
-const DEV_API_URL  = 'http://192.168.100.7:8080/api/v1';  // proxy → Herd local
-const PROD_API_URL = 'https://api.consultoriainmobiliaria.com/api/v1'; // ← tu VPS/Dokploy
+// En desarrollo siempre usamos 127.0.0.1 (funciona tanto en simulador como en la Mac).
+// Para dispositivo físico real usar EXPO_PUBLIC_API_URL=http://192.168.100.7:8080/api/v1
+const DEV_API_URL  = 'http://127.0.0.1:8080/api/v1';
+const PROD_API_URL = 'https://consultoriainmobiliaria.com.mx/api/v1';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL

@@ -1,14 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  KeyboardAvoidingView, Platform, Image,
+  KeyboardAvoidingView, Platform, Image, TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '../../src/theme';
 import Input  from '../../src/components/ui/Input';
 import Button from '../../src/components/ui/Button';
-import { login } from '../../src/services/api';
+import { login, loginWithToken } from '../../src/services/api';
+import {
+  isBiometricAvailable,
+  isBiometricEnabled,
+  enableBiometric,
+  getBiometricLabel,
+  authenticateWithBiometric,
+} from '../../src/services/biometrics';
 
 export default function LoginScreen() {
   const router  = useRouter();
@@ -19,12 +27,56 @@ export default function LoginScreen() {
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
 
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled,   setBiometricEnabled]   = useState(false);
+  const [biometricLabel,     setBiometricLabel]     = useState('Biometría');
+
+  useEffect(() => {
+    (async () => {
+      const available = await isBiometricAvailable();
+      const enabled   = await isBiometricEnabled();
+      const label     = await getBiometricLabel();
+      setBiometricAvailable(available);
+      setBiometricEnabled(enabled);
+      setBiometricLabel(label);
+    })();
+  }, []);
+
+  // Si biometría está disponible y activada, lanzar automáticamente al montar
+  useEffect(() => {
+    if (biometricAvailable && biometricEnabled) {
+      handleBiometricLogin();
+    }
+  }, [biometricAvailable, biometricEnabled]);
+
+  const handleBiometricLogin = useCallback(async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const result = await authenticateWithBiometric();
+      if (!result) { setLoading(false); return; }
+      await loginWithToken(result.token);
+      router.replace('/(tabs)');
+    } catch {
+      setError('La sesión guardada expiró. Inicia sesión con tu contraseña.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   async function handleLogin() {
     if (!email || !password) { setError('Ingresa correo y contraseña.'); return; }
     setError('');
     setLoading(true);
     try {
-      await login(email.trim().toLowerCase(), password);
+      const state = await login(email.trim().toLowerCase(), password);
+
+      // Si biometría disponible y no activada, activarla ahora
+      if (biometricAvailable && !biometricEnabled && state.token) {
+        await enableBiometric(email.trim().toLowerCase(), state.token);
+        setBiometricEnabled(true);
+      }
+
       router.replace('/(tabs)');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Credenciales incorrectas.');
@@ -32,6 +84,8 @@ export default function LoginScreen() {
       setLoading(false);
     }
   }
+
+  const biometricIcon = biometricLabel === 'Face ID' ? 'scan-outline' : 'finger-print-outline';
 
   return (
     <KeyboardAvoidingView
@@ -44,6 +98,11 @@ export default function LoginScreen() {
       >
         {/* Logo / branding */}
         <View style={styles.brand}>
+          <Image
+            source={require('../../assets/icon.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <View style={styles.goldBar} />
           <Text style={styles.title}>CONSULTORÍA</Text>
           <Text style={styles.titleAccent}>INMOBILIARIA</Text>
@@ -82,6 +141,14 @@ export default function LoginScreen() {
             dark={false}
           />
 
+          {/* Olvidé mi contraseña */}
+          <TouchableOpacity
+            onPress={() => router.push('/(auth)/forgot-password')}
+            style={styles.forgotRow}
+          >
+            <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
+          </TouchableOpacity>
+
           <Button
             label="Iniciar sesión"
             onPress={handleLogin}
@@ -90,6 +157,18 @@ export default function LoginScreen() {
             size="lg"
             style={styles.loginBtn}
           />
+
+          {/* Botón biométrico */}
+          {biometricAvailable && biometricEnabled && (
+            <TouchableOpacity
+              style={styles.biometricBtn}
+              onPress={handleBiometricLogin}
+              disabled={loading}
+            >
+              <Ionicons name={biometricIcon as any} size={28} color={Colors.gold[400]} />
+              <Text style={styles.biometricText}>Entrar con {biometricLabel}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <Text style={styles.footer}>
@@ -113,6 +192,12 @@ const styles = StyleSheet.create({
   brand: {
     alignItems:   'center',
     marginBottom: Spacing['3xl'],
+  },
+  logo: {
+    width:        120,
+    height:       120,
+    borderRadius: 16,
+    marginBottom: Spacing.lg,
   },
   goldBar: {
     width:           80,
@@ -172,8 +257,32 @@ const styles = StyleSheet.create({
     color:    Colors.crimson[600],
     fontSize: Typography.fontSize.sm,
   },
+  forgotRow: {
+    alignSelf:    'flex-end',
+    marginTop:    -Spacing.xs,
+    marginBottom: Spacing.base,
+  },
+  forgotText: {
+    fontSize: Typography.fontSize.sm,
+    color:    Colors.gold[600] ?? '#b45309',
+  },
   loginBtn: {
     marginTop: Spacing.sm,
+  },
+  biometricBtn: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'center',
+    marginTop:      Spacing.lg,
+    gap:            Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark[100] ?? '#f3f4f6',
+  },
+  biometricText: {
+    fontSize:   Typography.fontSize.base,
+    color:      Colors.dark[700] ?? '#374151',
+    fontWeight: Typography.fontWeight.medium,
   },
 
   footer: {
