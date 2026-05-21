@@ -14,9 +14,12 @@ import type { ExpoConfig, ConfigContext } from 'expo/config';
  *   Constants.expoConfig?.extra?.apiUrl
  */
 
-// En desarrollo siempre usamos 127.0.0.1 (funciona tanto en simulador como en la Mac).
-// Para dispositivo físico real usar EXPO_PUBLIC_API_URL=http://192.168.100.7:8080/api/v1
-const DEV_API_URL  = 'http://127.0.0.1:8080/api/v1';
+// 10.0.2.2 es el gateway del emulador Android (apunta a la Mac del host).
+// Puerto 8082 escucha en 0.0.0.0 (todas las interfaces), funciona desde emulador.
+// Puerto 8081 lo usa Expo Metro bundler — no usar.
+// Para simulador iOS usar EXPO_PUBLIC_API_URL=http://127.0.0.1:8080/api/v1
+// Para dispositivo físico real usar EXPO_PUBLIC_API_URL=http://192.168.100.7:8082/api/v1
+const DEV_API_URL  = 'http://10.0.2.2:8082/api/v1';
 const PROD_API_URL = 'https://consultoriainmobiliaria.com.mx/api/v1';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
