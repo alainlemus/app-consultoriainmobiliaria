@@ -11,6 +11,7 @@ import { Colors, Typography, Spacing } from '../../src/theme';
 import Input  from '../../src/components/ui/Input';
 import Button from '../../src/components/ui/Button';
 import { login, loginWithToken } from '../../src/services/api';
+import { registrarPushToken } from '../../src/services/notifications';
 import {
   isBiometricAvailable,
   isBiometricEnabled,
@@ -57,6 +58,7 @@ export default function LoginScreen() {
       const result = await authenticateWithBiometric();
       if (!result) { setLoading(false); return; }
       await loginWithToken(result.token);
+      registrarPushToken().catch(() => {}); // fire-and-forget
       router.replace('/(tabs)');
     } catch {
       setError('La sesión guardada expiró. Inicia sesión con tu contraseña.');
@@ -78,6 +80,7 @@ export default function LoginScreen() {
         setBiometricEnabled(true);
       }
 
+      registrarPushToken().catch(() => {}); // fire-and-forget
       router.replace('/(tabs)');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Credenciales incorrectas.');
