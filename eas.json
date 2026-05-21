@@ -8,21 +8,22 @@
       "distribution": "internal",
       "env": {
         "APP_ENV": "development",
-        "EXPO_PUBLIC_API_URL": "http://192.168.100.7:8080/api/v1"
+        "EXPO_PUBLIC_API_URL": "http://192.168.100.7:8082/api/v1"
       }
     },
-    "preview": {
+    "staging": {
+      "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "APP_ENV": "development",
-        "EXPO_PUBLIC_API_URL": "http://192.168.100.7:8080/api/v1"
+        "APP_ENV": "staging",
+        "EXPO_PUBLIC_API_URL": "http://consultoria-inmobiliaria-app-u6ldbk-0f53d7-187-77-212-199.sslip.io/api/v1"
       }
     },
     "production": {
       "distribution": "store",
       "env": {
         "APP_ENV": "production",
-        "EXPO_PUBLIC_API_URL": "https://api.consultoriainmobiliaria.com/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://consultoriainmobiliaria.com.mx/api/v1"
       }
     }
   },

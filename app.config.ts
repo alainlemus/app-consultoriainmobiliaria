@@ -20,12 +20,16 @@ import type { ExpoConfig, ConfigContext } from 'expo/config';
 // Para dispositivo físico real usar EXPO_PUBLIC_API_URL=http://192.168.100.7:8082/api/v1
 const DEV_API_URL_ANDROID = 'http://10.0.2.2:8082/api/v1';
 const DEV_API_URL_IOS     = 'http://127.0.0.1:8080/api/v1';
+const STAGING_API_URL     = 'http://consultoria-inmobiliaria-app-u6ldbk-0f53d7-187-77-212-199.sslip.io/api/v1';
 const PROD_API_URL        = 'https://consultoriainmobiliaria.com.mx/api/v1';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const isProduction = process.env.APP_ENV === 'production';
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL
-    ?? (isProduction ? PROD_API_URL : undefined);
+  const isStaging    = process.env.APP_ENV === 'staging';
+
+  const resolvedProdUrl = isProduction ? PROD_API_URL : isStaging ? STAGING_API_URL : undefined;
+
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? resolvedProdUrl;
 
   return {
     ...config,
@@ -44,6 +48,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       bundleIdentifier: 'mx.consultoriainmobiliaria.app',
       supportsTablet: true,
+      infoPlist: {
+        NSAppTransportSecurity: {
+          NSExceptionDomains: {
+            'consultoria-inmobiliaria-app-u6ldbk-0f53d7-187-77-212-199.sslip.io': {
+              NSExceptionAllowsInsecureHTTPLoads: true,
+            },
+          },
+        },
+      },
     },
      android: {
       package: 'mx.consultoriainmobiliaria.app',
@@ -90,8 +103,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // ── Variables accesibles en la app via expo-constants ──────────────────
     extra: {
       apiUrl,
-      apiUrlAndroid: process.env.EXPO_PUBLIC_API_URL ?? (isProduction ? PROD_API_URL : DEV_API_URL_ANDROID),
-      apiUrlIos:     process.env.EXPO_PUBLIC_API_URL ?? (isProduction ? PROD_API_URL : DEV_API_URL_IOS),
+      apiUrlAndroid: process.env.EXPO_PUBLIC_API_URL ?? (isProduction ? PROD_API_URL : isStaging ? STAGING_API_URL : DEV_API_URL_ANDROID),
+      apiUrlIos:     process.env.EXPO_PUBLIC_API_URL ?? (isProduction ? PROD_API_URL : isStaging ? STAGING_API_URL : DEV_API_URL_IOS),
       appEnv: process.env.APP_ENV ?? 'development',
       eas: {
         projectId: process.env.EAS_PROJECT_ID ?? '0e90bae8-ab6a-412f-a91d-01433afe689d',
