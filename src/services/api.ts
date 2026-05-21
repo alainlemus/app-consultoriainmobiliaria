@@ -1,13 +1,17 @@
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Comision, ResumenComisiones } from '../types';
 
-// Lee la URL del API desde app.config.ts > extra.apiUrl
-// Fallback: localhost para desarrollo en Expo Go
+// Selecciona la URL según plataforma en desarrollo
+// iOS simulador  → 127.0.0.1:8080
+// Android emulador → 10.0.2.2:8082
+const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
 const API_BASE: string =
-  (Constants.expoConfig?.extra?.apiUrl as string | undefined)
-  ?? 'http://localhost/api/v1';
+  Platform.OS === 'ios'
+    ? (extra?.apiUrlIos  ?? 'http://127.0.0.1:8080/api/v1')
+    : (extra?.apiUrlAndroid ?? 'http://10.0.2.2:8082/api/v1');
 
 const TOKEN_KEY = 'auth_token';
 

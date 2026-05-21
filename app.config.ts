@@ -15,16 +15,17 @@ import type { ExpoConfig, ConfigContext } from 'expo/config';
  */
 
 // 10.0.2.2 es el gateway del emulador Android (apunta a la Mac del host).
-// Puerto 8082 escucha en 0.0.0.0 (todas las interfaces), funciona desde emulador.
-// Puerto 8081 lo usa Expo Metro bundler — no usar.
-// Para simulador iOS usar EXPO_PUBLIC_API_URL=http://127.0.0.1:8080/api/v1
+// Puerto 8082 escucha en 0.0.0.0 (todas las interfaces), funciona desde emulador Android.
+// Puerto 8080 escucha en 127.0.0.1, funciona desde simulador iOS.
 // Para dispositivo físico real usar EXPO_PUBLIC_API_URL=http://192.168.100.7:8082/api/v1
-const DEV_API_URL  = 'http://10.0.2.2:8082/api/v1';
-const PROD_API_URL = 'https://consultoriainmobiliaria.com.mx/api/v1';
+const DEV_API_URL_ANDROID = 'http://10.0.2.2:8082/api/v1';
+const DEV_API_URL_IOS     = 'http://127.0.0.1:8080/api/v1';
+const PROD_API_URL        = 'https://consultoriainmobiliaria.com.mx/api/v1';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
+  const isProduction = process.env.APP_ENV === 'production';
   const apiUrl = process.env.EXPO_PUBLIC_API_URL
-    ?? (process.env.APP_ENV === 'production' ? PROD_API_URL : DEV_API_URL);
+    ?? (isProduction ? PROD_API_URL : undefined);
 
   return {
     ...config,
@@ -44,7 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       bundleIdentifier: 'mx.consultoriainmobiliaria.app',
       supportsTablet: true,
     },
-    android: {
+     android: {
       package: 'mx.consultoriainmobiliaria.app',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
@@ -52,6 +53,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
+      config: {
+        googleMaps: {
+          apiKey: 'AIzaSyAC_cTEOtFqreDqAzDsqtd-MqC38eREKLQ',
+        },
+      },
     },
     web: {
       favicon: './assets/favicon.png',
@@ -84,6 +90,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // ── Variables accesibles en la app via expo-constants ──────────────────
     extra: {
       apiUrl,
+      apiUrlAndroid: process.env.EXPO_PUBLIC_API_URL ?? (isProduction ? PROD_API_URL : DEV_API_URL_ANDROID),
+      apiUrlIos:     process.env.EXPO_PUBLIC_API_URL ?? (isProduction ? PROD_API_URL : DEV_API_URL_IOS),
       appEnv: process.env.APP_ENV ?? 'development',
       eas: {
         projectId: process.env.EAS_PROJECT_ID ?? '0e90bae8-ab6a-412f-a91d-01433afe689d',

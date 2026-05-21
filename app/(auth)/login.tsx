@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView, Platform, Image, TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '../../src/theme';
@@ -174,6 +175,9 @@ export default function LoginScreen() {
         <Text style={styles.footer}>
           © 2025 Consultoría Inmobiliaria · Uso exclusivo asesores
         </Text>
+        <Text style={styles.version}>
+          v{Constants.expoConfig?.version ?? '1.0.0'}
+        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -289,6 +293,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing['2xl'],
     fontSize:  Typography.fontSize.xs,
     color:     Colors.dark[500],
+    textAlign: 'center',
+  },
+
+  version: {
+    marginTop: Spacing.xs,
+    fontSize:  Typography.fontSize.xs,
+    color:     Colors.dark[600],
     textAlign: 'center',
   },
 });
