@@ -68,7 +68,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       predictiveBackGestureEnabled: false,
       config: {
         googleMaps: {
-          apiKey: 'AIzaSyAC_cTEOtFqreDqAzDsqtd-MqC38eREKLQ',
+          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
         },
       },
     },
