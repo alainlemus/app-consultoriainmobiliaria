@@ -158,9 +158,9 @@ export default function ComisionesScreen() {
   }
 
   return (
-    <View style={[s.container, { paddingTop: insets.top }]}>
+    <View style={s.container}>
       {/* Header */}
-      <View style={s.header}>
+      <View style={[s.header, { paddingTop: insets.top + Spacing.sm }]}>
         <Text style={s.headerTitle}>Mis Comisiones</Text>
         <Text style={s.headerSub}>Solo de expedientes cerrados</Text>
       </View>
@@ -234,7 +234,7 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.cream[50] },
 
   // Header
-  header:     { backgroundColor: Colors.dark[900], paddingHorizontal: Spacing.base, paddingBottom: Spacing.lg, paddingTop: Spacing.sm },
+  header:     { backgroundColor: Colors.dark[900], paddingHorizontal: Spacing.base, paddingBottom: Spacing.lg },
   headerTitle:{ fontSize: Typography.fontSize['2xl'], fontWeight: Typography.fontWeight.black, color: Colors.cream[50] },
   headerSub:  { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2 },
 
@@ -243,9 +243,9 @@ const s = StyleSheet.create({
   card:           { flex: 1, borderRadius: Radius.base, padding: Spacing.md },
   cardPendiente:  { backgroundColor: Colors.dark[800], borderWidth: 1, borderColor: Colors.gold[700] },
   cardPagada:     { backgroundColor: Colors.gold[500] },
-  cardLabel:      { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[400], textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 },
-  cardMonto:      { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.black, color: Colors.cream[50] },
-  cardSub:        { fontSize: 10, color: Colors.dark[400], marginTop: 2 },
+  cardLabel:      { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold, color: Colors.white, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 },
+  cardMonto:      { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.black, color: Colors.white },
+  cardSub:        { fontSize: 10, color: Colors.white, marginTop: 2 },
 
   // Filtros
   filtros:            { flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.base, paddingVertical: Spacing.md, backgroundColor: Colors.cream[100], borderBottomWidth: 1, borderBottomColor: Colors.cream[200] },

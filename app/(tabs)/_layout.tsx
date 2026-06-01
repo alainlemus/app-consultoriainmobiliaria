@@ -1,21 +1,26 @@
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, Typography, Radius } from '../../src/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Radius } from '../../src/theme';
 
-function TabIcon({ icon, focused }: { icon: string; focused: boolean }) {
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+
+function TabIcon({ name, focused }: { name: IoniconsName; focused: boolean }) {
   return (
     <View style={[ic.wrap, focused && ic.active]}>
-      <Text style={[ic.icon, focused && ic.iconActive]}>{icon}</Text>
+      <Ionicons
+        name={name}
+        size={22}
+        color={focused ? Colors.gold[400] : Colors.dark[500]}
+      />
     </View>
   );
 }
 
 const ic = StyleSheet.create({
-  wrap:       { width: 36, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm },
-  active:     { backgroundColor: Colors.gold[50] },
-  icon:       { fontSize: 18, opacity: 0.45 },
-  iconActive: { opacity: 1 },
+  wrap:   { width: 36, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm },
+  active: { backgroundColor: Colors.gold[50] },
 });
 
 export default function TabsLayout() {
@@ -51,35 +56,35 @@ export default function TabsLayout() {
         name="index"
         options={{
           title:      'Inicio',
-          tabBarIcon: ({ focused }) => <TabIcon icon="⬡" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'home' : 'home-outline'} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="prospectos"
         options={{
           title:      'Prospectos',
-          tabBarIcon: ({ focused }) => <TabIcon icon="👥" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'people' : 'people-outline'} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="expedientes"
         options={{
           title:      'Expedientes',
-          tabBarIcon: ({ focused }) => <TabIcon icon="📁" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'folder' : 'folder-outline'} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="comisiones"
         options={{
           title:      'Comisiones',
-          tabBarIcon: ({ focused }) => <TabIcon icon="💰" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'cash' : 'cash-outline'} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="perfil"
         options={{
           title:      'Perfil',
-          tabBarIcon: ({ focused }) => <TabIcon icon="👤" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'person' : 'person-outline'} focused={focused} />,
         }}
       />
     </Tabs>

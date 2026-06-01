@@ -45,9 +45,9 @@ export default function ExpedientesScreen() {
   useEffect(() => { setLoading(true); load(); }, [estado]);
 
   return (
-    <View style={[styles.flex, { paddingTop: insets.top }]}>
+    <View style={styles.flex}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.headerSub}>CRM</Text>
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   flex:   { flex: 1, backgroundColor: Colors.cream[50] },
   center: { flex: 1, marginTop: 60 },
 
-  header:     { backgroundColor: Colors.dark[900], paddingHorizontal: Spacing.base, paddingBottom: Spacing.sm, paddingTop: Spacing.md },
+  header:     { backgroundColor: Colors.dark[900], paddingHorizontal: Spacing.base, paddingBottom: Spacing.sm },
   headerRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerSub:  { fontSize: Typography.fontSize.xs, color: Colors.gold[400], fontWeight: Typography.fontWeight.semibold, letterSpacing: Typography.letterSpacing.widest },
   headerTitle:{ fontSize: Typography.fontSize['2xl'], fontWeight: Typography.fontWeight.black, color: Colors.cream[50] },

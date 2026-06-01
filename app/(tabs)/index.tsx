@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
-  TouchableOpacity, RefreshControl, StatusBar,
+  TouchableOpacity, RefreshControl, StatusBar, Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -100,11 +100,18 @@ export default function DashboardScreen() {
           { paddingTop: showBanner ? Spacing.base : insets.top + Spacing.base },
         ]}>
           <View style={styles.headerRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerGreeting}>Bienvenido</Text>
-              <Text style={styles.headerName} numberOfLines={1}>
-                {user?.name ?? '…'}
-              </Text>
+            <View style={styles.headerLeft}>
+              <Image
+                source={require('../../assets/icon.png')}
+                style={styles.headerLogo}
+                resizeMode="contain"
+              />
+              <View>
+                <Text style={styles.headerGreeting}>Bienvenido</Text>
+                <Text style={styles.headerName} numberOfLines={1}>
+                  {user?.name ?? '…'}
+                </Text>
+              </View>
             </View>
             <TouchableOpacity
               style={styles.logoutBtn}
@@ -242,7 +249,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
     paddingBottom:     Spacing.xl,
   },
-  headerRow:     { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  headerRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerLeft:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
+  headerLogo:    { width: 40, height: 40, borderRadius: Radius.sm },
   headerGreeting:{ fontSize: Typography.fontSize.xs, color: Colors.gold[400], letterSpacing: 2, fontWeight: Typography.fontWeight.semibold, textTransform: 'uppercase' },
   headerName:    { fontSize: Typography.fontSize['2xl'], fontWeight: Typography.fontWeight.black, color: Colors.cream[50], marginTop: 2 },
   goldBar:       { width: 28, height: 2, backgroundColor: Colors.gold[400], marginTop: Spacing.sm },

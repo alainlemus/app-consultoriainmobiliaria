@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
   KeyboardAvoidingView, Platform, TouchableOpacity, TextInput,
+  ActivityIndicator, FlatList,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, Radius } from '../../src/theme';
-import { createExpediente } from '../../src/services/api';
+import { createExpediente, getContactos } from '../../src/services/api';
+import type { Contacto } from '../../src/types';
 
 // Tipos de trámite fijos (coinciden con BD)
 const TIPOS_TRAMITE = [
@@ -36,6 +38,57 @@ export default function NuevoExpedienteScreen() {
     contacto_nombre: string;
   }>();
 
+  // ── Selector de prospecto ────────────────────────────────────────────────
+  const tieneParamContacto = !!contacto_id && contacto_id !== 'undefined';
+
+  const [selectedContacto, setSelectedContacto] = useState<Contacto | null>(null);
+  const [busqueda,          setBusqueda]          = useState('');
+  const [resultados,        setResultados]        = useState<Contacto[]>([]);
+  const [buscando,          setBuscando]          = useState(false);
+  const [mostrarResultados, setMostrarResultados] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Si llegaron params validos, usarlos directamente
+  useEffect(() => {
+    if (tieneParamContacto && contacto_nombre) {
+      setSelectedContacto({
+        id:     Number(contacto_id),
+        nombre: contacto_nombre,
+      } as Contacto);
+    }
+  }, []);
+
+  function handleBusqueda(texto: string) {
+    setBusqueda(texto);
+    setMostrarResultados(true);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+
+    if (!texto.trim()) {
+      setResultados([]);
+      return;
+    }
+
+    searchTimeout.current = setTimeout(async () => {
+      setBuscando(true);
+      try {
+        const res = await getContactos({ q: texto.trim() });
+        setResultados(res.data ?? []);
+      } catch {
+        setResultados([]);
+      } finally {
+        setBuscando(false);
+      }
+    }, 400);
+  }
+
+  function seleccionarContacto(c: Contacto) {
+    setSelectedContacto(c);
+    setBusqueda('');
+    setResultados([]);
+    setMostrarResultados(false);
+  }
+
+  // ── Formulario ───────────────────────────────────────────────────────────
   const [tipoId,  setTipoId]  = useState<number | null>(null);
   const [estado,  setEstado]  = useState('en_proceso');
   const [monto,   setMonto]   = useState('');
@@ -46,7 +99,8 @@ export default function NuevoExpedienteScreen() {
 
   function validate(): boolean {
     const e: Record<string, string> = {};
-    if (!tipoId) e.tipo = 'Selecciona el tipo de trámite';
+    if (!selectedContacto) e.contacto = 'Selecciona un prospecto';
+    if (!tipoId)            e.tipo     = 'Selecciona el tipo de trámite';
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -56,7 +110,7 @@ export default function NuevoExpedienteScreen() {
     setLoading(true);
     try {
       const exp = await createExpediente({
-        contacto_id:     Number(contacto_id),
+        contacto_id:     selectedContacto!.id,
         tipo_tramite_id: tipoId!,
         estado:          estado as any,
         monto_credito:   monto ? Number(monto) : undefined,
@@ -98,16 +152,76 @@ export default function NuevoExpedienteScreen() {
           </View>
         )}
 
-        {/* Prospecto */}
-        <Text style={styles.sectionLabel}>Prospecto</Text>
-        <View style={styles.section}>
-          <View style={styles.prospectoRow}>
-            <Text style={styles.prospectoIcon}>👤</Text>
-            <Text style={styles.prospectoNombre}>{contacto_nombre ?? `ID ${contacto_id}`}</Text>
-          </View>
-        </View>
+        {/* ── Selector de prospecto ─────────────────────────────────────── */}
+        <Text style={styles.sectionLabel}>Prospecto *</Text>
+        {errors.contacto ? <Text style={styles.fieldError}>{errors.contacto}</Text> : null}
 
-        {/* Tipo de trámite */}
+        {selectedContacto ? (
+          /* Prospecto seleccionado — mostrar chip con opción de cambiar */
+          <View style={styles.section}>
+            <View style={styles.prospectoRow}>
+              <Text style={styles.prospectoIcon}>👤</Text>
+              <Text style={styles.prospectoNombre}>{selectedContacto.nombre}</Text>
+              {!tieneParamContacto && (
+                <TouchableOpacity
+                  onPress={() => { setSelectedContacto(null); setBusqueda(''); }}
+                  style={styles.cambiarBtn}
+                >
+                  <Text style={styles.cambiarText}>Cambiar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        ) : (
+          /* Sin prospecto — mostrar buscador */
+          <View>
+            <View style={[styles.section, styles.searchBox]}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                style={styles.searchInput}
+                value={busqueda}
+                onChangeText={handleBusqueda}
+                placeholder="Buscar prospecto por nombre o teléfono…"
+                placeholderTextColor={Colors.dark[400]}
+                autoCorrect={false}
+                returnKeyType="search"
+              />
+              {buscando && (
+                <ActivityIndicator size="small" color={Colors.gold[400]} style={{ marginRight: Spacing.sm }} />
+              )}
+            </View>
+
+            {mostrarResultados && resultados.length > 0 && (
+              <View style={styles.dropdown}>
+                <FlatList
+                  data={resultados}
+                  keyExtractor={c => String(c.id)}
+                  scrollEnabled={false}
+                  renderItem={({ item: c }) => (
+                    <TouchableOpacity
+                      style={styles.dropdownItem}
+                      onPress={() => seleccionarContacto(c)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={styles.dropdownNombre}>{c.nombre}</Text>
+                      {c.telefono ? (
+                        <Text style={styles.dropdownSub}>{c.telefono}</Text>
+                      ) : null}
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            )}
+
+            {mostrarResultados && !buscando && busqueda.trim().length > 0 && resultados.length === 0 && (
+              <View style={styles.dropdown}>
+                <Text style={styles.emptySearch}>Sin resultados para "{busqueda}"</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ── Tipo de trámite ───────────────────────────────────────────── */}
         <Text style={styles.sectionLabel}>Tipo de trámite *</Text>
         {errors.tipo ? <Text style={styles.fieldError}>{errors.tipo}</Text> : null}
         <View style={styles.section}>
@@ -126,7 +240,7 @@ export default function NuevoExpedienteScreen() {
           ))}
         </View>
 
-        {/* Estado inicial */}
+        {/* ── Estado inicial ────────────────────────────────────────────── */}
         <Text style={styles.sectionLabel}>Estado inicial</Text>
         <View style={styles.section}>
           <View style={styles.estadoGrid}>
@@ -144,7 +258,7 @@ export default function NuevoExpedienteScreen() {
           </View>
         </View>
 
-        {/* Monto (opcional) */}
+        {/* ── Monto (opcional) ──────────────────────────────────────────── */}
         <Text style={styles.sectionLabel}>Monto del crédito (opcional)</Text>
         <View style={styles.section}>
           <TextInput
@@ -157,7 +271,7 @@ export default function NuevoExpedienteScreen() {
           />
         </View>
 
-        {/* Notas */}
+        {/* ── Notas ─────────────────────────────────────────────────────── */}
         <Text style={styles.sectionLabel}>Notas internas (opcional)</Text>
         <View style={styles.section}>
           <TextInput
@@ -214,36 +328,62 @@ const styles = StyleSheet.create({
 
   fieldError: { fontSize: Typography.fontSize.xs, color: Colors.error, marginBottom: Spacing.xs },
 
-  prospectoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
+  // Prospecto seleccionado
+  prospectoRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
   prospectoIcon: { fontSize: 20 },
-  prospectoNombre: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
+  prospectoNombre: { flex: 1, fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
+  cambiarBtn:    { paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.cream[300] },
+  cambiarText:   { fontSize: Typography.fontSize.xs, color: Colors.dark[500], fontWeight: Typography.fontWeight.semibold },
 
+  // Buscador
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: Spacing.md, overflow: 'visible',
+  },
+  searchIcon:  { fontSize: 16, marginRight: Spacing.sm, color: Colors.dark[400] },
+  searchInput: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[900], paddingVertical: Spacing.md },
+
+  // Dropdown resultados
+  dropdown: {
+    backgroundColor: Colors.white, borderRadius: Radius.md,
+    borderWidth: 1, borderColor: Colors.cream[300],
+    marginTop: 4, overflow: 'hidden',
+  },
+  dropdownItem: {
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: Colors.cream[100],
+  },
+  dropdownNombre: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
+  dropdownSub:    { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
+  emptySearch:    { padding: Spacing.md, fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center' },
+
+  // Tipo tramite
   tipoRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
     paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
     borderBottomWidth: 1, borderBottomColor: Colors.cream[100],
   },
-  tipoRowActive: { backgroundColor: Colors.gold[50] },
-  radio:         { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: Colors.cream[300] },
-  radioActive:   { borderColor: Colors.gold[500], backgroundColor: Colors.gold[400] },
-  tipoLabel:     { fontSize: Typography.fontSize.sm, color: Colors.dark[700], flex: 1 },
+  tipoRowActive:   { backgroundColor: Colors.gold[50] },
+  radio:           { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: Colors.cream[300] },
+  radioActive:     { borderColor: Colors.gold[500], backgroundColor: Colors.gold[400] },
+  tipoLabel:       { fontSize: Typography.fontSize.sm, color: Colors.dark[700], flex: 1 },
   tipoLabelActive: { color: Colors.gold[700], fontWeight: Typography.fontWeight.semibold },
 
+  // Estado chips
   estadoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, padding: Spacing.md },
   chip: {
     paddingHorizontal: Spacing.md, paddingVertical: 6,
     borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.cream[300], backgroundColor: Colors.cream[50],
   },
-  chipActive: { backgroundColor: Colors.dark[800], borderColor: Colors.dark[800] },
-  chipText:   { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[500] },
+  chipActive:     { backgroundColor: Colors.dark[800], borderColor: Colors.dark[800] },
+  chipText:       { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[500] },
   chipTextActive: { color: Colors.white },
 
-  input: {
-    fontSize: Typography.fontSize.sm, color: Colors.dark[900],
-    padding: Spacing.md,
-  },
+  // Inputs
+  input:      { fontSize: Typography.fontSize.sm, color: Colors.dark[900], padding: Spacing.md },
   inputMulti: { minHeight: 80 },
 
+  // Botón guardar
   saveBtn: {
     marginTop: Spacing.xl, backgroundColor: Colors.dark[900],
     borderRadius: Radius.md, paddingVertical: Spacing.base, alignItems: 'center',
@@ -253,6 +393,7 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.bold, letterSpacing: 0.5,
   },
 
+  // Éxito
   successBanner: {
     backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0',
     borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.base, alignItems: 'center',

@@ -12,8 +12,10 @@
       }
     },
     "staging": {
-      "developmentClient": true,
       "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "APP_ENV": "staging",
         "EXPO_PUBLIC_API_URL": "http://consultoria-inmobiliaria-app-u6ldbk-0f53d7-187-77-212-199.sslip.io/api/v1"

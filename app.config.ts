@@ -19,7 +19,7 @@ import type { ExpoConfig, ConfigContext } from 'expo/config';
 // Puerto 8080 escucha en 127.0.0.1, funciona desde simulador iOS.
 // Para dispositivo físico real usar EXPO_PUBLIC_API_URL=http://192.168.100.7:8082/api/v1
 const DEV_API_URL_ANDROID = 'http://10.0.2.2:8082/api/v1';
-const DEV_API_URL_IOS     = 'http://127.0.0.1:8080/api/v1';
+const DEV_API_URL_IOS     = 'https://consultoriainmobiliaria.com.mx/api/v1';
 const STAGING_API_URL     = 'http://consultoria-inmobiliaria-app-u6ldbk-0f53d7-187-77-212-199.sslip.io/api/v1';
 const PROD_API_URL        = 'https://consultoriainmobiliaria.com.mx/api/v1';
 
