@@ -18,7 +18,7 @@
       },
       "env": {
         "APP_ENV": "staging",
-        "EXPO_PUBLIC_API_URL": "http://consultoria-inmobiliaria-app-u6ldbk-0f53d7-187-77-212-199.sslip.io/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://dev.consultoriainmobiliaria.com.mx/api/v1"
       }
     },
     "production": {
