@@ -64,7 +64,7 @@ export default function Button({
           size="small"
         />
       ) : (
-        <Text style={labelStyle}>{label.toUpperCase()}</Text>
+        <Text style={labelStyle} numberOfLines={1} adjustsFontSizeToFit>{label.toUpperCase()}</Text>
       )}
     </TouchableOpacity>
   );
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   },
   // Labels
   label: {
-    letterSpacing: Typography.letterSpacing.widest,
+    letterSpacing: Typography.letterSpacing.wider,
     fontWeight:    Typography.fontWeight.semibold,
   },
   label_gold:    { color: Colors.dark[900] },

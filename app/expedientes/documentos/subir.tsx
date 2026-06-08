@@ -1,12 +1,40 @@
 /**
  * Pantalla: Subir / Escanear Documento
  * Ruta: /expedientes/documentos/subir?expedienteId=X
+ *
+ * Flujo primario:  DocumentScanner nativo → N imágenes → PDF → preview → subir
+ * Flujo secundario: Galería → imagen JPEG → preview → subir
+ *
+ * Los módulos nativos (DocumentScanner, RNImageToPdf) se cargan con require()
+ * dentro de un try-catch: si no están disponibles (Expo Go / simulador) el
+ * componente carga igual y muestra la galería como única opción.
+ * En producción (EAS Build) ambos módulos están compilados y el escáner funciona.
  */
 
-import { CameraView, useCameraPermissions } from 'expo-camera';
+// ── Imports nativos condicionales ─────────────────────────────────────────────
+// type-only import: no genera código de runtime, solo tipos para TypeScript
+import type DocScannerT  from 'react-native-document-scanner-plugin';
+import type RNImageToPdfT from 'react-native-image-to-pdf';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+let DocumentScanner: typeof DocScannerT | null = null;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+let RNImageToPdf: typeof RNImageToPdfT | null = null;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  DocumentScanner = (require('react-native-document-scanner-plugin') as { default: typeof DocScannerT }).default;
+} catch { /* no disponible en Expo Go / simulador */ }
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  RNImageToPdf = (require('react-native-image-to-pdf') as { default: typeof RNImageToPdfT }).default;
+} catch { /* no disponible en Expo Go / simulador */ }
+
+// ── Resto de imports ──────────────────────────────────────────────────────────
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -25,6 +53,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { uploadDocumento } from '../../../src/services/api';
 import { Colors, Radius, Spacing, Typography } from '../../../src/theme';
+import { useSyncContext } from '../../../src/contexts/SyncContext';
 
 const TIPOS_DOCUMENTO = [
   { value: 'identificacion_oficial', label: 'Identificación oficial' },
@@ -38,7 +67,14 @@ const TIPOS_DOCUMENTO = [
 ] as const;
 
 type TipoDocumento = typeof TIPOS_DOCUMENTO[number]['value'];
-type Mode = 'selector' | 'camara' | 'preview';
+type Mode = 'selector' | 'processing' | 'preview';
+
+/** Quita el prefijo `file://` — react-native-image-to-pdf espera paths absolutos */
+const stripFilePrefix = (uri: string) => uri.replace(/^file:\/\//, '');
+
+/** Garantiza que el URI tenga `file://` para FormData */
+const toFileUri = (path: string) =>
+  path.startsWith('file://') ? path : `file://${path}`;
 
 export default function SubirDocumentoScreen() {
   const insets = useSafeAreaInsets();
@@ -47,39 +83,48 @@ export default function SubirDocumentoScreen() {
     tipo?: string;
   }>();
 
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
+  const [tipo,  setTipo]  = useState<TipoDocumento>((tipoParam as TipoDocumento) ?? 'identificacion_oficial');
+  const [notas, setNotas] = useState('');
+  const { online, encolarDoc } = useSyncContext();
 
   const [mode,      setMode]      = useState<Mode>('selector');
-  const [imageUri,  setImageUri]  = useState<string | null>(null);
-  const [tipo,      setTipo]      = useState<TipoDocumento>(
-    (tipoParam as TipoDocumento) ?? 'identificacion_oficial',
-  );
-  const [notas,     setNotas]     = useState('');
+  const [pages,     setPages]     = useState<string[]>([]);   // URIs de páginas escaneadas
+  const [resultUri, setResultUri] = useState<string | null>(null);
+  const [mimeType,  setMimeType]  = useState<string>('application/pdf');
   const [uploading, setUploading] = useState(false);
-  const [facing,    setFacing]    = useState<'front' | 'back'>('back');
 
-  const abrirCamara = async () => {
-    if (!permission?.granted) {
-      const { granted } = await requestPermission();
-      if (!granted) {
-        Alert.alert('Permiso requerido', 'Activa el acceso a la cámara en Configuración.');
-        return;
-      }
+  // ── Escanear con DocumentScanner nativo ──────────────────────────────────────
+  const escanear = async () => {
+    if (!DocumentScanner || !RNImageToPdf) {
+      Alert.alert(
+        'Escáner no disponible',
+        'El escáner de documentos requiere un build nativo (EAS Build). Por ahora usa la opción Galería.',
+      );
+      return;
     }
-    setMode('camara');
-  };
-
-  const tomarFoto = async () => {
-    if (!cameraRef.current) return;
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
-      if (photo?.uri) { setImageUri(photo.uri); setMode('preview'); }
-    } catch {
-      Alert.alert('Error', 'No se pudo tomar la foto.');
+      const { scannedImages } = await DocumentScanner.scanDocument();
+      if (!scannedImages || scannedImages.length === 0) return; // usuario canceló
+
+      setPages(scannedImages);
+      setMode('processing');
+
+      const nombre = `doc_${Date.now()}`;
+      const { filePath } = await RNImageToPdf.createPDFbyImages({
+        imagePaths: scannedImages.map(stripFilePrefix),
+        name: nombre,
+      });
+
+      setResultUri(toFileUri(filePath));
+      setMimeType('application/pdf');
+      setMode('preview');
+    } catch (err: unknown) {
+      setMode('selector');
+      Alert.alert('Error al escanear', err instanceof Error ? err.message : 'Error desconocido');
     }
   };
 
+  // ── Seleccionar desde galería ─────────────────────────────────────────────────
   const seleccionarGaleria = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -88,21 +133,41 @@ export default function SubirDocumentoScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.8,
-      allowsEditing: true,
-      aspect: [4, 3],
+      quality: 0.85,
+      allowsEditing: false,
     });
     if (!result.canceled && result.assets[0]?.uri) {
-      setImageUri(result.assets[0].uri);
+      const uri = result.assets[0].uri;
+      setPages([uri]);
+      setResultUri(uri);
+      setMimeType('image/jpeg');
       setMode('preview');
     }
   };
 
+  // ── Subir ─────────────────────────────────────────────────────────────────────
   const subir = async () => {
-    if (!imageUri || !expedienteId) return;
+    if (!resultUri || !expedienteId) return;
     setUploading(true);
     try {
-      await uploadDocumento(Number(expedienteId), imageUri, tipo, notas || undefined);
+      if (!online) {
+        // Sin internet: encolar el documento para subir después
+        await encolarDoc({
+          expedienteId: Number(expedienteId),
+          uri:          resultUri,
+          tipo,
+          mimeType,
+          notas:        notas || undefined,
+        });
+        Alert.alert(
+          'Guardado sin conexión',
+          'El documento se subirá al expediente automáticamente cuando recuperes internet.',
+          [{ text: 'Entendido', onPress: () => router.back() }],
+        );
+        return;
+      }
+
+      await uploadDocumento(Number(expedienteId), resultUri, tipo, notas || undefined, mimeType);
       Alert.alert('Listo', 'Documento subido correctamente.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
@@ -113,19 +178,38 @@ export default function SubirDocumentoScreen() {
     }
   };
 
-  // ── Selector ────────────────────────────────────────────────────────────────
-  if (mode === 'selector') {
+  const volverASelector = () => {
+    setMode('selector');
+    setPages([]);
+    setResultUri(null);
+  };
+
+  // ── Procesando (convirtiendo a PDF) ──────────────────────────────────────────
+  if (mode === 'processing') {
+    return (
+      <View style={[s.flex, s.centered, { backgroundColor: Colors.dark[900] }]}>
+        <ActivityIndicator size="large" color={Colors.gold[400]} />
+        <Text style={s.processingText}>Generando PDF…</Text>
+        <Text style={s.processingSubText}>
+          {pages.length} página{pages.length !== 1 ? 's' : ''}
+        </Text>
+      </View>
+    );
+  }
+
+  // ── Preview ──────────────────────────────────────────────────────────────────
+  if (mode === 'preview') {
+    const esPdf = mimeType === 'application/pdf';
     return (
       <KeyboardAvoidingView
         style={[s.flex, { backgroundColor: Colors.cream[50] }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Header */}
         <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
-          <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+          <TouchableOpacity onPress={volverASelector} style={s.backBtn}>
             <Text style={s.backIcon}>←</Text>
           </TouchableOpacity>
-          <Text style={s.topTitle}>Agregar documento</Text>
+          <Text style={s.topTitle}>Revisar documento</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -134,7 +218,117 @@ export default function SubirDocumentoScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {esPdf ? (
+            /* ── Vista previa PDF: miniaturas de páginas + badge ── */
+            <View style={s.pdfPreview}>
+              <View style={s.pdfThumbs}>
+                {pages.slice(0, 3).map((uri, i) => (
+                  <Image key={i} source={{ uri }} style={s.pdfThumb} resizeMode="cover" />
+                ))}
+                {pages.length > 3 && (
+                  <View style={[s.pdfThumb, s.pdfThumbMore]}>
+                    <Text style={s.pdfThumbMoreText}>+{pages.length - 3}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={s.pdfBadge}>
+                <Text style={s.pdfIcon}>📄</Text>
+                <Text style={s.pdfLabel}>
+                  PDF · {pages.length} página{pages.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            /* ── Vista previa imagen ── */
+            <Image source={{ uri: resultUri! }} style={s.previewImg} resizeMode="contain" />
+          )}
+
           <Text style={s.sectionLabel}>Tipo de documento</Text>
+          {tipoParam ? (
+            /* Tipo fijado desde el checklist — no se puede cambiar para garantizar que el
+               documento quede ligado correctamente al requerido del expediente */
+            <View style={s.tipoFijo}>
+              <Text style={s.tipoFijoText}>{tipoParam}</Text>
+            </View>
+          ) : (
+            <View style={s.chipWrap}>
+              {TIPOS_DOCUMENTO.map(t => (
+                <Pressable
+                  key={t.value}
+                  style={[s.chip, tipo === t.value && s.chipActivo]}
+                  onPress={() => setTipo(t.value)}
+                >
+                  <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
+                    {t.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          <Text style={s.sectionLabel}>Notas (opcional)</Text>
+          <TextInput
+            style={s.input}
+            placeholder="Descripción del documento…"
+            placeholderTextColor={Colors.dark[400]}
+            value={notas}
+            onChangeText={setNotas}
+            multiline
+            numberOfLines={3}
+          />
+
+          <Pressable
+            style={[s.btnSubir, uploading && s.btnDisabled]}
+            onPress={subir}
+            disabled={uploading}
+          >
+            {uploading
+              ? <ActivityIndicator color={Colors.white} />
+              : <Text style={s.btnSubirText}>
+                  {online ? 'Subir documento' : 'Guardar (sin conexión)'}
+                </Text>
+            }
+          </Pressable>
+
+          {!online && (
+            <Text style={s.offlineHint}>
+              Sin internet — el documento quedará guardado en tu dispositivo y se enviará al expediente cuando recuperes señal.
+            </Text>
+          )}
+
+          <Pressable style={s.btnSecundario} onPress={volverASelector}>
+            <Text style={s.btnSecundarioText}>← Volver a capturar</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // ── Selector ─────────────────────────────────────────────────────────────────
+  return (
+    <KeyboardAvoidingView
+      style={[s.flex, { backgroundColor: Colors.cream[50] }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+          <Text style={s.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={s.topTitle}>Agregar documento</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 32 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={s.sectionLabel}>Tipo de documento</Text>
+        {tipoParam ? (
+          <View style={s.tipoFijo}>
+            <Text style={s.tipoFijoText}>{tipoParam}</Text>
+          </View>
+        ) : (
           <View style={s.chipWrap}>
             {TIPOS_DOCUMENTO.map(t => (
               <Pressable
@@ -148,100 +342,12 @@ export default function SubirDocumentoScreen() {
               </Pressable>
             ))}
           </View>
-
-          <Text style={s.sectionLabel}>Notas (opcional)</Text>
-          <TextInput
-            style={s.input}
-            placeholder="Ej: INE vigente, anverso y reverso"
-            placeholderTextColor={Colors.dark[400]}
-            value={notas}
-            onChangeText={setNotas}
-            multiline
-            numberOfLines={3}
-          />
-
-          <View style={s.actions}>
-            <Pressable style={s.btnCamara} onPress={abrirCamara}>
-              <Text style={s.btnIcon}>📷</Text>
-              <Text style={s.btnLabel}>Tomar foto</Text>
-            </Pressable>
-            <Pressable style={s.btnGaleria} onPress={seleccionarGaleria}>
-              <Text style={s.btnIcon}>🖼️</Text>
-              <Text style={s.btnLabel}>Galería</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    );
-  }
-
-  // ── Cámara ──────────────────────────────────────────────────────────────────
-  if (mode === 'camara') {
-    return (
-      <View style={s.cameraContainer}>
-        <CameraView ref={cameraRef} style={s.camera} facing={facing}>
-          <View style={s.cameraOverlay}>
-            <View style={s.cameraFrame} />
-          </View>
-          <View style={[s.cameraControls, { paddingBottom: insets.bottom + 24 }]}>
-            <Pressable style={s.camBtn} onPress={() => setMode('selector')}>
-              <Text style={s.camBtnTxt}>✕</Text>
-            </Pressable>
-            <Pressable style={s.shutter} onPress={tomarFoto}>
-              <View style={s.shutterInner} />
-            </Pressable>
-            <Pressable style={s.camBtn} onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
-              <Text style={s.camBtnTxt}>🔄</Text>
-            </Pressable>
-          </View>
-        </CameraView>
-      </View>
-    );
-  }
-
-  // ── Preview ─────────────────────────────────────────────────────────────────
-  return (
-    <KeyboardAvoidingView
-      style={[s.flex, { backgroundColor: Colors.cream[50] }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      {/* Header */}
-      <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity onPress={() => setMode('selector')} style={s.backBtn}>
-          <Text style={s.backIcon}>←</Text>
-        </TouchableOpacity>
-        <Text style={s.topTitle}>Revisar documento</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 32 }]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {imageUri && (
-          <Image source={{ uri: imageUri }} style={s.previewImg} resizeMode="contain" />
         )}
-
-        <Text style={s.sectionLabel}>Tipo de documento</Text>
-        <View style={s.chipWrap}>
-          {TIPOS_DOCUMENTO.map(t => (
-            <Pressable
-              key={t.value}
-              style={[s.chip, tipo === t.value && s.chipActivo]}
-              onPress={() => setTipo(t.value)}
-            >
-              <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
-                {t.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
 
         <Text style={s.sectionLabel}>Notas (opcional)</Text>
         <TextInput
           style={s.input}
-          placeholder="Descripción del documento…"
+          placeholder="Ej: INE vigente, anverso y reverso"
           placeholderTextColor={Colors.dark[400]}
           value={notas}
           onChangeText={setNotas}
@@ -249,20 +355,21 @@ export default function SubirDocumentoScreen() {
           numberOfLines={3}
         />
 
-        <Pressable
-          style={[s.btnSubir, uploading && s.btnDisabled]}
-          onPress={subir}
-          disabled={uploading}
-        >
-          {uploading
-            ? <ActivityIndicator color={Colors.white} />
-            : <Text style={s.btnSubirText}>Subir documento</Text>
-          }
-        </Pressable>
+        <View style={s.actions}>
+          <Pressable style={s.btnEscanear} onPress={escanear}>
+            <Text style={s.btnIcon}>📄</Text>
+            <Text style={s.btnLabel}>Escanear documento</Text>
+            <Text style={s.btnSubLabel}>
+              {DocumentScanner ? 'Múltiples páginas → PDF' : 'Requiere EAS Build'}
+            </Text>
+          </Pressable>
 
-        <Pressable style={s.btnSecundario} onPress={() => setMode('selector')}>
-          <Text style={s.btnSecundarioText}>← Volver a capturar</Text>
-        </Pressable>
+          <Pressable style={s.btnGaleria} onPress={seleccionarGaleria}>
+            <Text style={s.btnIcon}>🖼️</Text>
+            <Text style={s.btnLabel}>Galería</Text>
+            <Text style={s.btnSubLabel}>Seleccionar imagen</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -271,7 +378,16 @@ export default function SubirDocumentoScreen() {
 // ── Estilos ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  flex: { flex: 1 },
+  flex:     { flex: 1 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+
+  processingText:    {
+    color: Colors.white,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold,
+    marginTop: 16,
+  },
+  processingSubText: { color: Colors.dark[400], fontSize: Typography.fontSize.sm },
 
   topBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -280,20 +396,25 @@ const s = StyleSheet.create({
   },
   backBtn:  { width: 40, height: 40, justifyContent: 'center' },
   backIcon: { fontSize: 22, color: Colors.dark[700] },
-  topTitle: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
+  topTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.dark[900],
+  },
 
   body: { padding: Spacing.base },
 
   sectionLabel: {
-    fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold,
-    color: Colors.dark[500], letterSpacing: 1, textTransform: 'uppercase',
-    marginTop: Spacing.base, marginBottom: Spacing.sm,
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.dark[500],
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: Spacing.base,
+    marginBottom: Spacing.sm,
   },
 
-  // Chips en grid (wrap)
-  chipWrap: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs,
-  },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   chip: {
     paddingHorizontal: Spacing.md, paddingVertical: 7,
     borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.cream[300],
@@ -303,59 +424,97 @@ const s = StyleSheet.create({
   chipText:       { fontSize: Typography.fontSize.xs, color: Colors.dark[700], fontWeight: '500' },
   chipTextActivo: { color: Colors.white, fontWeight: Typography.fontWeight.bold },
 
+  // Tipo fijo (desde el checklist del expediente — no editable)
+  tipoFijo: {
+    backgroundColor: Colors.cream[100], borderRadius: Radius.md,
+    borderWidth: 1, borderColor: Colors.cream[300],
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+  },
+  tipoFijoText: {
+    fontSize: Typography.fontSize.sm, color: Colors.dark[800],
+    fontWeight: '600',
+  },
+
   input: {
     backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cream[300],
     borderRadius: Radius.md, padding: Spacing.md, color: Colors.dark[900],
     fontSize: Typography.fontSize.sm, textAlignVertical: 'top', minHeight: 80,
   },
 
-  actions: { flexDirection: 'row', gap: Spacing.base, marginTop: Spacing.xl },
-  btnCamara: {
-    flex: 1, backgroundColor: Colors.gold[400], borderRadius: Radius.lg,
-    paddingVertical: Spacing.lg, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
+  // ── Botones selector ──
+  actions:     { gap: Spacing.md, marginTop: Spacing.xl },
+  btnEscanear: {
+    backgroundColor: Colors.gold[400], borderRadius: Radius.lg,
+    paddingVertical: Spacing.xl, paddingHorizontal: Spacing.xl,
+    alignItems: 'center', gap: 4,
   },
   btnGaleria: {
-    flex: 1, backgroundColor: Colors.dark[800], borderRadius: Radius.lg,
-    paddingVertical: Spacing.lg, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
+    backgroundColor: Colors.dark[800], borderRadius: Radius.lg,
+    paddingVertical: Spacing.base, paddingHorizontal: Spacing.xl,
+    alignItems: 'center', gap: 4,
   },
-  btnIcon:  { fontSize: 28 },
-  btnLabel: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.white },
+  btnIcon:     { fontSize: 32 },
+  btnLabel:    {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.white,
+  },
+  btnSubLabel: { fontSize: Typography.fontSize.xs, color: 'rgba(255,255,255,0.7)' },
 
-  // Cámara
-  cameraContainer: { flex: 1, backgroundColor: '#000' },
-  camera:          { flex: 1 },
-  cameraOverlay:   { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  cameraFrame: {
-    width: 280, height: 200, borderWidth: 2,
-    borderColor: Colors.gold[400], borderRadius: Radius.md,
+  // ── PDF preview ──
+  pdfPreview: {
+    backgroundColor: Colors.dark[900], borderRadius: Radius.lg,
+    overflow: 'hidden', marginBottom: Spacing.sm,
   },
-  cameraControls: {
-    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
-    paddingTop: Spacing.lg, paddingHorizontal: Spacing.xl,
+  pdfThumbs: { flexDirection: 'row', height: 180, gap: 2 },
+  pdfThumb:  { flex: 1, backgroundColor: Colors.dark[700] },
+  pdfThumbMore: {
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: Colors.dark[600],
+  },
+  pdfThumbMoreText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
+  },
+  pdfBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingVertical: Spacing.md, paddingHorizontal: Spacing.base,
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  camBtn: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center',
+  pdfIcon:  { fontSize: 18 },
+  pdfLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.white,
   },
-  camBtnTxt: { fontSize: 22 },
-  shutter: {
-    width: 72, height: 72, borderRadius: 36, borderWidth: 4,
-    borderColor: Colors.white, alignItems: 'center', justifyContent: 'center',
-  },
-  shutterInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.white },
 
-  // Preview
+  // ── Image preview ──
   previewImg: {
     width: '100%', height: 260, borderRadius: Radius.lg,
     backgroundColor: Colors.dark[900], marginBottom: Spacing.sm,
   },
+
+  // ── Subir ──
   btnSubir: {
     backgroundColor: Colors.gold[400], borderRadius: Radius.lg,
     paddingVertical: Spacing.base, alignItems: 'center', marginTop: Spacing.xl,
   },
-  btnDisabled:      { opacity: 0.6 },
-  btnSubirText:     { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.white },
-  btnSecundario:    { marginTop: Spacing.sm, paddingVertical: Spacing.md, alignItems: 'center' },
-  btnSecundarioText:{ fontSize: Typography.fontSize.sm, color: Colors.dark[500] },
+  btnDisabled:       { opacity: 0.6 },
+  btnSubirText:      {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
+  },
+  btnSecundario:     { marginTop: Spacing.sm, paddingVertical: Spacing.md, alignItems: 'center' },
+  btnSecundarioText: { fontSize: Typography.fontSize.sm, color: Colors.dark[500] },
+
+  offlineHint: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.dark[500],
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    lineHeight: 18,
+  },
 });

@@ -176,7 +176,10 @@ export async function getContactos(params?: { estado?: string; q?: string; page?
 
 export async function getContacto(id: number): Promise<Contacto> {
   const res = await apiFetch<ApiResponse<Contacto>>(`/contactos/${id}`);
-  return res.data;
+  const c = res.data;
+  if (c?.foto_url)                  c.foto_url                  = resolveStorageUrl(c.foto_url);
+  if (c?.simulador_screenshot_url)  c.simulador_screenshot_url  = resolveStorageUrl(c.simulador_screenshot_url);
+  return c;
 }
 
 export async function createContacto(data: Partial<Contacto>): Promise<Contacto> {
@@ -195,18 +198,60 @@ export async function updateContacto(id: number, data: Partial<Contacto>): Promi
   return res.data;
 }
 
+export async function uploadFotoContacto(
+  id: number,
+  foto: { uri: string; name: string; type: string },
+): Promise<Contacto> {
+  const form = new FormData();
+  form.append('foto', { uri: foto.uri, name: foto.name, type: foto.type } as any);
+  const res = await apiFetch<ApiResponse<Contacto>>(`/contactos/${id}/foto`, {
+    method:  'POST',
+    body:    form,
+    headers: {}, // deja que fetch ponga el Content-Type multipart automáticamente
+  });
+  return res.data;
+}
+
+export async function uploadSimuladorScreenshot(
+  id: number,
+  screenshot: { uri: string; name: string; type: string },
+): Promise<Contacto> {
+  const form = new FormData();
+  form.append('screenshot', { uri: screenshot.uri, name: screenshot.name, type: screenshot.type } as any);
+  const res = await apiFetch<ApiResponse<Contacto>>(`/contactos/${id}/simulador-screenshot`, {
+    method:  'POST',
+    body:    form,
+    headers: {},
+  });
+  const c = res.data;
+  if (c?.simulador_screenshot_url) c.simulador_screenshot_url = resolveStorageUrl(c.simulador_screenshot_url);
+  return c;
+}
+
 // ── Expedientes ────────────────────────────────────────────────────────────
 
 export async function getExpedientes(params?: { estado?: string }): Promise<PaginatedResponse<Expediente>> {
   const qs = new URLSearchParams(
     Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== ''))
   ).toString();
-  return apiFetch<PaginatedResponse<Expediente>>(`/expedientes${qs ? `?${qs}` : ''}`);
+  const res = await apiFetch<PaginatedResponse<Expediente>>(`/expedientes${qs ? `?${qs}` : ''}`);
+  // Resolver foto del contacto para cada expediente
+  res.data = res.data.map(exp => {
+    if (exp.contacto?.foto_url)
+      exp.contacto.foto_url = resolveStorageUrl(exp.contacto.foto_url);
+    return exp;
+  });
+  return res;
 }
 
 export async function getExpediente(id: number): Promise<Expediente> {
   const res = await apiFetch<ApiResponse<Expediente>>(`/expedientes/${id}`);
-  return res.data;
+  const exp = res.data;
+  if (exp.contacto?.foto_url)
+    exp.contacto.foto_url = resolveStorageUrl(exp.contacto.foto_url);
+  if (exp.contacto?.simulador_screenshot_url)
+    exp.contacto.simulador_screenshot_url = resolveStorageUrl(exp.contacto.simulador_screenshot_url);
+  return exp;
 }
 
 export async function createExpediente(data: Partial<Expediente>): Promise<Expediente> {
@@ -219,10 +264,12 @@ export async function createExpediente(data: Partial<Expediente>): Promise<Exped
 
 // ── Documentos ─────────────────────────────────────────────────────────────
 
-export async function uploadDocumento(expedienteId: number, uri: string, tipo: string, notas?: string): Promise<Documento> {
+export async function uploadDocumento(expedienteId: number, uri: string, tipo: string, notas?: string, mimeType?: string): Promise<Documento> {
   const token = await getToken();
+  const mime = mimeType ?? 'image/jpeg';
+  const ext  = mime === 'application/pdf' ? 'pdf' : mime.split('/')[1] ?? 'jpg';
   const formData = new FormData();
-  formData.append('archivo', { uri, type: 'image/jpeg', name: `doc_${Date.now()}.jpg` } as unknown as Blob);
+  formData.append('archivo', { uri, type: mime, name: `doc_${Date.now()}.${ext}` } as unknown as Blob);
   formData.append('tipo_documento', tipo);
   if (notas) formData.append('notas', notas);
 
@@ -263,10 +310,12 @@ export async function getDocumentoUrl(expedienteId: number, documentoId: number)
   return resolveStorageUrl(res.url) ?? res.url;
 }
 
-export async function reemplazarDocumento(expedienteId: number, documentoId: number, uri: string): Promise<Documento> {
+export async function reemplazarDocumento(expedienteId: number, documentoId: number, uri: string, mimeType?: string): Promise<Documento> {
   const token = await getToken();
+  const mime = mimeType ?? 'image/jpeg';
+  const ext  = mime === 'application/pdf' ? 'pdf' : mime.split('/')[1] ?? 'jpg';
   const formData = new FormData();
-  formData.append('archivo', { uri, type: 'image/jpeg', name: `doc_${Date.now()}.jpg` } as unknown as Blob);
+  formData.append('archivo', { uri, type: mime, name: `doc_${Date.now()}.${ext}` } as unknown as Blob);
 
   const response = await fetch(`${API_BASE}/expedientes/${expedienteId}/documentos/${documentoId}/reemplazar`, {
     method:  'POST',

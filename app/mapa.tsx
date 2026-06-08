@@ -6,12 +6,14 @@
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -24,17 +26,26 @@ import {
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 
+import { ESTADOS_MX, MUNICIPIOS_MX } from '../src/data/mexico';
 import { getContactos, getUbicacionesMapa, registrarUbicacion, subirFotosVisita } from '../src/services/api';
 import { Colors, Radius, Spacing, Typography } from '../src/theme';
 import type { Contacto, Ubicacion } from '../src/types';
 
+// ── Constantes de tipo ────────────────────────────────────────────────────────
 const TIPO_COLOR: Record<string, string> = {
   visita_cliente: Colors.gold[400],
   propiedad:      Colors.dark[700],
+  escuela:        '#3b82f6',
 };
 const TIPO_ICON: Record<string, string> = {
   visita_cliente: '🏠',
   propiedad:      '🏢',
+  escuela:        '🏫',
+};
+const TIPO_LABEL: Record<string, string> = {
+  visita_cliente: 'Cliente',
+  propiedad:      'Propiedad',
+  escuela:        'Escuela',
 };
 
 const REGION_CDMX: Region = {
@@ -42,9 +53,20 @@ const REGION_CDMX: Region = {
   latitudeDelta: 0.15, longitudeDelta: 0.15,
 };
 
+type TipoVisita = 'visita_cliente' | 'propiedad' | 'escuela';
+
 export default function MapaScreen() {
   const mapRef = useRef<MapView>(null);
-  const { contacto_id, contacto_nombre } = useLocalSearchParams<{ contacto_id?: string; contacto_nombre?: string }>();
+  const { contacto_id, contacto_nombre, lat, lng } = useLocalSearchParams<{
+    contacto_id?: string;
+    contacto_nombre?: string;
+    lat?: string;
+    lng?: string;
+  }>();
+
+  // Coordenadas de llegada (desde detalle de prospecto)
+  const initLat = lat ? parseFloat(lat) : null;
+  const initLng = lng ? parseFloat(lng) : null;
 
   const [ubicaciones, setUbicaciones]   = useState<Ubicacion[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -52,16 +74,71 @@ export default function MapaScreen() {
   const [registrando, setRegistrando]   = useState(false);
   const [userLoc, setUserLoc]           = useState<{ lat: number; lng: number } | null>(null);
   const [notas, setNotas]               = useState('');
-  const [tipo, setTipo]                 = useState<'visita_cliente' | 'propiedad'>('visita_cliente');
+  const [tipo, setTipo]                 = useState<TipoVisita>('visita_cliente');
   const [filtro, setFiltro]             = useState<string>('todos');
-  const [municipio, setMunicipio]       = useState('');
-  const [estadoVal, setEstadoVal]       = useState('');
+  const [detalle, setDetalle]           = useState<Ubicacion | null>(null);
+
+  // ── Prospecto ──────────────────────────────────────────────────────────────
   const [contactoId, setContactoId]     = useState<number | null>(null);
   const [prospectos, setProspectos]     = useState<Contacto[]>([]);
   const [busqProspecto, setBusqProspecto] = useState('');
-  const [fotosSeleccionadas, setFotosSeleccionadas] = useState<ImagePicker.ImagePickerAsset[]>([]);
-  const [detalle, setDetalle]           = useState<Ubicacion | null>(null);
 
+  // ── Nombre/dirección (propiedad / escuela) ─────────────────────────────────
+  const [nombreLugar, setNombreLugar]   = useState('');
+  const [direccion, setDireccion]       = useState('');
+
+  // ── Estado buscador ────────────────────────────────────────────────────────
+  const [busqEstado, setBusqEstado]         = useState('');
+  const [estadoVal, setEstadoVal]           = useState('');
+  const [estadoDropdownVisible, setEstadoDropdownVisible] = useState(false);
+  const estadosFiltrados = ESTADOS_MX.filter(e =>
+    e.toLowerCase().includes(busqEstado.toLowerCase())
+  );
+
+  // ── Municipio selector ─────────────────────────────────────────────────────
+  const [municipio, setMunicipio]           = useState('');
+  const [municipioDropdownVisible, setMunicipioDropdownVisible] = useState(false);
+  const municipiosDelEstado: string[] = estadoVal ? (MUNICIPIOS_MX[estadoVal] ?? []) : [];
+
+  // ── Fotos ──────────────────────────────────────────────────────────────────
+  const [fotosSeleccionadas, setFotosSeleccionadas] = useState<ImagePicker.ImagePickerAsset[]>([]);
+
+  // ── Buscador del mapa ──────────────────────────────────────────────────────
+  const [busqMapa, setBusqMapa]       = useState('');
+  const [busqVisible, setBusqVisible] = useState(false);
+  const resultadosBusq = useMemo(() => {
+    if (busqMapa.trim().length < 2) return [];
+    const q = busqMapa.toLowerCase();
+    return ubicaciones.filter(u =>
+      u.contacto?.toLowerCase().includes(q) ||
+      u.nombre_lugar?.toLowerCase().includes(q) ||
+      u.direccion?.toLowerCase().includes(q) ||
+      u.municipio?.toLowerCase().includes(q) ||
+      u.estado?.toLowerCase().includes(q)
+    ).slice(0, 8);
+  }, [busqMapa, ubicaciones]);
+
+  // ── Navegación externa ─────────────────────────────────────────────────────
+  const abrirNavegacion = async (lat: number, lng: number, app: 'google' | 'waze' | 'apple') => {
+    const nativeUrls: Record<string, string> = {
+      google: `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
+      waze:   `waze://ul?ll=${lat},${lng}&navigate=yes`,
+      apple:  `maps://maps.apple.com/?daddr=${lat},${lng}`,
+    };
+    const webUrls: Record<string, string> = {
+      google: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`,
+      waze:   `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,
+      apple:  `http://maps.apple.com/?daddr=${lat},${lng}`,
+    };
+    try {
+      const canOpen = await Linking.canOpenURL(nativeUrls[app]);
+      await Linking.openURL(canOpen ? nativeUrls[app] : webUrls[app]);
+    } catch {
+      await Linking.openURL(webUrls[app]);
+    }
+  };
+
+  // ── Carga datos del mapa ───────────────────────────────────────────────────
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
@@ -83,21 +160,41 @@ export default function MapaScreen() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  // Si llegamos desde el detalle de un prospecto, abrir modal con ese prospecto pre-seleccionado
+  // Centrar en coordenadas recibidas desde el detalle de un prospecto
   useEffect(() => {
-    if (contacto_id && contacto_nombre) {
+    if (loading || initLat === null || initLng === null) return;
+    // Centrar mapa
+    setTimeout(() => {
+      mapRef.current?.animateToRegion({
+        latitude: initLat, longitude: initLng,
+        latitudeDelta: 0.02, longitudeDelta: 0.02,
+      }, 700);
+    }, 300);
+    // Buscar la visita más cercana a esas coordenadas y mostrar detalle
+    const match = ubicaciones.find(u =>
+      Math.abs(u.latitud - initLat) < 0.001 &&
+      Math.abs(u.longitud - initLng) < 0.001
+    );
+    if (match) setTimeout(() => setDetalle(match), 1000);
+  // Solo cuando termina la carga inicial
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // Si llegamos desde el detalle de un prospecto para REGISTRAR visita
+  // (no cuando llegamos con lat/lng a VER una ubicación existente)
+  useEffect(() => {
+    if (contacto_id && contacto_nombre && !lat && !lng) {
       const id = parseInt(contacto_id, 10);
       if (!isNaN(id)) {
         setContactoId(id);
         setBusqProspecto(contacto_nombre);
-        // Pequeño delay para que el mapa cargue primero
         setTimeout(() => abrirRegistro(id, contacto_nombre), 500);
       }
     }
-  // Solo al montar — los params no cambian
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── GPS ───────────────────────────────────────────────────────────────────
   const obtenerGPS = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -118,18 +215,27 @@ export default function MapaScreen() {
     }, 600);
   };
 
+  // ── Abrir modal ───────────────────────────────────────────────────────────
+  const resetForm = () => {
+    setNotas('');
+    setTipo('visita_cliente');
+    setNombreLugar('');
+    setDireccion('');
+    setBusqEstado('');
+    setEstadoVal('');
+    setEstadoDropdownVisible(false);
+    setMunicipio('');
+    setMunicipioDropdownVisible(false);
+    setFotosSeleccionadas([]);
+  };
+
   const abrirRegistro = async (preContactoId?: number, preContactoNombre?: string) => {
     const loc = await obtenerGPS();
     if (!loc) return;
     setUserLoc(loc);
-    setNotas('');
-    setTipo('visita_cliente');
-    setMunicipio('');
-    setEstadoVal('');
+    resetForm();
     setContactoId(preContactoId ?? null);
     setBusqProspecto(preContactoNombre ?? '');
-    setFotosSeleccionadas([]);
-    // Cargar prospectos solo si no viene uno pre-seleccionado
     if (!preContactoId) {
       try {
         const res = await getContactos({ page: 1 });
@@ -139,25 +245,20 @@ export default function MapaScreen() {
     setModalVisible(true);
   };
 
+  // ── Fotos ─────────────────────────────────────────────────────────────────
   const agregarFotos = async (origen: 'camara' | 'galeria') => {
     const permisos = origen === 'camara'
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
     if (permisos.status !== 'granted') {
       Alert.alert('Permiso requerido', `Activa el acceso a ${origen === 'camara' ? 'la cámara' : 'la galería'} en Configuración.`);
       return;
     }
-
     const result = origen === 'camara'
       ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.5, allowsMultipleSelection: false })
       : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.5, allowsMultipleSelection: true, selectionLimit: 5 });
-
     if (!result.canceled) {
-      setFotosSeleccionadas(prev => {
-        const nuevas = [...prev, ...result.assets];
-        return nuevas.slice(0, 5); // máximo 5
-      });
+      setFotosSeleccionadas(prev => [...prev, ...result.assets].slice(0, 5));
     }
   };
 
@@ -165,6 +266,7 @@ export default function MapaScreen() {
     setFotosSeleccionadas(prev => prev.filter((_, i) => i !== index));
   };
 
+  // ── Guardar visita ────────────────────────────────────────────────────────
   const registrar = async () => {
     if (!userLoc) return;
     setRegistrando(true);
@@ -173,14 +275,15 @@ export default function MapaScreen() {
         latitud:      userLoc.lat,
         longitud:     userLoc.lng,
         tipo,
-        notas:        notas     || undefined,
-        municipio:    municipio || undefined,
-        estado:       estadoVal || undefined,
-        contacto_id:  contactoId ?? undefined,
+        nombre_lugar: nombreLugar || undefined,
+        direccion:    direccion   || undefined,
+        notas:        notas       || undefined,
+        municipio:    municipio   || undefined,
+        estado:       estadoVal   || undefined,
+        contacto_id:  tipo === 'visita_cliente' ? (contactoId ?? undefined) : undefined,
         visitado_en:  new Date().toISOString(),
       });
 
-      // Subir fotos si hay
       if (fotosSeleccionadas.length > 0 && ubicacion.id) {
         const fotos = fotosSeleccionadas.map((f, i) => ({
           uri:  f.uri,
@@ -191,12 +294,9 @@ export default function MapaScreen() {
       }
 
       setModalVisible(false);
-      setNotas('');
-      setMunicipio('');
-      setEstadoVal('');
+      resetForm();
       setContactoId(null);
       setBusqProspecto('');
-      setFotosSeleccionadas([]);
       await cargar();
     } catch (e: unknown) {
       Alert.alert('Error al registrar', e instanceof Error ? e.message : 'Error desconocido');
@@ -209,6 +309,7 @@ export default function MapaScreen() {
     ? ubicaciones
     : ubicaciones.filter(u => u.tipo === filtro);
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={s.container}>
       {/* Header */}
@@ -223,11 +324,11 @@ export default function MapaScreen() {
       </View>
 
       {/* Filtros */}
-      <View style={s.filtros}>
-        {['todos', 'visita_cliente', 'propiedad'].map(f => (
+      <View style={s.filtrosCont}>
+        {(['todos', 'visita_cliente', 'propiedad', 'escuela'] as const).map(f => (
           <Pressable key={f} style={[s.chip, filtro === f && s.chipActivo]} onPress={() => setFiltro(f)}>
             <Text style={[s.chipText, filtro === f && s.chipTextActivo]}>
-              {f === 'todos' ? 'Todos' : f === 'visita_cliente' ? '🏠 Clientes' : '🏢 Propiedades'}
+              {f === 'todos' ? 'Todos' : `${TIPO_ICON[f]} ${TIPO_LABEL[f]}`}
             </Text>
           </Pressable>
         ))}
@@ -261,6 +362,68 @@ export default function MapaScreen() {
           ))}
         </MapView>
 
+        {/* Buscador flotante sobre el mapa */}
+        <View style={s.searchMapa} pointerEvents="box-none">
+          <View style={s.searchMapaBar}>
+            <Text style={s.searchMapaIco}>🔍</Text>
+            <TextInput
+              style={s.searchMapaTxt}
+              placeholder="Buscar cliente, dirección, escuela..."
+              placeholderTextColor={Colors.dark[400]}
+              value={busqMapa}
+              onChangeText={t => { setBusqMapa(t); setBusqVisible(t.length >= 2); }}
+              returnKeyType="search"
+              blurOnSubmit
+            />
+            {busqMapa.length > 0 && (
+              <Pressable onPress={() => { setBusqMapa(''); setBusqVisible(false); }} style={{ paddingHorizontal: 6 }}>
+                <Text style={{ color: Colors.dark[400], fontSize: 15 }}>✕</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Resultados */}
+          {busqVisible && resultadosBusq.length > 0 && (
+            <View style={s.searchMapaDrop}>
+              {resultadosBusq.map((u, i) => (
+                <Pressable
+                  key={u.id ?? `r${i}`}
+                  style={[s.searchMapaItem, i < resultadosBusq.length - 1 && { borderBottomWidth: 1, borderBottomColor: Colors.cream[200] }]}
+                  onPress={() => {
+                    setBusqMapa('');
+                    setBusqVisible(false);
+                    mapRef.current?.animateToRegion({
+                      latitude: u.latitud, longitude: u.longitud,
+                      latitudeDelta: 0.02, longitudeDelta: 0.02,
+                    }, 600);
+                    setTimeout(() => setDetalle(u), 700);
+                  }}
+                >
+                  <Text style={s.searchMapaItemIco}>{TIPO_ICON[u.tipo]}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.searchMapaItemPrim} numberOfLines={1}>
+                      {u.nombre_lugar || u.contacto || u.municipio || 'Sin nombre'}
+                    </Text>
+                    {(u.direccion || u.municipio || u.estado) ? (
+                      <Text style={s.searchMapaItemSec} numberOfLines={1}>
+                        {[u.direccion, u.municipio, u.estado].filter(Boolean).join(', ')}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text style={{ color: Colors.gold[400], fontSize: 13 }}>›</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+          {busqVisible && resultadosBusq.length === 0 && busqMapa.length >= 2 && (
+            <View style={[s.searchMapaDrop, { paddingVertical: Spacing.md }]}>
+              <Text style={{ color: Colors.dark[500], fontSize: Typography.fontSize.sm, textAlign: 'center' }}>
+                Sin resultados para "{busqMapa}"
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* FABs */}
         <View style={s.fabs}>
           <Pressable style={s.fabSec} onPress={centrarEnMi}>
@@ -272,12 +435,9 @@ export default function MapaScreen() {
         </View>
       </View>
 
-      {/* Modal nueva visita */}
+      {/* ── Modal: registrar visita ─────────────────────────────────────────── */}
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={s.backdrop} onPress={() => setModalVisible(false)} />
           <View style={s.sheet}>
             <View style={s.handle} />
@@ -288,64 +448,200 @@ export default function MapaScreen() {
             >
               <Text style={s.sheetTitle}>Registrar visita</Text>
 
+              {/* ── Tipo ─────────────────────────────────────────────────── */}
               <Text style={s.sheetLabel}>Tipo</Text>
               <View style={s.tipoRow}>
-                {(['visita_cliente', 'propiedad'] as const).map(t => (
-                  <Pressable key={t} style={[s.tipoBtn, tipo === t && s.tipoBtnActivo]} onPress={() => setTipo(t)}>
+                {(['visita_cliente', 'propiedad', 'escuela'] as TipoVisita[]).map(t => (
+                  <Pressable
+                    key={t}
+                    style={[s.tipoBtn, tipo === t && { backgroundColor: TIPO_COLOR[t], borderColor: TIPO_COLOR[t] }]}
+                    onPress={() => setTipo(t)}
+                  >
                     <Text style={s.tipoBtnIcon}>{TIPO_ICON[t]}</Text>
                     <Text style={[s.tipoBtnText, tipo === t && s.tipoBtnTextActivo]}>
-                      {t === 'visita_cliente' ? 'Cliente' : 'Propiedad'}
+                      {TIPO_LABEL[t]}
                     </Text>
                   </Pressable>
                 ))}
               </View>
 
-              {/* Prospecto vinculado */}
-              <Text style={s.sheetLabel}>
-                Prospecto{contactoId ? ' ✓' : ' (opcional)'}
-              </Text>
-              {contactoId ? (
-                // Pre-seleccionado — solo lectura con opción de quitar
-                <View style={s.prospFijo}>
-                  <Text style={s.prospFijoText}>{busqProspecto}</Text>
-                  <Pressable onPress={() => { setContactoId(null); setBusqProspecto(''); }}>
-                    <Text style={{ color: Colors.dark[400], fontSize: 16 }}>✕</Text>
-                  </Pressable>
-                </View>
-              ) : (
+              {/* ── Prospecto (solo visita_cliente) ───────────────────────── */}
+              {tipo === 'visita_cliente' && (
                 <>
+                  <Text style={s.sheetLabel}>
+                    Prospecto{contactoId ? ' ✓' : ' (opcional)'}
+                  </Text>
+                  {contactoId ? (
+                    <View style={s.prospFijo}>
+                      <Text style={s.prospFijoText}>{busqProspecto}</Text>
+                      <Pressable onPress={() => { setContactoId(null); setBusqProspecto(''); }}>
+                        <Text style={{ color: Colors.dark[400], fontSize: 16 }}>✕</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <>
+                      {/* Buscador con ícono lupa */}
+                      <View style={s.searchWrap}>
+                        <Text style={s.searchIcon}>🔍</Text>
+                        <TextInput
+                          style={s.searchInput}
+                          placeholder="Buscar prospecto por nombre..."
+                          placeholderTextColor={Colors.dark[400]}
+                          value={busqProspecto}
+                          onChangeText={setBusqProspecto}
+                          returnKeyType="search"
+                          blurOnSubmit
+                        />
+                        {busqProspecto.length > 0 && (
+                          <Pressable onPress={() => setBusqProspecto('')} style={s.searchClear}>
+                            <Text style={{ color: Colors.dark[400], fontSize: 14 }}>✕</Text>
+                          </Pressable>
+                        )}
+                      </View>
+                      {busqProspecto.length > 0 && (
+                        <View style={s.prospDropdown}>
+                          {prospectos
+                            .filter(p => p.nombre.toLowerCase().includes(busqProspecto.toLowerCase()))
+                            .slice(0, 5)
+                            .map(p => (
+                              <Pressable
+                                key={p.id}
+                                style={s.prospItem}
+                                onPress={() => { setContactoId(p.id); setBusqProspecto(p.nombre); }}
+                              >
+                                <Text style={s.prospItemText}>{p.nombre}</Text>
+                              </Pressable>
+                            ))
+                          }
+                          {prospectos.filter(p => p.nombre.toLowerCase().includes(busqProspecto.toLowerCase())).length === 0 && (
+                            <Text style={s.prospVacio}>Sin resultados</Text>
+                          )}
+                        </View>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* ── Nombre y dirección (propiedad / escuela) ──────────────── */}
+              {(tipo === 'propiedad' || tipo === 'escuela') && (
+                <>
+                  <Text style={s.sheetLabel}>
+                    {tipo === 'escuela' ? 'Nombre de la escuela' : 'Nombre de la propiedad'}
+                  </Text>
                   <TextInput
-                    style={[s.sheetInput, { marginBottom: Spacing.sm }]}
-                    placeholder="Buscar por nombre..."
+                    style={s.sheetInput}
+                    placeholder={tipo === 'escuela' ? 'Ej: Escuela Primaria Benito Juárez' : 'Ej: Casa Lomas, Depto 302'}
                     placeholderTextColor={Colors.dark[400]}
-                    value={busqProspecto}
-                    onChangeText={setBusqProspecto}
-                    returnKeyType="search"
+                    value={nombreLugar}
+                    onChangeText={setNombreLugar}
+                    returnKeyType="next"
                     blurOnSubmit
                   />
-                  {busqProspecto.length > 0 && (
-                    <View style={s.prospDropdown}>
-                      {prospectos
-                        .filter(p => p.nombre.toLowerCase().includes(busqProspecto.toLowerCase()))
-                        .slice(0, 5)
-                        .map(p => (
+                  <Text style={s.sheetLabel}>Dirección</Text>
+                  <TextInput
+                    style={s.sheetInput}
+                    placeholder="Ej: Av. Insurgentes 123, Col. Centro"
+                    placeholderTextColor={Colors.dark[400]}
+                    value={direccion}
+                    onChangeText={setDireccion}
+                    returnKeyType="next"
+                    blurOnSubmit
+                  />
+                </>
+              )}
+
+              {/* ── Estado (buscador) ─────────────────────────────────────── */}
+              <Text style={s.sheetLabel}>Estado</Text>
+              <View style={s.searchWrap}>
+                <Text style={s.searchIcon}>🔍</Text>
+                <TextInput
+                  style={s.searchInput}
+                  placeholder="Buscar estado..."
+                  placeholderTextColor={Colors.dark[400]}
+                  value={busqEstado}
+                  onChangeText={txt => {
+                    setBusqEstado(txt);
+                    setEstadoDropdownVisible(txt.length > 0);
+                    // Si el usuario borra el estado, limpia municipio
+                    if (txt === '') { setEstadoVal(''); setMunicipio(''); }
+                  }}
+                  onFocus={() => { if (busqEstado.length > 0) setEstadoDropdownVisible(true); }}
+                  returnKeyType="done"
+                  blurOnSubmit
+                />
+                {busqEstado.length > 0 && (
+                  <Pressable onPress={() => { setBusqEstado(''); setEstadoVal(''); setMunicipio(''); setEstadoDropdownVisible(false); }} style={s.searchClear}>
+                    <Text style={{ color: Colors.dark[400], fontSize: 14 }}>✕</Text>
+                  </Pressable>
+                )}
+              </View>
+              {estadoDropdownVisible && estadosFiltrados.length > 0 && (
+                <View style={s.dropdownWrap}>
+                  <FlatList
+                    data={estadosFiltrados}
+                    keyExtractor={item => item}
+                    scrollEnabled={false}
+                    renderItem={({ item }) => (
+                      <Pressable
+                        style={s.dropdownItem}
+                        onPress={() => {
+                          setEstadoVal(item);
+                          setBusqEstado(item);
+                          setEstadoDropdownVisible(false);
+                          setMunicipio('');
+                          setMunicipioDropdownVisible(false);
+                        }}
+                      >
+                        <Text style={s.dropdownItemText}>{item}</Text>
+                      </Pressable>
+                    )}
+                  />
+                </View>
+              )}
+
+              {/* ── Municipio (se activa al elegir estado) ────────────────── */}
+              {estadoVal !== '' && (
+                <>
+                  <Text style={s.sheetLabel}>Municipio</Text>
+                  <Pressable
+                    style={[s.searchWrap, { paddingRight: Spacing.md }]}
+                    onPress={() => setMunicipioDropdownVisible(v => !v)}
+                  >
+                    <Text style={s.searchIcon}>📍</Text>
+                    <Text style={[s.searchInput, { flex: 1, color: municipio ? Colors.dark[900] : Colors.dark[400] }]}>
+                      {municipio || 'Seleccionar municipio...'}
+                    </Text>
+                    <Text style={{ color: Colors.dark[400], fontSize: 12 }}>
+                      {municipioDropdownVisible ? '▲' : '▼'}
+                    </Text>
+                  </Pressable>
+                  {municipioDropdownVisible && (
+                    <View style={[s.dropdownWrap, { maxHeight: 180 }]}>
+                      <FlatList
+                        data={municipiosDelEstado}
+                        keyExtractor={item => item}
+                        nestedScrollEnabled
+                        style={{ maxHeight: 176 }}
+                        renderItem={({ item }) => (
                           <Pressable
-                            key={p.id}
-                            style={s.prospItem}
-                            onPress={() => { setContactoId(p.id); setBusqProspecto(p.nombre); }}
+                            style={[s.dropdownItem, municipio === item && s.dropdownItemActivo]}
+                            onPress={() => { setMunicipio(item); setMunicipioDropdownVisible(false); }}
                           >
-                            <Text style={s.prospItemText}>{p.nombre}</Text>
+                            <Text style={[s.dropdownItemText, municipio === item && { color: Colors.white }]}>
+                              {item}
+                            </Text>
                           </Pressable>
-                        ))
-                      }
-                      {prospectos.filter(p => p.nombre.toLowerCase().includes(busqProspecto.toLowerCase())).length === 0 && (
-                        <Text style={s.prospVacio}>Sin resultados</Text>
-                      )}
+                        )}
+                      />
                     </View>
                   )}
                 </>
               )}
 
+              <View style={{ height: 4 }} />
+
+              {/* ── Notas ─────────────────────────────────────────────────── */}
               <Text style={s.sheetLabel}>Notas</Text>
               <TextInput
                 style={s.sheetInput}
@@ -359,36 +655,7 @@ export default function MapaScreen() {
                 blurOnSubmit
               />
 
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.sheetLabel}>Municipio</Text>
-                  <TextInput
-                    style={[s.sheetInput, { marginBottom: 0 }]}
-                    placeholder="Ej: Pachuca"
-                    placeholderTextColor={Colors.dark[400]}
-                    value={municipio}
-                    onChangeText={setMunicipio}
-                    returnKeyType="next"
-                    blurOnSubmit
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.sheetLabel}>Estado</Text>
-                  <TextInput
-                    style={[s.sheetInput, { marginBottom: 0 }]}
-                    placeholder="Ej: Hidalgo"
-                    placeholderTextColor={Colors.dark[400]}
-                    value={estadoVal}
-                    onChangeText={setEstadoVal}
-                    returnKeyType="done"
-                    blurOnSubmit
-                  />
-                </View>
-              </View>
-
-              <View style={{ height: 14 }} />
-
-              {/* Fotos */}
+              {/* ── Fotos ─────────────────────────────────────────────────── */}
               <Text style={s.sheetLabel}>
                 Fotos{fotosSeleccionadas.length > 0 ? ` (${fotosSeleccionadas.length}/5)` : ' (opcional)'}
               </Text>
@@ -432,20 +699,22 @@ export default function MapaScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Modal detalle de visita con fotos */}
+      {/* ── Modal: detalle de visita ──────────────────────────────────────────── */}
       <Modal visible={!!detalle} animationType="slide" transparent onRequestClose={() => setDetalle(null)}>
         <Pressable style={s.backdrop} onPress={() => setDetalle(null)} />
         <View style={s.sheet}>
           <View style={s.handle} />
           {detalle && (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
-              {/* Tipo */}
               <View style={s.detalleHeader}>
-                <Text style={s.detalleIconGrande}>{TIPO_ICON[detalle.tipo]}</Text>
+                <View style={[s.detalleIconWrap, { backgroundColor: TIPO_COLOR[detalle.tipo] + '22', borderColor: TIPO_COLOR[detalle.tipo] }]}>
+                  <Text style={s.detalleIconGrande}>{TIPO_ICON[detalle.tipo]}</Text>
+                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.detalleTipo}>
-                    {detalle.tipo === 'visita_cliente' ? 'Visita cliente' : 'Propiedad'}
-                  </Text>
+                  <Text style={s.detalleTipo}>{TIPO_LABEL[detalle.tipo]}</Text>
+                  {detalle.nombre_lugar ? (
+                    <Text style={s.detalleNombreLugar}>{detalle.nombre_lugar}</Text>
+                  ) : null}
                   <Text style={s.detalleFecha}>
                     {new Date(detalle.visitado_en).toLocaleDateString('es-MX', {
                       day: '2-digit', month: 'long', year: 'numeric',
@@ -457,13 +726,26 @@ export default function MapaScreen() {
                 </Pressable>
               </View>
 
-              {/* Info */}
               {detalle.contacto && (
                 <View style={s.detalleRow}>
                   <Text style={s.detalleLabel}>Cliente</Text>
                   <Text style={s.detalleVal}>{detalle.contacto}</Text>
                 </View>
               )}
+              {detalle.direccion ? (
+                <View style={s.detalleRow}>
+                  <Text style={s.detalleLabel}>Dirección</Text>
+                  <Text style={s.detalleVal}>{detalle.direccion}</Text>
+                </View>
+              ) : null}
+              {detalle.municipio || detalle.estado ? (
+                <View style={s.detalleRow}>
+                  <Text style={s.detalleLabel}>Ubicación</Text>
+                  <Text style={s.detalleVal}>
+                    {[detalle.municipio, detalle.estado].filter(Boolean).join(', ')}
+                  </Text>
+                </View>
+              ) : null}
               {detalle.notas ? (
                 <View style={s.detalleRow}>
                   <Text style={s.detalleLabel}>Notas</Text>
@@ -475,7 +757,6 @@ export default function MapaScreen() {
                 <Text style={s.detalleVal}>{detalle.latitud.toFixed(6)}, {detalle.longitud.toFixed(6)}</Text>
               </View>
 
-              {/* Fotos */}
               {(detalle.fotos?.length ?? 0) > 0 && (
                 <>
                   <Text style={[s.sheetLabel, { marginTop: Spacing.base }]}>
@@ -492,6 +773,34 @@ export default function MapaScreen() {
                   </ScrollView>
                 </>
               )}
+
+              {/* Cómo llegar */}
+              <Text style={[s.sheetLabel, { marginTop: Spacing.base }]}>Cómo llegar</Text>
+              <View style={s.navRow}>
+                <Pressable
+                  style={[s.navBtn, { backgroundColor: '#4285F4' }]}
+                  onPress={() => abrirNavegacion(detalle.latitud, detalle.longitud, 'google')}
+                >
+                  <Text style={s.navBtnIco}>🗺️</Text>
+                  <Text style={s.navBtnTxt}>Google Maps</Text>
+                </Pressable>
+                <Pressable
+                  style={[s.navBtn, { backgroundColor: '#00C4B3' }]}
+                  onPress={() => abrirNavegacion(detalle.latitud, detalle.longitud, 'waze')}
+                >
+                  <Text style={s.navBtnIco}>🚗</Text>
+                  <Text style={s.navBtnTxt}>Waze</Text>
+                </Pressable>
+                {Platform.OS === 'ios' && (
+                  <Pressable
+                    style={[s.navBtn, { backgroundColor: Colors.dark[600] }]}
+                    onPress={() => abrirNavegacion(detalle.latitud, detalle.longitud, 'apple')}
+                  >
+                    <Text style={s.navBtnIco}>🍎</Text>
+                    <Text style={s.navBtnTxt}>Maps</Text>
+                  </Pressable>
+                )}
+              </View>
             </ScrollView>
           )}
         </View>
@@ -505,13 +814,11 @@ export default function MapaScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.cream[50] },
 
+  // Header
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     paddingHorizontal: Spacing.base,
-    paddingTop: 56,
-    paddingBottom: Spacing.md,
+    paddingTop: 56, paddingBottom: Spacing.md,
     backgroundColor: Colors.dark[900],
   },
   backBtn: {
@@ -527,24 +834,23 @@ const s = StyleSheet.create({
   },
   headerSub: { fontSize: Typography.fontSize.xs, color: Colors.gold[300] },
 
-  filtros: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
+  // Filtros
+  filtrosCont: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm,
+    paddingHorizontal: Spacing.base, paddingVertical: Spacing.md,
     backgroundColor: Colors.dark[900],
   },
   chip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: Radius.full,
-    borderWidth: 1,
+    alignSelf: 'flex-start',
+    paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs,
+    borderRadius: Radius.full, borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
   chipActivo: { backgroundColor: Colors.gold[400], borderColor: Colors.gold[400] },
   chipText: { fontSize: Typography.fontSize.xs, color: '#ffffff' },
   chipTextActivo: { color: Colors.dark[900], fontWeight: Typography.fontWeight.bold },
 
+  // Mapa
   mapWrap: { flex: 1, position: 'relative' },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -552,7 +858,6 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(250,248,243,0.8)',
   },
   map: { flex: 1 },
-
   pin: {
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: Colors.white, borderWidth: 2,
@@ -561,17 +866,6 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 4,
   },
   pinIcon: { fontSize: 18 },
-
-  callout: {
-    backgroundColor: Colors.white, borderRadius: Radius.md,
-    padding: Spacing.md, minWidth: 160,
-    shadowColor: '#000', shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 2 }, shadowRadius: 6, elevation: 6,
-  },
-  calloutTipo:  { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900], marginBottom: 2 },
-  calloutNotas: { fontSize: Typography.fontSize.xs, color: Colors.dark[600], marginBottom: 2 },
-  calloutFecha: { fontSize: Typography.fontSize.xs, color: Colors.dark[400] },
-
   fabs: {
     position: 'absolute', bottom: 32, right: 20,
     gap: Spacing.md, alignItems: 'center',
@@ -598,6 +892,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.cream[50],
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: Spacing.base, paddingBottom: 32,
+    maxHeight: '92%',
   },
   handle: {
     width: 40, height: 4, borderRadius: 2,
@@ -613,17 +908,20 @@ const s = StyleSheet.create({
     fontWeight: Typography.fontWeight.semibold,
     color: Colors.dark[700], marginBottom: Spacing.sm,
   },
-  tipoRow: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.base },
+
+  // Tipo selector
+  tipoRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.base },
   tipoBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: Spacing.sm, paddingVertical: Spacing.md,
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    gap: 3, paddingVertical: 10,
     borderRadius: Radius.md, borderWidth: 1,
     borderColor: Colors.dark[300], backgroundColor: Colors.white,
   },
-  tipoBtnActivo: { backgroundColor: Colors.gold[400], borderColor: Colors.gold[400] },
-  tipoBtnIcon: { fontSize: 18 },
-  tipoBtnText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[700] },
+  tipoBtnIcon: { fontSize: 20 },
+  tipoBtnText: { fontSize: 11, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[700] },
   tipoBtnTextActivo: { color: Colors.white },
+
+  // Inputs
   sheetInput: {
     backgroundColor: Colors.white, borderWidth: 1,
     borderColor: Colors.dark[300], borderRadius: Radius.md,
@@ -631,7 +929,63 @@ const s = StyleSheet.create({
     fontSize: Typography.fontSize.base, textAlignVertical: 'top',
     marginBottom: Spacing.md,
   },
+
+  // Search input con ícono
+  searchWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.white, borderWidth: 1,
+    borderColor: Colors.dark[300], borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+    minHeight: 48,
+  },
+  searchIcon: { fontSize: 16, marginRight: 8 },
+  searchInput: {
+    flex: 1, color: Colors.dark[900],
+    fontSize: Typography.fontSize.base,
+    paddingVertical: Platform.OS === 'ios' ? Spacing.sm : 4,
+  },
+  searchClear: { padding: 4, marginLeft: 4 },
+
+  // Dropdown
+  dropdownWrap: {
+    backgroundColor: Colors.white,
+    borderWidth: 1, borderColor: Colors.dark[300],
+    borderRadius: Radius.md, marginBottom: Spacing.sm,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    paddingHorizontal: Spacing.md, paddingVertical: 11,
+    borderBottomWidth: 1, borderBottomColor: Colors.cream[200],
+  },
+  dropdownItemActivo: { backgroundColor: Colors.gold[400] },
+  dropdownItemText: { fontSize: Typography.fontSize.sm, color: Colors.dark[900] },
+
+  // Prospecto
+  prospDropdown: {
+    backgroundColor: Colors.white,
+    borderWidth: 1, borderColor: Colors.dark[300],
+    borderRadius: Radius.md, marginBottom: Spacing.sm, overflow: 'hidden',
+  },
+  prospItem: {
+    paddingHorizontal: Spacing.md, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: Colors.cream[200],
+  },
+  prospItemText: { fontSize: Typography.fontSize.sm, color: Colors.dark[900] },
+  prospVacio: { padding: Spacing.md, fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center' },
+  prospFijo: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.gold[50] ?? '#fffbeb',
+    borderWidth: 1, borderColor: Colors.gold[400],
+    borderRadius: Radius.md, paddingHorizontal: Spacing.md,
+    paddingVertical: 10, marginBottom: Spacing.md,
+  },
+  prospFijoText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900], flex: 1 },
+
+  // Coordenadas
   coords: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginBottom: Spacing.base },
+
+  // Botón guardar
   btnGuardar: {
     backgroundColor: Colors.gold[400], borderRadius: Radius.lg,
     paddingVertical: Spacing.base, alignItems: 'center',
@@ -663,34 +1017,6 @@ const s = StyleSheet.create({
   },
   fotoBtnIcon: { fontSize: 22 },
   fotoBtnText: { fontSize: 9, color: Colors.dark[500], fontWeight: Typography.fontWeight.semibold },
-
-  // Prospecto selector
-  prospDropdown: {
-    backgroundColor: Colors.white,
-    borderWidth: 1, borderColor: Colors.dark[300],
-    borderRadius: Radius.md, marginBottom: Spacing.sm,
-    overflow: 'hidden',
-  },
-  prospItem: {
-    paddingHorizontal: Spacing.md, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: Colors.cream[200],
-  },
-  prospItemActivo: { backgroundColor: Colors.gold[400] },
-  prospItemText: { fontSize: Typography.fontSize.sm, color: Colors.dark[900] },
-  prospItemTextActivo: { color: Colors.white, fontWeight: Typography.fontWeight.semibold },
-  prospVacio: { padding: Spacing.md, fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center' },
-  prospLimpiar: { marginBottom: Spacing.sm, alignSelf: 'flex-start' },
-  prospLimpiarText: { fontSize: Typography.fontSize.xs, color: Colors.dark[500] },
-  prospFijo: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Colors.gold[50] ?? '#fffbeb',
-    borderWidth: 1, borderColor: Colors.gold[400],
-    borderRadius: Radius.md, paddingHorizontal: Spacing.md,
-    paddingVertical: 10, marginBottom: Spacing.md,
-  },
-  prospFijoText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900], flex: 1 },
-
-  // Badge de foto en el pin del mapa
   fotoBadge: {
     position: 'absolute', top: -4, right: -4,
     width: 16, height: 16, borderRadius: 8,
@@ -699,16 +1025,23 @@ const s = StyleSheet.create({
   },
   fotoBadgeText: { fontSize: 9, color: Colors.white, fontWeight: Typography.fontWeight.bold },
 
-  // Modal detalle
+  // Detalle modal
   detalleHeader: {
     flexDirection: 'row', alignItems: 'center',
     gap: Spacing.md, marginBottom: Spacing.base,
   },
-  detalleIconGrande: { fontSize: 32 },
+  detalleIconWrap: {
+    width: 52, height: 52, borderRadius: 26, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  detalleIconGrande: { fontSize: 26 },
   detalleTipo: {
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.dark[900],
+  },
+  detalleNombreLugar: {
+    fontSize: Typography.fontSize.sm, color: Colors.dark[700], marginTop: 1,
   },
   detalleFecha: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
   detalleClose: {
@@ -726,8 +1059,53 @@ const s = StyleSheet.create({
     color: Colors.dark[500], fontWeight: Typography.fontWeight.semibold,
   },
   detalleVal: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[900] },
-  detalleThumb: {
-    width: 120, height: 120, borderRadius: Radius.md, overflow: 'hidden',
+  detalleThumb: { width: 120, height: 120, borderRadius: Radius.md, overflow: 'hidden' },
+  detalleImg:   { width: '100%', height: '100%' },
+
+  // Botones navegación
+  navRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: 4, marginBottom: Spacing.base },
+  navBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3,
+    paddingVertical: 10, borderRadius: Radius.lg,
   },
-  detalleImg: { width: '100%', height: '100%' },
+  navBtnIco: { fontSize: 18 },
+  navBtnTxt: { fontSize: 10, color: Colors.white, fontWeight: Typography.fontWeight.semibold },
+
+  // Buscador flotante del mapa
+  searchMapa: {
+    position: 'absolute', top: 14, left: 14, right: 14, zIndex: 20,
+  },
+  searchMapaBar: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 4,
+    shadowColor: '#000', shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 3 }, shadowRadius: 8, elevation: 6,
+  },
+  searchMapaIco: { fontSize: 16, marginRight: 8 },
+  searchMapaTxt: {
+    flex: 1, fontSize: Typography.fontSize.sm,
+    color: Colors.dark[900],
+    paddingVertical: 0,
+  },
+  searchMapaDrop: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg, marginTop: 6,
+    shadowColor: '#000', shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 6,
+    overflow: 'hidden',
+  },
+  searchMapaItem: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    paddingHorizontal: Spacing.md, paddingVertical: 11,
+  },
+  searchMapaItemIco: { fontSize: 18 },
+  searchMapaItemPrim: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.dark[900],
+  },
+  searchMapaItemSec: { fontSize: 11, color: Colors.dark[500], marginTop: 1 },
 });

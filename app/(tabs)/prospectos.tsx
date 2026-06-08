@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
   TouchableOpacity, TextInput, ActivityIndicator, RefreshControl,
@@ -8,34 +8,49 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
 import { getContactos } from '../../src/services/api';
+import { cacheContactos, getCacheContactos } from '../../src/services/offline';
+import { useSyncContext } from '../../src/contexts/SyncContext';
 import type { Contacto } from '../../src/types';
 
 const ESTADOS = [
   { value: 'todos',         label: 'Todos' },
   { value: 'nuevo',         label: 'Nuevo' },
-  { value: 'contactado',    label: 'Contactado' },
   { value: 'precalificado', label: 'Precalificado' },
-  { value: 'en_tramite',    label: 'En trámite' },
-  { value: 'cerrado',       label: 'Cerrado' },
-  { value: 'no_interesado', label: 'No interesado' },
 ];
 
 export default function ProspectosScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ refresh?: string }>();
+  const { online } = useSyncContext();
 
   const [items,      setItems]      = useState<Contacto[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [desdeCache, setDesdeCache] = useState(false);
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
   const [query,      setQuery]      = useState('');
   const [estado,     setEstado]     = useState('todos');
 
-  async function load(opts?: { refreshing?: boolean }) {
+  const load = useCallback(async (opts?: { refreshing?: boolean }) => {
     if (opts?.refreshing) setRefreshing(true);
     else setLoading(true);
     setErrorMsg(null);
+
+    if (!online) {
+      // Sin internet: mostrar datos cacheados
+      const cached = await getCacheContactos();
+      const filtrados = cached.filter(c => {
+        const matchEstado = estado === 'todos' || c.estado_prospecto === estado;
+        const matchQuery  = !query || c.nombre?.toLowerCase().includes(query.toLowerCase());
+        return matchEstado && matchQuery;
+      });
+      setItems(filtrados);
+      setDesdeCache(true);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
 
     try {
       const res = await getContactos({
@@ -43,13 +58,25 @@ export default function ProspectosScreen() {
         estado: estado !== 'todos' ? estado : undefined,
       });
       setItems(res.data);
+      setDesdeCache(false);
+      // Guardar en cache solo cuando no hay filtros activos (para tener la lista completa)
+      if (!query && estado === 'todos') {
+        cacheContactos(res.data).catch(() => {});
+      }
     } catch (e: unknown) {
-      setErrorMsg(e instanceof Error ? e.message : 'Error de conexión');
+      // Fallo de red: caer al cache
+      const cached = await getCacheContactos();
+      if (cached.length > 0) {
+        setItems(cached);
+        setDesdeCache(true);
+      } else {
+        setErrorMsg(e instanceof Error ? e.message : 'Error de conexión');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, [online, query, estado]);
 
   // Un solo efecto: carga cuando cambian los filtros (incluyendo montaje inicial)
   useEffect(() => {
@@ -111,6 +138,15 @@ export default function ProspectosScreen() {
           )}
         />
       </View>
+
+      {/* ── Aviso de cache offline ── */}
+      {desdeCache && (
+        <View style={styles.cacheBanner}>
+          <Text style={styles.cacheText}>
+            📴 Sin conexión — mostrando datos guardados en el dispositivo
+          </Text>
+        </View>
+      )}
 
       {/* ── Error ── */}
       {errorMsg && (
@@ -245,6 +281,13 @@ const styles = StyleSheet.create({
   },
   errorText:  { color: '#dc2626', fontSize: Typography.fontSize.xs, flex: 1 },
   retryText:  { color: '#dc2626', fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, marginLeft: Spacing.sm },
+
+  cacheBanner: {
+    backgroundColor: Colors.dark[800],
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.xs,
+  },
+  cacheText: { color: 'rgba(255,255,255,0.8)', fontSize: Typography.fontSize.xs },
 
   listContent: { padding: Spacing.sm },
 

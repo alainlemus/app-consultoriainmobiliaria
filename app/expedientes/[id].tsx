@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
   TouchableOpacity, ActivityIndicator, Alert,
+  Image, Linking,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -84,12 +85,15 @@ export default function DetalleExpedienteScreen() {
   );
 
   const clienteNombre = exp.contacto?.nombre ?? `Expediente #${exp.id}`;
-  const docs          = exp.documentos ?? [];
+  const docsAll       = exp.documentos ?? [];
 
-  // Totales desde el API (o calculados localmente como fallback)
-  const totalRequeridos = exp.documentos_requeridos_total ?? docs.length;
-  const totalSubidos    = exp.documentos_subidos_total    ?? docs.filter(d => d.tiene_archivo).length;
-  const totalPendientes = exp.documentos_pendientes_total ?? docs.filter(d => !d.tiene_archivo).length;
+  // En la app solo mostramos los obligatorios — los opcionales se gestionan desde el CRM
+  const docs = docsAll.filter(d => d.obligatorio !== false);
+
+  // Totales recalculados sobre docs obligatorios
+  const totalRequeridos = docs.length;
+  const totalSubidos    = docs.filter(d => d.tiene_archivo).length;
+  const totalPendientes = docs.filter(d => !d.tiene_archivo).length;
 
   // Agrupar por sección
   const secciones: Record<string, Documento[]> = {};
@@ -276,18 +280,20 @@ export default function DetalleExpedienteScreen() {
                               <Text style={[styles.docActionText, styles.docActionPrimaryText]}>↑ Subir</Text>
                             </TouchableOpacity>
                           )}
+                          {/* Reemplazar: disponible siempre que haya archivo (backend lo permite en cualquier estado) */}
+                          {tieneArchivo && (
+                            <TouchableOpacity style={styles.docActionBtn} onPress={() => handleReemplazar(doc)}>
+                              <Text style={styles.docActionText}>🔄 Reemplazar</Text>
+                            </TouchableOpacity>
+                          )}
+                          {/* Eliminar: solo mientras el asesor no lo haya enviado a revisión (estado pendiente) */}
                           {tieneArchivo && esPendiente && (
-                            <>
-                              <TouchableOpacity style={styles.docActionBtn} onPress={() => handleReemplazar(doc)}>
-                                <Text style={styles.docActionText}>🔄 Reemplazar</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={[styles.docActionBtn, styles.docActionDanger]}
-                                onPress={() => handleEliminar(doc)}
-                              >
-                                <Text style={[styles.docActionText, styles.docActionDangerText]}>🗑 Eliminar</Text>
-                              </TouchableOpacity>
-                            </>
+                            <TouchableOpacity
+                              style={[styles.docActionBtn, styles.docActionDanger]}
+                              onPress={() => handleEliminar(doc)}
+                            >
+                              <Text style={[styles.docActionText, styles.docActionDangerText]}>🗑 Eliminar</Text>
+                            </TouchableOpacity>
                           )}
                         </View>
                       </View>
@@ -312,21 +318,118 @@ export default function DetalleExpedienteScreen() {
         {exp.contacto && (
           <>
             <SectionLabel>Prospecto</SectionLabel>
+
+            {/* Encabezado: foto + nombre + link */}
             <TouchableOpacity
               style={styles.prospectoCard}
               onPress={() => router.push(`/prospectos/${exp.contacto!.id}`)}
               activeOpacity={0.75}
             >
-              <View style={styles.prospectoAvatar}>
-                <Text style={styles.avatarLetter}>
-                  {(exp.contacto.nombre?.[0] ?? '?').toUpperCase()}
-                </Text>
-              </View>
+              {exp.contacto.foto_url ? (
+                <Image source={{ uri: exp.contacto.foto_url }} style={styles.prospectoFoto} />
+              ) : (
+                <View style={styles.prospectoAvatar}>
+                  <Text style={styles.avatarLetter}>
+                    {(exp.contacto.nombre?.[0] ?? '?').toUpperCase()}
+                  </Text>
+                </View>
+              )}
               <View style={styles.prospectoInfo}>
                 <Text style={styles.prospectoNombre}>{clienteNombre}</Text>
                 <Text style={styles.prospectoSub}>Ver ficha completa →</Text>
               </View>
             </TouchableOpacity>
+
+            {/* Datos de contacto */}
+            <View style={styles.card}>
+              {exp.contacto.telefono ? (
+                <InfoRow label="Teléfono" value={exp.contacto.telefono} />
+              ) : null}
+              {exp.contacto.email ? (
+                <InfoRow label="Correo" value={exp.contacto.email} />
+              ) : null}
+              {exp.contacto.curp ? (
+                <InfoRow label="CURP" value={exp.contacto.curp} />
+              ) : null}
+              {exp.contacto.nss ? (
+                <InfoRow label="NSS" value={exp.contacto.nss} />
+              ) : null}
+              {exp.contacto.servicio ? (
+                <InfoRow label="Servicio" value={exp.contacto.servicio} last />
+              ) : (
+                <InfoRow label="Servicio" value="—" last />
+              )}
+            </View>
+
+            {/* Precalificación FOVISSSTE */}
+            {exp.contacto.servicio === 'FOVISSSTE' && (
+              exp.contacto.estado_uso_credito || exp.contacto.estado_residencia ||
+              exp.contacto.regimen_pensionario || exp.contacto.tiene_discapacidad
+            ) ? (
+              <>
+                <Text style={[styles.sectionLabel, { marginTop: Spacing.sm }]}>Precalificación FOVISSSTE</Text>
+                <View style={styles.card}>
+                  {exp.contacto.estado_uso_credito ? (
+                    <InfoRow label="Estado (crédito)" value={exp.contacto.estado_uso_credito} />
+                  ) : null}
+                  {exp.contacto.municipio_uso_credito ? (
+                    <InfoRow label="Municipio (crédito)" value={exp.contacto.municipio_uso_credito} />
+                  ) : null}
+                  {exp.contacto.estado_residencia ? (
+                    <InfoRow label="Estado (residencia)" value={exp.contacto.estado_residencia} />
+                  ) : null}
+                  {exp.contacto.regimen_pensionario ? (
+                    <InfoRow
+                      label="Régimen"
+                      value={exp.contacto.regimen_pensionario === 'decimo_transitorio' ? 'Décimo Transitorio' : 'Cuenta Individual'}
+                    />
+                  ) : null}
+                  <InfoRow
+                    label="Discapacidad"
+                    value={exp.contacto.tiene_discapacidad ? 'Sí' : 'No'}
+                    last
+                  />
+                </View>
+              </>
+            ) : null}
+
+            {/* Precalificación INFONAVIT */}
+            {exp.contacto.servicio === 'INFONAVIT' && (
+              exp.contacto.estado_uso_credito || exp.contacto.municipio_uso_credito
+            ) ? (
+              <>
+                <Text style={[styles.sectionLabel, { marginTop: Spacing.sm }]}>Precalificación INFONAVIT</Text>
+                <View style={styles.card}>
+                  {exp.contacto.estado_uso_credito ? (
+                    <InfoRow label="Estado (crédito)" value={exp.contacto.estado_uso_credito} />
+                  ) : null}
+                  {exp.contacto.municipio_uso_credito ? (
+                    <InfoRow label="Municipio (crédito)" value={exp.contacto.municipio_uso_credito} last />
+                  ) : null}
+                </View>
+              </>
+            ) : null}
+
+            {/* Captura del simulador / portal */}
+            {exp.contacto.simulador_screenshot_url ? (
+              <>
+                <Text style={[styles.sectionLabel, { marginTop: Spacing.sm }]}>
+                  {exp.contacto.servicio === 'INFONAVIT' ? 'Captura Mi Cuenta INFONAVIT' : 'Captura del simulador'}
+                </Text>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => Linking.openURL(exp.contacto!.simulador_screenshot_url!)}
+                  style={styles.screenshotContainer}
+                >
+                  <Image
+                    source={{ uri: exp.contacto.simulador_screenshot_url }}
+                    style={styles.screenshotThumb}
+                    resizeMode="cover"
+                  />
+                  <Text style={styles.screenshotHint}>Toca para ver la captura completa</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </>
         )}
 
@@ -451,9 +554,14 @@ const styles = StyleSheet.create({
   addDocText: { color: Colors.gold[600], fontWeight: '700', fontSize: Typography.fontSize.sm },
 
   prospectoCard:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.white, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[200], padding: Spacing.md },
+  prospectoFoto:   { width: 44, height: 44, borderRadius: 22 },
   prospectoAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.dark[800], alignItems: 'center', justifyContent: 'center' },
   avatarLetter:    { color: Colors.gold[400], fontWeight: '700', fontSize: Typography.fontSize.base },
   prospectoInfo:   { flex: 1 },
   prospectoNombre: { fontSize: Typography.fontSize.sm, fontWeight: '600', color: Colors.dark[800] },
   prospectoSub:    { fontSize: Typography.fontSize.xs, color: Colors.gold[600], marginTop: 2 },
+
+  screenshotContainer: { borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cream[200] },
+  screenshotThumb:     { width: '100%', height: 180 },
+  screenshotHint:      { fontSize: Typography.fontSize.xs, color: Colors.dark[400], textAlign: 'center', paddingVertical: Spacing.xs },
 });

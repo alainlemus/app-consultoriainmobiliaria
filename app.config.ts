@@ -35,7 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name:    'Consultoría Inmobiliaria',
     slug:    'app-consultoriainmobiliaria',
-    version: '1.0.0',
+    version: '1.1.1',
     orientation: 'portrait',
     icon:    './assets/icon.png',
     userInterfaceStyle: 'light',
@@ -65,10 +65,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         backgroundColor: '#222121',
       },
       edgeToEdgeEnabled: true,
-      predictiveBackGestureEnabled: false,
+      predictiveBackGestureEnabled: true,  // requerido en Android 14+ (Samsung S25/S26)
       config: {
         googleMaps: {
-          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
         },
       },
     },
@@ -98,6 +98,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'expo-location',
         { locationAlwaysAndWhenInUsePermission: 'La app usa tu ubicación para registrar visitas a clientes.' },
+      ],
+      [
+        'react-native-document-scanner-plugin',
+        { cameraPermission: 'La app necesita acceso a la cámara para escanear documentos.' },
       ],
     ],
     // ── Variables accesibles en la app via expo-constants ──────────────────

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
-import { iniciarSyncAutomatico, detenerSyncAutomatico } from '../src/services/offline';
+import { SyncProvider } from '../src/contexts/SyncContext';
 import { registrarPushToken, registrarListeners, limpiarBadge } from '../src/services/notifications';
 
 export default function RootLayout() {
@@ -22,12 +22,7 @@ export default function RootLayout() {
     })();
   }, [segments]);
 
-  // Sync automático al recuperar conexión
-  useEffect(() => {
-    iniciarSyncAutomatico();
-    return () => detenerSyncAutomatico();
-  }, []);
-
+  // Sync automático: manejado por SyncContext (SyncProvider en el árbol)
   // Push notifications
   useEffect(() => {
     SecureStore.getItemAsync('auth_token').then(token => {
@@ -57,6 +52,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      <SyncProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)"                               options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)"                               options={{ headerShown: false }} />
@@ -65,8 +61,9 @@ export default function RootLayout() {
         <Stack.Screen name="expedientes/[id]"                     options={{ headerShown: false }} />
         <Stack.Screen name="expedientes/documentos/subir"         options={{ headerShown: false }} />
         <Stack.Screen name="mapa"                                  options={{ headerShown: false }} />
-        <Stack.Screen name="ayuda"                                 options={{ headerShown: false }} />
+        <Stack.Screen name="ayuda"                                  options={{ headerShown: false }} />
       </Stack>
+      </SyncProvider>
     </SafeAreaProvider>
   );
 }

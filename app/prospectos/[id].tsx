@@ -2,60 +2,109 @@ import React, { useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
   TouchableOpacity, ActivityIndicator, TextInput,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform, Alert, Image, Switch,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as Linking from 'expo-linking';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
-import { getContacto, updateContacto } from '../../src/services/api';
-import type { Contacto, EstadoProspecto } from '../../src/types';
-
-type Servicio = 'FOVISSSTE' | 'INFONAVIT' | '';
+import EstadoSelectModal from '../../src/components/ui/EstadoSelectModal';
+import { getContacto, updateContacto, uploadFotoContacto, uploadSimuladorScreenshot, getUbicacionesMapa } from '../../src/services/api';
+import { useSyncContext } from '../../src/contexts/SyncContext';
+import type { Contacto, EstadoProspecto, ServicioProspecto, Ubicacion } from '../../src/types';
+import { SERVICIO_LABEL } from '../../src/types';
 
 const ESTADOS: { value: EstadoProspecto; label: string }[] = [
   { value: 'nuevo',         label: 'Nuevo' },
-  { value: 'contactado',    label: 'Contactado' },
   { value: 'precalificado', label: 'Precalificado' },
-  { value: 'en_tramite',    label: 'En trámite' },
-  { value: 'cerrado',       label: 'Cerrado' },
-  { value: 'no_interesado', label: 'No interesado' },
+];
+
+const REGIMENES: { value: string; label: string }[] = [
+  { value: 'decimo_transitorio', label: 'Décimo Transitorio' },
+  { value: 'cuenta_individual',  label: 'Cuenta Individual' },
+];
+
+const SERVICIOS: { value: ServicioProspecto; label: string }[] = [
+  { value: 'FOVISSSTE',              label: 'FOVISSSTE' },
+  { value: 'INFONAVIT',              label: 'INFONAVIT' },
+  { value: 'AVALUO',                 label: 'Avalúo' },
+  { value: 'ESCRITURACION',          label: 'Escrituración' },
+  { value: 'ASESORIA_PERSONALIZADA', label: 'Asesoría\npersonalizada' },
+  { value: 'OTRO',                   label: 'Otro' },
 ];
 
 export default function DetalleProspectoScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { online, encolar } = useSyncContext();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [contacto,  setContacto]  = useState<Contacto | null>(null);
   const [loading,   setLoading]   = useState(true);
   const [editing,   setEditing]   = useState(false);
   const [saving,    setSaving]    = useState(false);
+  const [ultimaVisita, setUltimaVisita] = useState<Ubicacion | null>(null);
 
   // Campos del formulario de edición
   const [nombre,   setNombre]   = useState('');
   const [telefono, setTelefono] = useState('');
   const [email,    setEmail]    = useState('');
+  const [curp,     setCurp]     = useState('');
   const [notas,    setNotas]    = useState('');
-  const [servicio, setServicio] = useState<Servicio>('');
+  const [servicio, setServicio] = useState<ServicioProspecto>('');
   const [estado,   setEstado]   = useState<EstadoProspecto>('nuevo');
+  const [fotoAsset, setFotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+
+  // Campos precalificación (FOVISSSTE + INFONAVIT)
+  const [nss,                 setNss]                 = useState('');
+  const [estadoUsoCredito,    setEstadoUsoCredito]    = useState('');
+  const [municipioUsoCredito, setMunicipioUsoCredito] = useState('');
+  const [estadoResidencia,    setEstadoResidencia]    = useState('');
+  const [regimenPensionario,  setRegimenPensionario]  = useState('');
+  const [tieneDiscapacidad,   setTieneDiscapacidad]   = useState(false);
+  const [screenshotAsset, setScreenshotAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
 
   useEffect(() => {
     if (!id) return;
-    getContacto(Number(id))
-      .then(c => {
+    const numId = Number(id);
+    Promise.all([
+      getContacto(numId),
+      getUbicacionesMapa(),
+    ])
+      .then(([c, visitas]) => {
         setContacto(c);
-        // Pre-carga los campos de edición
-        setNombre(c.nombre ?? '');
-        setTelefono(c.telefono ?? '');
-        setEmail(c.email ?? '');
-        setNotas(c.notas ?? '');
-        setServicio((c.servicio as Servicio) ?? '');
-        setEstado(c.estado_prospecto);
+        poblarFormulario(c);
+        // Visita más reciente de este prospecto
+        const suyas = visitas
+          .filter(v => v.contacto_id === numId)
+          .sort((a, b) => new Date(b.visitado_en).getTime() - new Date(a.visitado_en).getTime());
+        setUltimaVisita(suyas[0] ?? null);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
+
+  function poblarFormulario(c: Contacto) {
+    setNombre(c.nombre ?? '');
+    setTelefono(c.telefono ?? '');
+    setEmail(c.email ?? '');
+    setCurp(c.curp ?? '');
+    setNotas(c.notas ?? '');
+    setServicio((c.servicio as ServicioProspecto) ?? '');
+    // Simplificar: si el estado actual no es 'precalificado', mostrar como 'nuevo'
+    setEstado(c.estado_prospecto === 'precalificado' ? 'precalificado' : 'nuevo');
+    setFotoAsset(null);
+    // Precalificación
+    setNss(c.nss ?? '');
+    setEstadoUsoCredito(c.estado_uso_credito ?? '');
+    setMunicipioUsoCredito(c.municipio_uso_credito ?? '');
+    setEstadoResidencia(c.estado_residencia ?? '');
+    setRegimenPensionario(c.regimen_pensionario ?? '');
+    setTieneDiscapacidad(c.tiene_discapacidad ?? false);
+    setScreenshotAsset(null);
+  }
 
   async function handleSave() {
     if (!nombre.trim()) {
@@ -64,15 +113,66 @@ export default function DetalleProspectoScreen() {
     }
     setSaving(true);
     try {
-      const updated = await updateContacto(Number(id), {
-        nombre:           nombre.trim(),
-        telefono:         telefono || undefined,
-        email:            email    || undefined,
-        notas:            notas    || undefined,
-        servicio:         servicio || undefined,
-        estado_prospecto: estado,
-      });
-      setContacto(updated);
+      const payload = {
+        id:                    Number(id),
+        nombre:                nombre.trim(),
+        telefono:              telefono || undefined,
+        email:                 email    || undefined,
+        curp:                  curp.trim().toUpperCase() || undefined,
+        notas:                 notas    || undefined,
+        servicio:              servicio || undefined,
+        estado_prospecto:      estado,
+        // Precalificación FOVISSSTE
+        ...(servicio === 'FOVISSSTE' ? {
+          estado_uso_credito:    estadoUsoCredito    || undefined,
+          municipio_uso_credito: municipioUsoCredito || undefined,
+          estado_residencia:     estadoResidencia    || undefined,
+          regimen_pensionario:   regimenPensionario  || undefined,
+          tiene_discapacidad:    tieneDiscapacidad,
+        } : {}),
+        // Precalificación INFONAVIT
+        ...(servicio === 'INFONAVIT' ? {
+          nss:                   nss.trim() || undefined,
+          estado_uso_credito:    estadoUsoCredito    || undefined,
+          municipio_uso_credito: municipioUsoCredito || undefined,
+        } : {}),
+      };
+
+      if (!online) {
+        // Sin internet: encolar la actualización
+        await encolar('actualizar_contacto', payload);
+        Alert.alert(
+          'Guardado sin conexión',
+          'Los cambios se guardarán en el CRM cuando recuperes internet.',
+          [{ text: 'OK' }],
+        );
+        setEditing(false);
+        return;
+      }
+
+      const updated = await updateContacto(Number(id), payload);
+
+      let finalContacto: Contacto = updated;
+
+      // Subir nueva foto si se seleccionó
+      if (fotoAsset && updated.id) {
+        finalContacto = await uploadFotoContacto(updated.id, {
+          uri:  fotoAsset.uri,
+          name: fotoAsset.fileName ?? 'foto.jpg',
+          type: fotoAsset.mimeType ?? 'image/jpeg',
+        });
+      }
+
+      // Subir captura del simulador si se seleccionó
+      if (screenshotAsset && updated.id) {
+        finalContacto = await uploadSimuladorScreenshot(updated.id, {
+          uri:  screenshotAsset.uri,
+          name: screenshotAsset.fileName ?? 'simulador.jpg',
+          type: screenshotAsset.mimeType ?? 'image/jpeg',
+        });
+      }
+
+      setContacto(finalContacto);
       setEditing(false);
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo guardar.');
@@ -82,14 +182,42 @@ export default function DetalleProspectoScreen() {
   }
 
   function handleCancelEdit() {
-    if (!contacto) return;
-    setNombre(contacto.nombre ?? '');
-    setTelefono(contacto.telefono ?? '');
-    setEmail(contacto.email ?? '');
-    setNotas(contacto.notas ?? '');
-    setServicio((contacto.servicio as Servicio) ?? '');
-    setEstado(contacto.estado_prospecto);
+    if (contacto) poblarFormulario(contacto);
     setEditing(false);
+  }
+
+  async function seleccionarFoto(origen: 'camara' | 'galeria') {
+    const permisos = origen === 'camara'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (permisos.status !== 'granted') {
+      Alert.alert('Permiso requerido', `Activa el acceso a ${origen === 'camara' ? 'la cámara' : 'la galería'} en Configuración.`);
+      return;
+    }
+
+    const result = origen === 'camara'
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true, aspect: [1, 1] })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true, aspect: [1, 1] });
+
+    if (!result.canceled && result.assets[0]) {
+      setFotoAsset(result.assets[0]);
+    }
+  }
+
+  async function seleccionarScreenshot() {
+    const permisos = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permisos.status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Activa el acceso a la galería en Configuración.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality:    0.85,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setScreenshotAsset(result.assets[0]);
+    }
   }
 
   // ── Loading ──────────────────────────────────────────────────────────────
@@ -115,6 +243,8 @@ export default function DetalleProspectoScreen() {
 
   // ── Vista detalle ────────────────────────────────────────────────────────
   if (!editing) {
+    const fotoUri = contacto.foto_url ?? null;
+
     return (
       <View style={styles.flex}>
         <TopBar
@@ -133,17 +263,47 @@ export default function DetalleProspectoScreen() {
           contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 32 }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Badge estado */}
-          <View style={styles.badgeRow}>
-            <Badge
-              label={contacto.estado_prospecto}
-              variant={ESTADO_PROSPECTO_BADGE[contacto.estado_prospecto] ?? 'gray'}
-            />
-            {contacto.servicio ? (
-              <View style={styles.servicioPill}>
-                <Text style={styles.servicioPillText}>{contacto.servicio}</Text>
+          {/* Foto + badges */}
+          <View style={styles.heroRow}>
+            {fotoUri ? (
+              <Image source={{ uri: fotoUri }} style={styles.fotoHero} />
+            ) : (
+              <View style={[styles.fotoHero, styles.fotoHeroPlaceholder]}>
+                <Text style={{ fontSize: 36 }}>👤</Text>
               </View>
-            ) : null}
+            )}
+            <View style={styles.heroBadges}>
+              <Badge
+                label={contacto.estado_prospecto}
+                variant={ESTADO_PROSPECTO_BADGE[contacto.estado_prospecto] ?? 'gray'}
+              />
+              {contacto.servicio ? (
+                <View style={[styles.servicioPill, { marginTop: 6 }]}>
+                  <Text style={styles.servicioPillText}>
+                    {SERVICIO_LABEL[contacto.servicio] ?? contacto.servicio}
+                  </Text>
+                </View>
+              ) : null}
+              {ultimaVisita ? (
+                <TouchableOpacity
+                  style={[styles.servicioPill, styles.ubicacionPill, { marginTop: 6 }]}
+                  activeOpacity={0.75}
+                  onPress={() => router.push({
+                    pathname: '/mapa',
+                    params: {
+                      lat: String(ultimaVisita.latitud),
+                      lng: String(ultimaVisita.longitud),
+                      contacto_id: String(contacto.id),
+                      contacto_nombre: contacto.nombre,
+                    },
+                  })}
+                >
+                  <Text style={styles.ubicacionPillText}>
+                    📍 {[ultimaVisita.municipio, ultimaVisita.estado].filter(Boolean).join(', ') || 'Ver en mapa'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
 
           <SectionLabel>Datos personales</SectionLabel>
@@ -151,7 +311,8 @@ export default function DetalleProspectoScreen() {
             <InfoRow label="Nombre"    value={contacto.nombre ?? '—'} />
             <InfoRow label="Teléfono"  value={contacto.telefono ?? '—'} />
             <InfoRow label="Correo"    value={contacto.email ?? '—'} />
-            <InfoRow label="Servicio"  value={contacto.servicio ?? '—'} last />
+            <InfoRow label="CURP"      value={contacto.curp ?? '—'} />
+            <InfoRow label="Servicio"  value={SERVICIO_LABEL[contacto.servicio ?? ''] ?? contacto.servicio ?? '—'} last />
           </Card>
 
           {contacto.notas ? (
@@ -163,10 +324,92 @@ export default function DetalleProspectoScreen() {
             </>
           ) : null}
 
+          {/* ── Precalificación FOVISSSTE (vista) ─────────────────── */}
+          {contacto.servicio === 'FOVISSSTE' && (
+            contacto.estado_uso_credito || contacto.municipio_uso_credito ||
+            contacto.estado_residencia  || contacto.regimen_pensionario   ||
+            contacto.simulador_screenshot_url
+          ) ? (
+            <>
+              <SectionLabel>Precalificación FOVISSSTE</SectionLabel>
+              <Card>
+                {contacto.estado_uso_credito ? (
+                  <InfoRow label="Estado (crédito)"    value={contacto.estado_uso_credito} />
+                ) : null}
+                {contacto.municipio_uso_credito ? (
+                  <InfoRow label="Municipio (crédito)" value={contacto.municipio_uso_credito} />
+                ) : null}
+                {contacto.estado_residencia ? (
+                  <InfoRow label="Estado (residencia)" value={contacto.estado_residencia} />
+                ) : null}
+                {contacto.regimen_pensionario ? (
+                  <InfoRow
+                    label="Régimen"
+                    value={contacto.regimen_pensionario === 'decimo_transitorio' ? 'Décimo Transitorio' : 'Cuenta Individual'}
+                  />
+                ) : null}
+                <InfoRow
+                  label="Discapacidad"
+                  value={contacto.tiene_discapacidad ? 'Sí' : 'No'}
+                  last={!contacto.simulador_screenshot_url}
+                />
+              </Card>
+              {contacto.simulador_screenshot_url ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => Linking.openURL(contacto.simulador_screenshot_url!)}
+                  style={styles.screenshotContainer}
+                >
+                  <Image
+                    source={{ uri: contacto.simulador_screenshot_url }}
+                    style={styles.screenshotThumb}
+                    resizeMode="cover"
+                  />
+                  <Text style={styles.screenshotHint}>Toca para ver la captura completa</Text>
+                </TouchableOpacity>
+              ) : null}
+            </>
+          ) : null}
+
+          {/* ── Precalificación INFONAVIT (vista) ─────────────────── */}
+          {contacto.servicio === 'INFONAVIT' && (
+            contacto.nss || contacto.estado_uso_credito ||
+            contacto.municipio_uso_credito || contacto.simulador_screenshot_url
+          ) ? (
+            <>
+              <SectionLabel>Precalificación INFONAVIT</SectionLabel>
+              <Card>
+                {contacto.nss ? (
+                  <InfoRow label="NSS" value={contacto.nss} />
+                ) : null}
+                {contacto.estado_uso_credito ? (
+                  <InfoRow label="Estado (crédito)"    value={contacto.estado_uso_credito} />
+                ) : null}
+                {contacto.municipio_uso_credito ? (
+                  <InfoRow label="Municipio (crédito)" value={contacto.municipio_uso_credito} last={!contacto.simulador_screenshot_url} />
+                ) : null}
+              </Card>
+              {contacto.simulador_screenshot_url ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => Linking.openURL(contacto.simulador_screenshot_url!)}
+                  style={styles.screenshotContainer}
+                >
+                  <Image
+                    source={{ uri: contacto.simulador_screenshot_url }}
+                    style={styles.screenshotThumb}
+                    resizeMode="cover"
+                  />
+                  <Text style={styles.screenshotHint}>Toca para ver la captura completa</Text>
+                </TouchableOpacity>
+              ) : null}
+            </>
+          ) : null}
+
           <SectionLabel>Fechas</SectionLabel>
           <Card>
-            <InfoRow label="Registrado"   value={fmt(contacto.created_at)} />
-            <InfoRow label="Actualizado"  value={fmt(contacto.updated_at)} last />
+            <InfoRow label="Registrado"  value={fmt(contacto.created_at)} />
+            <InfoRow label="Actualizado" value={fmt(contacto.updated_at)} last />
           </Card>
 
           {/* Acciones rápidas */}
@@ -189,11 +432,39 @@ export default function DetalleProspectoScreen() {
                 })}
               />
             )}
-            <ActionRow icon="📍" label="Registrar visita" onPress={() => router.push({
+            <ActionRow
+              icon="🔎"
+              label="Precalificar"
+              sublabel="Simulador FOVISSSTE"
+              onPress={() => Linking.openURL('https://inscripcioncontinua.fovissste.gob.mx/simulador/')}
+              border
+            />
+            {ultimaVisita ? (
+              <ActionRow
+                icon="📍"
+                label="Ver ubicación en mapa"
+                sublabel={[ultimaVisita.municipio, ultimaVisita.estado].filter(Boolean).join(', ') || undefined}
+                onPress={() => router.push({
                   pathname: '/mapa',
-                  params: { contacto_id: String(contacto.id), contacto_nombre: contacto.nombre },
-                })} border />
-            <ActionRow icon="✏️" label="Editar prospecto"   onPress={() => setEditing(true)} />
+                  params: {
+                    lat: String(ultimaVisita.latitud),
+                    lng: String(ultimaVisita.longitud),
+                    contacto_id: String(contacto.id),
+                    contacto_nombre: contacto.nombre,
+                  },
+                })}
+                border
+              />
+            ) : null}
+            {!ultimaVisita && (
+              <ActionRow
+                icon="🗺️"
+                label="Registrar visita"
+                onPress={() => router.push({ pathname: '/mapa', params: { contacto_id: String(contacto.id), contacto_nombre: contacto.nombre } })}
+                border
+              />
+            )}
+            <ActionRow icon="✏️" label="Editar prospecto" onPress={() => setEditing(true)} />
           </View>
         </ScrollView>
       </View>
@@ -201,6 +472,8 @@ export default function DetalleProspectoScreen() {
   }
 
   // ── Formulario edición ───────────────────────────────────────────────────
+  const fotoPreviewUri = fotoAsset?.uri ?? contacto.foto_url ?? null;
+
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -226,6 +499,33 @@ export default function DetalleProspectoScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* Foto */}
+        <SectionLabel>Foto del prospecto</SectionLabel>
+        <View style={styles.formCard}>
+          <View style={styles.fotoEditRow}>
+            {fotoPreviewUri ? (
+              <Image source={{ uri: fotoPreviewUri }} style={styles.fotoEdit} />
+            ) : (
+              <View style={[styles.fotoEdit, styles.fotoEditPlaceholder]}>
+                <Text style={{ fontSize: 28 }}>👤</Text>
+              </View>
+            )}
+            <View style={{ flex: 1, gap: Spacing.xs }}>
+              <TouchableOpacity style={styles.fotoBtn} onPress={() => seleccionarFoto('camara')}>
+                <Text style={styles.fotoBtnText}>📷  Cámara</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.fotoBtn} onPress={() => seleccionarFoto('galeria')}>
+                <Text style={styles.fotoBtnText}>🖼️  Galería</Text>
+              </TouchableOpacity>
+              {fotoAsset && (
+                <TouchableOpacity onPress={() => setFotoAsset(null)}>
+                  <Text style={styles.fotoRemoveBtnText}>Quitar foto nueva</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+
         <SectionLabel>Datos personales</SectionLabel>
         <View style={styles.formCard}>
           <FormField label="Nombre completo *">
@@ -248,7 +548,7 @@ export default function DetalleProspectoScreen() {
               placeholderTextColor={Colors.dark[400]}
             />
           </FormField>
-          <FormField label="Correo electrónico" border last>
+          <FormField label="Correo electrónico" border>
             <TextInput
               style={styles.input}
               value={email}
@@ -259,19 +559,34 @@ export default function DetalleProspectoScreen() {
               placeholderTextColor={Colors.dark[400]}
             />
           </FormField>
+          <FormField label="CURP (opcional)" border last>
+            <TextInput
+              style={styles.input}
+              value={curp}
+              onChangeText={(v) => setCurp(v.toUpperCase())}
+              autoCapitalize="characters"
+              placeholder="LOHA850101HDFPLN02"
+              placeholderTextColor={Colors.dark[400]}
+              maxLength={18}
+            />
+          </FormField>
         </View>
 
         <SectionLabel>Tipo de servicio</SectionLabel>
         <View style={styles.formCard}>
-          <View style={styles.servicioRow}>
-            {(['FOVISSSTE', 'INFONAVIT'] as Servicio[]).map(s => (
+          <View style={styles.servicioGrid}>
+            {SERVICIOS.map(s => (
               <TouchableOpacity
-                key={s}
-                style={[styles.servicioBtn, servicio === s && styles.servicioBtnActive]}
-                onPress={() => setServicio(s)}
+                key={s.value}
+                style={[styles.servicioBtn, servicio === s.value && styles.servicioBtnActive]}
+                onPress={() => setServicio(s.value)}
               >
-                <Text style={[styles.servicioBtnText, servicio === s && styles.servicioBtnTextActive]}>
-                  {s}
+                <Text
+                  style={[styles.servicioBtnText, servicio === s.value && styles.servicioBtnTextActive]}
+                  numberOfLines={2}
+                  textBreakStrategy="simple"
+                >
+                  {s.label}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -309,7 +624,172 @@ export default function DetalleProspectoScreen() {
           />
         </View>
 
-        {/* Botón guardar al fondo */}
+        {/* ── Precalificación FOVISSSTE (edición) ───────────────────── */}
+        {servicio === 'FOVISSSTE' ? (
+          <>
+            <SectionLabel>Precalificación FOVISSSTE</SectionLabel>
+            <View style={styles.formCard}>
+              <FormField label="Estado donde usará el crédito">
+                <EstadoSelectModal
+                  value={estadoUsoCredito}
+                  onChange={setEstadoUsoCredito}
+                  placeholder="Ej: Hidalgo"
+                />
+              </FormField>
+              <FormField label="Municipio donde usará el crédito" border>
+                <TextInput
+                  style={styles.input}
+                  value={municipioUsoCredito}
+                  onChangeText={setMunicipioUsoCredito}
+                  autoCapitalize="words"
+                  placeholder="Ej: Pachuca"
+                  placeholderTextColor={Colors.dark[400]}
+                />
+              </FormField>
+              <FormField label="Estado de residencia actual" border>
+                <EstadoSelectModal
+                  value={estadoResidencia}
+                  onChange={setEstadoResidencia}
+                  placeholder="Ej: Hidalgo"
+                />
+              </FormField>
+              <FormField label="Régimen pensionario" border>
+                <View style={styles.servicioGrid}>
+                  {REGIMENES.map(r => (
+                    <TouchableOpacity
+                      key={r.value}
+                      style={[styles.servicioBtn, regimenPensionario === r.value && styles.servicioBtnActive]}
+                      onPress={() => setRegimenPensionario(r.value)}
+                    >
+                      <Text
+                        style={[styles.servicioBtnText, regimenPensionario === r.value && styles.servicioBtnTextActive]}
+                        numberOfLines={2}
+                        textBreakStrategy="simple"
+                      >
+                        {r.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </FormField>
+              <FormField label="¿Tiene alguna discapacidad?" border last>
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel}>{tieneDiscapacidad ? 'Sí' : 'No'}</Text>
+                  <Switch
+                    value={tieneDiscapacidad}
+                    onValueChange={setTieneDiscapacidad}
+                    trackColor={{ false: Colors.cream[300], true: Colors.gold[400] }}
+                    thumbColor={Colors.white}
+                  />
+                </View>
+              </FormField>
+            </View>
+
+            {/* Captura del simulador FOVISSSTE */}
+            <SectionLabel>Captura del simulador</SectionLabel>
+            <View style={styles.formCard}>
+              {(screenshotAsset?.uri ?? contacto.simulador_screenshot_url) ? (
+                <Image
+                  source={{ uri: screenshotAsset?.uri ?? contacto.simulador_screenshot_url! }}
+                  style={styles.screenshotPreview}
+                  resizeMode="contain"
+                />
+              ) : (
+                <Text style={styles.screenshotEmpty}>Sin captura del simulador</Text>
+              )}
+              <View style={{ flexDirection: 'row', gap: Spacing.sm, paddingVertical: Spacing.sm }}>
+                <TouchableOpacity
+                  style={[styles.fotoBtn, { flex: 1 }]}
+                  onPress={() => Linking.openURL('https://inscripcioncontinua.fovissste.gob.mx/simulador/')}
+                >
+                  <Text style={styles.fotoBtnText}>Abrir simulador</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.fotoBtn, { flex: 1 }]}
+                  onPress={seleccionarScreenshot}
+                >
+                  <Text style={styles.fotoBtnText}>Subir captura</Text>
+                </TouchableOpacity>
+              </View>
+              {screenshotAsset ? (
+                <TouchableOpacity onPress={() => setScreenshotAsset(null)} style={{ alignItems: 'center', paddingBottom: Spacing.sm }}>
+                  <Text style={styles.fotoRemoveBtnText}>Quitar nueva captura</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </>
+        ) : null}
+
+        {/* ── Precalificación INFONAVIT (edición) ───────────────────── */}
+        {servicio === 'INFONAVIT' ? (
+          <>
+            <SectionLabel>Precalificación INFONAVIT</SectionLabel>
+            <View style={styles.formCard}>
+              <FormField label="NSS (Número de Seguridad Social)">
+                <TextInput
+                  style={styles.input}
+                  value={nss}
+                  onChangeText={setNss}
+                  keyboardType="number-pad"
+                  placeholder="Ej: 12345678901"
+                  placeholderTextColor={Colors.dark[400]}
+                  maxLength={15}
+                />
+              </FormField>
+              <FormField label="Estado donde usará el crédito" border>
+                <EstadoSelectModal
+                  value={estadoUsoCredito}
+                  onChange={setEstadoUsoCredito}
+                  placeholder="Ej: Hidalgo"
+                />
+              </FormField>
+              <FormField label="Municipio donde usará el crédito" border last>
+                <TextInput
+                  style={styles.input}
+                  value={municipioUsoCredito}
+                  onChangeText={setMunicipioUsoCredito}
+                  autoCapitalize="words"
+                  placeholder="Ej: Pachuca"
+                  placeholderTextColor={Colors.dark[400]}
+                />
+              </FormField>
+            </View>
+
+            {/* Captura Mi Cuenta INFONAVIT */}
+            <SectionLabel>Captura del portal</SectionLabel>
+            <View style={styles.formCard}>
+              {(screenshotAsset?.uri ?? contacto.simulador_screenshot_url) ? (
+                <Image
+                  source={{ uri: screenshotAsset?.uri ?? contacto.simulador_screenshot_url! }}
+                  style={styles.screenshotPreview}
+                  resizeMode="contain"
+                />
+              ) : (
+                <Text style={styles.screenshotEmpty}>Sin captura del portal</Text>
+              )}
+              <View style={{ flexDirection: 'row', gap: Spacing.sm, paddingVertical: Spacing.sm }}>
+                <TouchableOpacity
+                  style={[styles.fotoBtn, { flex: 1 }]}
+                  onPress={() => Linking.openURL('https://micuenta.infonavit.org.mx/')}
+                >
+                  <Text style={styles.fotoBtnText}>Abrir Mi Cuenta</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.fotoBtn, { flex: 1 }]}
+                  onPress={seleccionarScreenshot}
+                >
+                  <Text style={styles.fotoBtnText}>Subir captura</Text>
+                </TouchableOpacity>
+              </View>
+              {screenshotAsset ? (
+                <TouchableOpacity onPress={() => setScreenshotAsset(null)} style={{ alignItems: 'center', paddingBottom: Spacing.sm }}>
+                  <Text style={styles.fotoRemoveBtnText}>Quitar nueva captura</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </>
+        ) : null}
+
         <TouchableOpacity
           style={[styles.saveBtnLarge, saving && { opacity: 0.6 }]}
           onPress={handleSave}
@@ -329,7 +809,8 @@ export default function DetalleProspectoScreen() {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function fmt(iso: string) {
+function fmt(iso?: string) {
+  if (!iso) return '—';
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
@@ -387,7 +868,7 @@ function ActionRow({ icon, label, sublabel, onPress, border }: { icon: string; l
       <Text style={styles.actionIcon}>{icon}</Text>
       <View style={{ flex: 1 }}>
         <Text style={styles.actionLabel}>{label}</Text>
-        {sublabel ? <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 1 }}>{sublabel}</Text> : null}
+        {sublabel ? <Text style={{ fontSize: 12, color: Colors.dark[400], marginTop: 1 }}>{sublabel}</Text> : null}
       </View>
       <Text style={styles.chevron}>›</Text>
     </TouchableOpacity>
@@ -426,9 +907,16 @@ const styles = StyleSheet.create({
     marginBottom:  Spacing.xs,
   },
 
-  badgeRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.xs, marginTop: Spacing.xs },
-  servicioPill: { backgroundColor: Colors.gold[50], borderWidth: 1, borderColor: Colors.gold[300], borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 2 },
+  // Hero row (foto + badges)
+  heroRow:            { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.xs, marginTop: Spacing.sm },
+  fotoHero:           { width: 72, height: 72, borderRadius: 36, overflow: 'hidden' },
+  fotoHeroPlaceholder:{ backgroundColor: Colors.cream[200], alignItems: 'center', justifyContent: 'center' },
+  heroBadges:         { flex: 1, gap: 4 },
+
+  servicioPill:     { backgroundColor: Colors.gold[50], borderWidth: 1, borderColor: Colors.gold[300], borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 2, alignSelf: 'flex-start' },
   servicioPillText: { fontSize: Typography.fontSize.xs, color: Colors.gold[600], fontWeight: Typography.fontWeight.bold },
+  ubicacionPill:     { backgroundColor: '#eff6ff', borderColor: '#93c5fd' },
+  ubicacionPillText: { fontSize: Typography.fontSize.xs, color: '#2563eb', fontWeight: Typography.fontWeight.bold },
 
   card: {
     backgroundColor: Colors.white,
@@ -460,52 +948,65 @@ const styles = StyleSheet.create({
   actionLabel:     { flex: 1, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[800] },
   chevron:         { fontSize: 20, color: Colors.dark[300] },
 
-  // Formulario
+  // Formulario edición
   formCard: {
-    backgroundColor: Colors.white,
-    borderRadius:    Radius.md,
-    borderWidth:     1,
-    borderColor:     Colors.cream[200],
-    overflow:        'hidden',
-    marginBottom:    Spacing.xs,
+    backgroundColor:   Colors.white,
+    borderRadius:      Radius.md,
+    borderWidth:       1,
+    borderColor:       Colors.cream[200],
+    overflow:          'hidden',
+    marginBottom:      Spacing.xs,
     paddingHorizontal: Spacing.md,
   },
   formField:       { paddingVertical: Spacing.sm },
   formFieldBorder: { borderTopWidth: 1, borderTopColor: Colors.cream[200] },
   formLabel:       { fontSize: Typography.fontSize.xs, color: Colors.dark[500], fontWeight: Typography.fontWeight.semibold, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: {
-    fontSize:   Typography.fontSize.sm,
-    color:      Colors.dark[900],
+    fontSize:        Typography.fontSize.sm,
+    color:           Colors.dark[900],
     paddingVertical: Spacing.xs,
   },
   inputMultiline: {
-    minHeight:  80,
-    padding:    Spacing.md,
+    minHeight: 80,
+    padding:   Spacing.md,
   },
 
-  servicioRow: { flexDirection: 'row', gap: Spacing.sm, paddingVertical: Spacing.sm },
+  // Foto en edición
+  fotoEditRow:         { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.md },
+  fotoEdit:            { width: 72, height: 72, borderRadius: 36, overflow: 'hidden' },
+  fotoEditPlaceholder: { backgroundColor: Colors.cream[200], alignItems: 'center', justifyContent: 'center' },
+  fotoBtn: {
+    borderWidth:       1,
+    borderColor:       Colors.cream[300],
+    borderRadius:      Radius.sm,
+    paddingVertical:   Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    backgroundColor:   Colors.cream[50],
+    alignItems:        'center',
+  },
+  fotoBtnText:       { fontSize: Typography.fontSize.xs, color: Colors.dark[700], fontWeight: Typography.fontWeight.semibold },
+  fotoRemoveBtnText: { fontSize: Typography.fontSize.xs, color: Colors.dark[400], textAlign: 'center', marginTop: 2 },
+
+  // Servicios grid
+  servicioGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, paddingVertical: Spacing.sm },
   servicioBtn: {
-    flex:            1,
+    width:           '30%',
+    flexGrow:        1,
     paddingVertical: Spacing.sm,
     borderRadius:    Radius.md,
     borderWidth:     1.5,
     borderColor:     Colors.cream[300],
     alignItems:      'center',
+    justifyContent:  'center',
     backgroundColor: Colors.cream[50],
+    minHeight:       52,
   },
   servicioBtnActive:    { borderColor: Colors.gold[400], backgroundColor: Colors.gold[50] },
-  servicioBtnText:      { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold, color: Colors.dark[500] },
+  servicioBtnText:      { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, color: Colors.dark[500], textAlign: 'center' },
   servicioBtnTextActive:{ color: Colors.gold[600] },
 
-  estadoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, paddingVertical: Spacing.sm },
-  estadoChip: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical:   5,
-    borderRadius:      Radius.full,
-    borderWidth:       1,
-    borderColor:       Colors.cream[300],
-    backgroundColor:   Colors.cream[50],
-  },
+  estadoGrid:           { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, paddingVertical: Spacing.sm },
+  estadoChip:           { paddingHorizontal: Spacing.sm, paddingVertical: 5, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.cream[300], backgroundColor: Colors.cream[50] },
   estadoChipActive:     { borderColor: Colors.dark[800], backgroundColor: Colors.dark[800] },
   estadoChipText:       { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[500] },
   estadoChipTextActive: { color: Colors.white },
@@ -520,4 +1021,36 @@ const styles = StyleSheet.create({
   saveBtnLargeText: { color: Colors.white, fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, letterSpacing: 0.5 },
   cancelBtn:        { marginTop: Spacing.sm, paddingVertical: Spacing.md, alignItems: 'center' },
   cancelBtnText:    { color: Colors.dark[400], fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold },
+
+  // Switch row (discapacidad)
+  switchRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.xs },
+  switchLabel:{ fontSize: Typography.fontSize.sm, color: Colors.dark[700] },
+
+  // Screenshot (vista)
+  screenshotContainer: {
+    backgroundColor: Colors.white,
+    borderRadius:    Radius.md,
+    borderWidth:     1,
+    borderColor:     Colors.cream[200],
+    overflow:        'hidden',
+    marginBottom:    Spacing.xs,
+    alignItems:      'center',
+  },
+  screenshotThumb: { width: '100%', height: 180 },
+  screenshotHint:  { fontSize: Typography.fontSize.xs, color: Colors.dark[400], paddingVertical: Spacing.xs },
+
+  // Screenshot (edición)
+  screenshotPreview: {
+    width:        '100%',
+    height:       200,
+    marginTop:    Spacing.sm,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.cream[100],
+  },
+  screenshotEmpty: {
+    textAlign:   'center',
+    color:       Colors.dark[400],
+    fontSize:    Typography.fontSize.xs,
+    paddingVertical: Spacing.md,
+  },
 });

@@ -25,12 +25,33 @@ export type EstadoProspecto =
   | 'cerrado'
   | 'no_interesado';
 
+export type ServicioProspecto =
+  | 'FOVISSSTE'
+  | 'INFONAVIT'
+  | 'AVALUO'
+  | 'ESCRITURACION'
+  | 'ASESORIA_PERSONALIZADA'
+  | 'OTRO'
+  | '';
+
+export const SERVICIO_LABEL: Record<string, string> = {
+  FOVISSSTE:              'FOVISSSTE',
+  INFONAVIT:              'INFONAVIT',
+  AVALUO:                 'Avalúo',
+  ESCRITURACION:          'Escrituración',
+  ASESORIA_PERSONALIZADA: 'Asesoría personalizada',
+  OTRO:                   'Otro',
+};
+
 export interface Contacto {
   id:               number;
   nombre:           string;
   telefono?:        string;
   email?:           string;
-  servicio?:        'FOVISSSTE' | 'INFONAVIT';
+  curp?:            string | null;
+  nss?:             string | null;
+  foto_url?:        string | null;
+  servicio?:        ServicioProspecto;
   estado_prospecto: EstadoProspecto;
   asesor_id?:       number;
   notas?:           string;
@@ -38,6 +59,13 @@ export interface Contacto {
   longitud?:         number;
   updated_at?:      string;
   created_at?:      string;
+  // Precalificación FOVISSSTE
+  estado_uso_credito?:    string | null;
+  municipio_uso_credito?: string | null;
+  estado_residencia?:     string | null;
+  regimen_pensionario?:   string | null;
+  tiene_discapacidad?:    boolean;
+  simulador_screenshot_url?: string | null;
   // Expediente activo — solo viene en el endpoint show (detalle)
   expediente_activo?: {
     id:     number;
@@ -79,13 +107,6 @@ export interface Expediente {
   _local_id?:        string;
   _pendiente_sync?:  boolean;
 }
-  notas_internas?:   string;
-  created_at:        string;
-  updated_at:        string;
-  documentos?:       Documento[];
-  _local_id?:        string;
-  _pendiente_sync?:  boolean;
-}
 
 export interface Documento {
   id:              number | null;  // null = requerido sin subir
@@ -109,18 +130,20 @@ export interface Documento {
 }
 
 export interface Ubicacion {
-  id?:          number;
-  contacto_id?: number;
-  contacto?:    string;
-  latitud:      number;
-  longitud:     number;
-  tipo:         'visita_cliente' | 'propiedad';
-  notas?:       string;
-  municipio?:   string;
-  estado?:      string;
-  visitado_en:  string;
-  fotos?:       { id: number; url: string }[];
-  _local_id?:   string;
+  id?:           number;
+  contacto_id?:  number;
+  contacto?:     string;
+  latitud:       number;
+  longitud:      number;
+  tipo:          'visita_cliente' | 'propiedad' | 'escuela';
+  nombre_lugar?: string;
+  direccion?:    string;
+  notas?:        string;
+  municipio?:    string;
+  estado?:       string;
+  visitado_en:   string;
+  fotos?:        { id: number; url: string }[];
+  _local_id?:    string;
   _pendiente_sync?: boolean;
 }
 
