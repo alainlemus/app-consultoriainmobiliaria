@@ -44,7 +44,8 @@ export interface DocumentoPendiente {
   id_local:     string;
   expedienteId: number;
   uri:          string;   // file:// URI del PDF/imagen guardada en el dispositivo
-  tipo:         string;   // tipo de documento (identificacion_oficial, etc.)
+  tipo:         string;   // tipo de documento (nombre del checklist)
+  seccion?:     string;   // sección del checklist (acreditado, vendedor, vivienda, otros)
   mimeType:     string;   // 'application/pdf' | 'image/jpeg'
   notas?:       string;
   timestamp:    string;
@@ -124,6 +125,7 @@ export async function encolarDocumento(params: {
   expedienteId: number;
   uri:          string;
   tipo:         string;
+  seccion?:     string;
   mimeType:     string;
   notas?:       string;
 }): Promise<string> {
@@ -132,6 +134,7 @@ export async function encolarDocumento(params: {
     expedienteId: params.expedienteId,
     uri:          params.uri,
     tipo:         params.tipo,
+    seccion:      params.seccion,
     mimeType:     params.mimeType,
     notas:        params.notas,
     timestamp:    new Date().toISOString(),
@@ -226,6 +229,7 @@ export async function sincronizar(): Promise<{ ok: number; errores: number }> {
             doc.tipo,
             doc.notas,
             doc.mimeType,
+            doc.seccion,
           );
           ok++;
         } catch {

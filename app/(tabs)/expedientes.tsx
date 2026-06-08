@@ -7,20 +7,30 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Badge, { ESTADO_EXPEDIENTE_BADGE } from '../../src/components/ui/Badge';
+import type { BadgeVariant } from '../../src/components/ui/Badge';
 import { getExpedientes } from '../../src/services/api';
 import { cacheExpedientes, getCacheExpedientes } from '../../src/services/offline';
 import { useSyncContext } from '../../src/contexts/SyncContext';
 import type { Expediente } from '../../src/types';
 
-const ESTADOS_EXP = ['todos', 'en_proceso', 'documentacion', 'autorizado', 'escrituracion', 'cerrado', 'cancelado'];
+const ETAPAS_FILTRO = [
+  { value: 'todos',                  label: 'Todos' },
+  { value: 'Expediente iniciado',    label: 'Iniciado' },
+  { value: 'Documentos completos',   label: 'Docs completos' },
+  { value: 'Validación SOFOM',       label: 'Val. SOFOM' },
+  { value: 'Asignación a notaría',   label: 'Notaría' },
+  { value: 'Firma ante notario',     label: 'Firma' },
+  { value: 'Dispersión y cobro',     label: 'Dispersión' },
+];
 
-const ESTADO_LABEL: Record<string, string> = {
-  en_proceso:    'En proceso',
-  documentacion: 'Documentación',
-  autorizado:    'Autorizado',
-  escrituracion: 'Escrituración',
-  cerrado:       'Cerrado',
-  cancelado:     'Cancelado',
+// Badge por etapa nombre
+export const ETAPA_BADGE: Record<string, BadgeVariant> = {
+  'Expediente iniciado':  'gray',
+  'Documentos completos': 'info',
+  'Validación SOFOM':     'warning',
+  'Asignación a notaría': 'gold',
+  'Firma ante notario':   'dark',
+  'Dispersión y cobro':   'success',
 };
 
 export default function ExpedientesScreen() {
@@ -32,14 +42,16 @@ export default function ExpedientesScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [desdeCache, setDesdeCache] = useState(false);
-  const [estado,     setEstado]     = useState('todos');
+  const [etapa,      setEtapa]      = useState('todos');
 
   const load = useCallback(async (opts?: { refreshing?: boolean }) => {
     if (opts?.refreshing) setRefreshing(true);
 
     if (!online) {
       const cached = await getCacheExpedientes();
-      const filtrados = estado === 'todos' ? cached : cached.filter(e => e.estado === estado);
+      const filtrados = etapa === 'todos'
+        ? cached
+        : cached.filter(e => e.etapa?.nombre === etapa);
       setItems(filtrados);
       setDesdeCache(true);
       setLoading(false);
@@ -48,10 +60,10 @@ export default function ExpedientesScreen() {
     }
 
     try {
-      const res = await getExpedientes({ estado: estado !== 'todos' ? estado : undefined });
+      const res = await getExpedientes({ etapa: etapa !== 'todos' ? etapa : undefined });
       setItems(res.data);
       setDesdeCache(false);
-      if (estado === 'todos') {
+      if (etapa === 'todos') {
         cacheExpedientes(res.data).catch(() => {});
       }
     } catch {
@@ -64,7 +76,7 @@ export default function ExpedientesScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [online, estado]);
+  }, [online, etapa]);
 
   useEffect(() => { setLoading(true); load(); }, [load]);
 
@@ -77,29 +89,22 @@ export default function ExpedientesScreen() {
             <Text style={styles.headerSub}>CRM</Text>
             <Text style={styles.headerTitle}>Expedientes</Text>
           </View>
-          <TouchableOpacity
-            style={styles.newBtn}
-            onPress={() => router.push('/expedientes/nuevo')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.newBtnText}>+ Nuevo</Text>
-          </TouchableOpacity>
         </View>
         <View style={styles.goldLine} />
 
         <FlatList
           horizontal
-          data={ESTADOS_EXP}
-          keyExtractor={e => e}
+          data={ETAPAS_FILTRO}
+          keyExtractor={e => e.value}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterList}
           renderItem={({ item: e }) => (
             <TouchableOpacity
-              style={[styles.filterChip, estado === e && styles.filterChipActive]}
-              onPress={() => setEstado(e)}
+              style={[styles.filterChip, etapa === e.value && styles.filterChipActive]}
+              onPress={() => setEtapa(e.value)}
             >
-              <Text style={[styles.filterText, estado === e && styles.filterTextActive]}>
-                {e === 'todos' ? 'Todos' : (ESTADO_LABEL[e] ?? e)}
+              <Text style={[styles.filterText, etapa === e.value && styles.filterTextActive]}>
+                {e.label}
               </Text>
             </TouchableOpacity>
           )}
@@ -154,10 +159,14 @@ export default function ExpedientesScreen() {
                   {exp.tipo_tramite?.nombre ?? '—'}
                 </Text>
               </View>
-              <View style={styles.rowRight}>
-                <Badge label={ESTADO_LABEL[exp.estado] ?? exp.estado} variant={ESTADO_EXPEDIENTE_BADGE[exp.estado] ?? 'gray'} small />
-                <Text style={styles.chevron}>›</Text>
-              </View>
+                <View style={styles.rowRight}>
+                  <Badge
+                    label={exp.etapa?.nombre ?? exp.estado}
+                    variant={ETAPA_BADGE[exp.etapa?.nombre ?? ''] ?? ESTADO_EXPEDIENTE_BADGE[exp.estado] ?? 'gray'}
+                    small
+                  />
+                  <Text style={styles.chevron}>›</Text>
+                </View>
             </TouchableOpacity>
           )}
         />
@@ -175,8 +184,6 @@ const styles = StyleSheet.create({
   headerSub:  { fontSize: Typography.fontSize.xs, color: Colors.gold[400], fontWeight: Typography.fontWeight.semibold, letterSpacing: Typography.letterSpacing.widest },
   headerTitle:{ fontSize: Typography.fontSize['2xl'], fontWeight: Typography.fontWeight.black, color: Colors.cream[50] },
   goldLine:   { width: 32, height: 2, backgroundColor: Colors.gold[400], marginVertical: Spacing.sm },
-  newBtn:     { backgroundColor: Colors.gold[400], borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
-  newBtnText: { color: Colors.dark[900], fontWeight: Typography.fontWeight.bold, fontSize: Typography.fontSize.sm },
 
   filterList: { gap: Spacing.xs, paddingBottom: Spacing.sm },
   filterChip: { paddingHorizontal: Spacing.md, paddingVertical: 4, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.dark[600] },

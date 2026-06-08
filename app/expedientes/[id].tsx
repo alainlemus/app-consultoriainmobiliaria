@@ -275,7 +275,7 @@ export default function DetalleExpedienteScreen() {
                           {!tieneArchivo && (
                             <TouchableOpacity
                               style={[styles.docActionBtn, styles.docActionPrimary]}
-                              onPress={() => router.push(`/expedientes/documentos/subir?expedienteId=${exp.id}&tipo=${encodeURIComponent(doc.tipo)}`)}
+                              onPress={() => router.push(`/expedientes/documentos/subir?expedienteId=${exp.id}&tipo=${encodeURIComponent(doc.tipo)}&seccion=${encodeURIComponent(doc.seccion ?? 'otros')}`)}
                             >
                               <Text style={[styles.docActionText, styles.docActionPrimaryText]}>↑ Subir</Text>
                             </TouchableOpacity>

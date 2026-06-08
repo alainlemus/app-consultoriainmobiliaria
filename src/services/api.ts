@@ -230,7 +230,7 @@ export async function uploadSimuladorScreenshot(
 
 // ── Expedientes ────────────────────────────────────────────────────────────
 
-export async function getExpedientes(params?: { estado?: string }): Promise<PaginatedResponse<Expediente>> {
+export async function getExpedientes(params?: { estado?: string; etapa?: string }): Promise<PaginatedResponse<Expediente>> {
   const qs = new URLSearchParams(
     Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== ''))
   ).toString();
@@ -264,14 +264,15 @@ export async function createExpediente(data: Partial<Expediente>): Promise<Exped
 
 // ── Documentos ─────────────────────────────────────────────────────────────
 
-export async function uploadDocumento(expedienteId: number, uri: string, tipo: string, notas?: string, mimeType?: string): Promise<Documento> {
+export async function uploadDocumento(expedienteId: number, uri: string, tipo: string, notas?: string, mimeType?: string, seccion?: string): Promise<Documento> {
   const token = await getToken();
   const mime = mimeType ?? 'image/jpeg';
   const ext  = mime === 'application/pdf' ? 'pdf' : mime.split('/')[1] ?? 'jpg';
   const formData = new FormData();
   formData.append('archivo', { uri, type: mime, name: `doc_${Date.now()}.${ext}` } as unknown as Blob);
   formData.append('tipo_documento', tipo);
-  if (notas) formData.append('notas', notas);
+  if (seccion) formData.append('seccion', seccion);
+  if (notas)   formData.append('notas', notas);
 
   const response = await fetch(`${API_BASE}/expedientes/${expedienteId}/documentos`, {
     method:  'POST',

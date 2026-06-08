@@ -77,6 +77,7 @@ export default function MapaScreen() {
   const [tipo, setTipo]                 = useState<TipoVisita>('visita_cliente');
   const [filtro, setFiltro]             = useState<string>('todos');
   const [detalle, setDetalle]           = useState<Ubicacion | null>(null);
+  const [locationPermission, setLocationPermission] = useState(false);
 
   // ── Prospecto ──────────────────────────────────────────────────────────────
   const [contactoId, setContactoId]     = useState<number | null>(null);
@@ -160,6 +161,13 @@ export default function MapaScreen() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  // Verificar permiso de ubicación al montar — evita crash de showsUserLocation en Android
+  useEffect(() => {
+    Location.getForegroundPermissionsAsync().then(({ status }) => {
+      setLocationPermission(status === 'granted');
+    });
+  }, []);
+
   // Centrar en coordenadas recibidas desde el detalle de un prospecto
   useEffect(() => {
     if (loading || initLat === null || initLng === null) return;
@@ -201,8 +209,27 @@ export default function MapaScreen() {
       Alert.alert('Permiso requerido', 'Activa el acceso a ubicación en Configuración.');
       return null;
     }
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-    return { lat: loc.coords.latitude, lng: loc.coords.longitude };
+    setLocationPermission(true);
+    try {
+      // Timeout de 15s — evita ANR en Android 15 (Samsung) con Accuracy.High
+      const loc = await Promise.race<Location.LocationObject | null>([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 15000)),
+      ]);
+      if (!loc) {
+        // Fallback: última posición conocida
+        const last = await Location.getLastKnownPositionAsync();
+        if (!last) {
+          Alert.alert('Sin ubicación', 'Verifica que el GPS esté activado.');
+          return null;
+        }
+        return { lat: last.coords.latitude, lng: last.coords.longitude };
+      }
+      return { lat: loc.coords.latitude, lng: loc.coords.longitude };
+    } catch {
+      Alert.alert('Error GPS', 'No se pudo obtener la ubicación.');
+      return null;
+    }
   };
 
   const centrarEnMi = async () => {
@@ -342,7 +369,7 @@ export default function MapaScreen() {
           </View>
         )}
 
-        <MapView ref={mapRef} style={s.map} initialRegion={REGION_CDMX} showsUserLocation showsMyLocationButton={false}>
+        <MapView ref={mapRef} style={s.map} initialRegion={REGION_CDMX} showsUserLocation={locationPermission} showsMyLocationButton={false}>
           {marcadores.map((u, i) => (
             <Marker
               key={u.id ?? `l-${i}`}
@@ -1010,7 +1037,7 @@ const s = StyleSheet.create({
   fotosBtns: { flexDirection: 'row', gap: Spacing.sm },
   fotoBtn: {
     width: 72, height: 72, borderRadius: Radius.md,
-    borderWidth: 1.5, borderStyle: 'dashed',
+    borderWidth: 1.5, borderStyle: Platform.OS === 'ios' ? 'dashed' : 'solid',
     borderColor: Colors.dark[300],
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.white, gap: 2,

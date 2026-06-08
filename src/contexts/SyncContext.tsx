@@ -37,6 +37,7 @@ interface DocParams {
   expedienteId: number;
   uri:          string;
   tipo:         string;
+  seccion?:     string;
   mimeType:     string;
   notas?:       string;
 }

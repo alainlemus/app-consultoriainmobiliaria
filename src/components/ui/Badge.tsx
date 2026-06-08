@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Typography, Spacing, Radius } from '../../theme';
 
-type BadgeVariant = 'gold' | 'dark' | 'success' | 'warning' | 'danger' | 'info' | 'gray';
+export type BadgeVariant = 'gold' | 'dark' | 'success' | 'warning' | 'danger' | 'info' | 'gray';
 
 const VARIANT_STYLES: Record<BadgeVariant, { bg: string; text: string; border: string }> = {
   gold:    { bg: Colors.gold[50],   text: Colors.gold[700],    border: Colors.gold[200] },

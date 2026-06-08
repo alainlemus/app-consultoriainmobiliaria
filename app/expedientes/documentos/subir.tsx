@@ -78,9 +78,10 @@ const toFileUri = (path: string) =>
 
 export default function SubirDocumentoScreen() {
   const insets = useSafeAreaInsets();
-  const { expedienteId, tipo: tipoParam } = useLocalSearchParams<{
+  const { expedienteId, tipo: tipoParam, seccion: seccionParam } = useLocalSearchParams<{
     expedienteId: string;
     tipo?: string;
+    seccion?: string;
   }>();
 
   const [tipo,  setTipo]  = useState<TipoDocumento>((tipoParam as TipoDocumento) ?? 'identificacion_oficial');
@@ -156,6 +157,7 @@ export default function SubirDocumentoScreen() {
           expedienteId: Number(expedienteId),
           uri:          resultUri,
           tipo,
+          seccion:      seccionParam || undefined,
           mimeType,
           notas:        notas || undefined,
         });
@@ -167,7 +169,7 @@ export default function SubirDocumentoScreen() {
         return;
       }
 
-      await uploadDocumento(Number(expedienteId), resultUri, tipo, notas || undefined, mimeType);
+      await uploadDocumento(Number(expedienteId), resultUri, tipo, notas || undefined, mimeType, seccionParam || undefined);
       Alert.alert('Listo', 'Documento subido correctamente.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
