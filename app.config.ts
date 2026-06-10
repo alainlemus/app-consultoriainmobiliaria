@@ -1,4 +1,6 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config';
+import type { ConfigPlugin } from 'expo/config-plugins';
+import { withProjectBuildGradle } from 'expo/config-plugins';
 
 /**
  * Configuración dinámica de la app por ambiente.
@@ -23,6 +25,23 @@ const DEV_API_URL_IOS     = 'https://consultoriainmobiliaria.com.mx/api/v1';
 const STAGING_API_URL     = 'https://dev.consultoriainmobiliaria.com.mx/api/v1';
 const PROD_API_URL        = 'https://consultoriainmobiliaria.com.mx/api/v1';
 
+/**
+ * Config plugin que fuerza compileSdkVersion >= 34 en todos los subproyectos.
+ * Necesario por react-native-image-to-pdf que tiene compileSdkVersion 28 hardcodeado
+ * y falla con Java 9+ en Gradle 8+.
+ */
+const withFixLegacyCompileSdk: ConfigPlugin = (config) =>
+  withProjectBuildGradle(config, (mod) => {
+    const gradle = mod.modResults.contents;
+    const tag = '// [fix] force compileSdk for legacy modules';
+    if (!gradle.includes(tag)) {
+      mod.modResults.contents =
+        gradle +
+        `\n${tag}\nsubprojects {\n  afterEvaluate { project ->\n    if (project.hasProperty('android')) {\n      project.android {\n        if (compileSdkVersion < 34) {\n          compileSdkVersion 34\n        }\n      }\n    }\n  }\n}\n`;
+    }
+    return mod;
+  });
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const isProduction = process.env.APP_ENV === 'production';
   const isStaging    = process.env.APP_ENV === 'staging';
@@ -31,7 +50,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? resolvedProdUrl;
 
-  return {
+  return withFixLegacyCompileSdk({
     ...config,
     name:    'Consultoría Inmobiliaria',
     slug:    'app-consultoriainmobiliaria',
@@ -64,7 +83,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#222121',
       },
-      edgeToEdgeEnabled: false,  // react-native-maps 1.20.1 no soporta edge-to-edge, causa crash en Samsung Android 14/15
+      edgeToEdgeEnabled: false as unknown as true,  // react-native-maps 1.20.1 no soporta edge-to-edge, causa crash en Samsung Android 14/15
       predictiveBackGestureEnabled: true,  // requerido en Android 14+ (Samsung S25/S26)
       config: {
         googleMaps: {
@@ -114,5 +133,5 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         projectId: process.env.EAS_PROJECT_ID ?? '0e90bae8-ab6a-412f-a91d-01433afe689d',
       },
     },
-  };
+  });
 };

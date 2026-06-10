@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# codegraph (socket file incompatible con EAS tarball upload)
+.codegraph/
