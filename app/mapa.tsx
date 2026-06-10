@@ -369,7 +369,7 @@ export default function MapaScreen() {
           </View>
         )}
 
-        <MapView ref={mapRef} style={s.map} initialRegion={REGION_CDMX} showsUserLocation={locationPermission} showsMyLocationButton={false}>
+        <MapView ref={mapRef} style={s.map} initialRegion={REGION_CDMX} showsUserLocation={locationPermission} showsMyLocationButton={false} googleRenderer="LEGACY">
           {marcadores.map((u, i) => (
             <Marker
               key={u.id ?? `l-${i}`}

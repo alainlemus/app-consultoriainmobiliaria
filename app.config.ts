@@ -64,11 +64,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#222121',
       },
-      edgeToEdgeEnabled: true,
+      edgeToEdgeEnabled: false,  // react-native-maps 1.20.1 no soporta edge-to-edge, causa crash en Samsung Android 14/15
       predictiveBackGestureEnabled: true,  // requerido en Android 14+ (Samsung S25/S26)
       config: {
         googleMaps: {
-          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
+          apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',  // debe estar definida en eas.json o .env.local
         },
       },
     },
