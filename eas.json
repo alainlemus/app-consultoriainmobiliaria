@@ -17,6 +17,9 @@
       "android": {
         "buildType": "apk"
       },
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "APP_ENV": "staging",
         "EXPO_PUBLIC_API_URL": "https://dev.consultoriainmobiliaria.com.mx/api/v1",
