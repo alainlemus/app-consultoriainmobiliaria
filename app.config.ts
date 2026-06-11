@@ -1,6 +1,8 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config';
 import type { ConfigPlugin } from 'expo/config-plugins';
-import { withProjectBuildGradle } from 'expo/config-plugins';
+import { withDangerousMod } from 'expo/config-plugins';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Configuración dinámica de la app por ambiente.
@@ -26,21 +28,37 @@ const STAGING_API_URL     = 'https://dev.consultoriainmobiliaria.com.mx/api/v1';
 const PROD_API_URL        = 'https://consultoriainmobiliaria.com.mx/api/v1';
 
 /**
- * Config plugin que fuerza compileSdkVersion >= 34 en todos los subproyectos.
- * Necesario por react-native-image-to-pdf que tiene compileSdkVersion 28 hardcodeado
- * y falla con Java 9+ en Gradle 8+.
+ * Config plugin que parchea directamente el build.gradle de react-native-image-to-pdf
+ * reemplazando compileSdkVersion 28 → 34 y buildToolsVersion obsoleto.
+ * La librería es del 2019 y no usa rootProject.ext, por lo que no se puede
+ * sobreescribir desde el root project sin causar errores de lifecycle en Gradle 8.
  */
-const withFixLegacyCompileSdk: ConfigPlugin = (config) =>
-  withProjectBuildGradle(config, (mod) => {
-    const gradle = mod.modResults.contents;
-    const tag = '// [fix] force compileSdk for legacy modules';
-    if (!gradle.includes(tag)) {
-      mod.modResults.contents =
-        gradle +
-        `\n${tag}\nsubprojects {\n  afterEvaluate { project ->\n    if (project.hasProperty('android')) {\n      project.android {\n        if (compileSdkVersion < 34) {\n          compileSdkVersion 34\n        }\n      }\n    }\n  }\n}\n`;
-    }
-    return mod;
-  });
+const withFixImageToPdf: ConfigPlugin = (config) =>
+  withDangerousMod(config, [
+    'android',
+    async (mod) => {
+      const filePath = path.join(
+        mod.modRequest.projectRoot,
+        'node_modules',
+        'react-native-image-to-pdf',
+        'android',
+        'build.gradle',
+      );
+      if (fs.existsSync(filePath)) {
+        let contents = fs.readFileSync(filePath, 'utf8');
+        // Solo parchear si aún tiene los valores viejos
+        if (contents.includes('compileSdkVersion 28')) {
+          contents = contents
+            .replace('compileSdkVersion 28', 'compileSdkVersion 34')
+            .replace('buildToolsVersion "28.0.3"', 'buildToolsVersion "34.0.0"')
+            .replace('targetSdkVersion 28', 'targetSdkVersion 34')
+            .replace('minSdkVersion 19', 'minSdkVersion 24');
+          fs.writeFileSync(filePath, contents, 'utf8');
+        }
+      }
+      return mod;
+    },
+  ]);
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const isProduction = process.env.APP_ENV === 'production';
@@ -50,7 +68,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? resolvedProdUrl;
 
-  return withFixLegacyCompileSdk({
+  return withFixImageToPdf({
     ...config,
     name:    'Consultoría Inmobiliaria',
     slug:    'app-consultoriainmobiliaria',
