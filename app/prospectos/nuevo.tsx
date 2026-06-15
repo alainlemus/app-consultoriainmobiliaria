@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
   KeyboardAvoidingView, Platform, TouchableOpacity,
@@ -11,9 +11,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, Radius } from '../../src/theme';
 import Input from '../../src/components/ui/Input';
 import EstadoSelectModal from '../../src/components/ui/EstadoSelectModal';
-import { createContacto, uploadFotoContacto, uploadSimuladorScreenshot } from '../../src/services/api';
+import { createContacto, uploadFotoContacto, uploadSimuladorScreenshot, getEscuelas } from '../../src/services/api';
 import { useSyncContext } from '../../src/contexts/SyncContext';
-import type { ServicioProspecto } from '../../src/types';
+import type { ServicioProspecto, Escuela } from '../../src/types';
 import { SERVICIO_LABEL } from '../../src/types';
 
 type EstadoP = 'nuevo' | 'precalificado';
@@ -62,6 +62,25 @@ export default function NuevoProspectoScreen() {
   const [tieneDiscapacidad, setTieneDiscapacidad] = useState(false);
   const [fotoAsset,         setFotoAsset]         = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [screenshotAsset,   setScreenshotAsset]   = useState<ImagePicker.ImagePickerAsset | null>(null);
+
+  // ── Escuela vinculada ──────────────────────────────────────────────────────
+  const [escuelaSeleccionada, setEscuelaSeleccionada] = useState<Escuela | null>(null);
+  const [busqEscuela,         setBusqEscuela]         = useState('');
+  const [escuelasResultados,  setEscuelasResultados]  = useState<Escuela[]>([]);
+  const [buscandoEscuela,     setBuscandoEscuela]     = useState(false);
+
+  const buscarEscuelas = useCallback(async (q: string) => {
+    if (q.trim().length < 2) { setEscuelasResultados([]); return; }
+    setBuscandoEscuela(true);
+    try {
+      const data = await getEscuelas(q);
+      setEscuelasResultados(data);
+    } catch {
+      setEscuelasResultados([]);
+    } finally {
+      setBuscandoEscuela(false);
+    }
+  }, []);
 
   const [errors,  setErrors]  = useState<Partial<Record<keyof typeof form, string>>>({});
   const [loading, setLoading] = useState(false);
@@ -120,6 +139,10 @@ export default function NuevoProspectoScreen() {
         notas:                 form.notas                 || undefined,
         estado_prospecto:      form.estado_prospecto,
         servicio:              form.servicio              || undefined,
+        // Escuela vinculada (solo FOVISSSTE)
+        ...(form.servicio === 'FOVISSSTE' && escuelaSeleccionada
+          ? { escuela_id: escuelaSeleccionada.id }
+          : {}),
         // Precalificación FOVISSSTE
         ...(form.servicio === 'FOVISSSTE' ? {
           estado_uso_credito:    form.estado_uso_credito    || undefined,
@@ -319,6 +342,75 @@ export default function NuevoProspectoScreen() {
             placeholder="Información adicional sobre el prospecto…"
           />
         </View>
+
+        {/* ── Escuela vinculada (solo FOVISSSTE) ─────────────────────── */}
+        {form.servicio === 'FOVISSSTE' ? (
+          <>
+            <Text style={styles.sectionLabel}>Escuela del maestro</Text>
+            <Text style={styles.sectionHint}>Vincula a este prospecto con su escuela para el seguimiento del semáforo.</Text>
+            <View style={styles.section}>
+              {escuelaSeleccionada ? (
+                <View style={styles.escuelaSeleccionada}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.escuelaNombre}>{escuelaSeleccionada.nombre_lugar ?? 'Escuela sin nombre'}</Text>
+                    {(escuelaSeleccionada.municipio || escuelaSeleccionada.estado) ? (
+                      <Text style={styles.escuelaUbicacion}>
+                        📍 {[escuelaSeleccionada.municipio, escuelaSeleccionada.estado].filter(Boolean).join(', ')}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.escuelaSemaforo}>
+                      {({ verde: '🟢 Hay maestros clientes', amarillo: '🟡 Sin clientes aún', rojo: '🔴 Acceso denegado' }[escuelaSeleccionada.semaforo]) ?? '🟡'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => { setEscuelaSeleccionada(null); setBusqEscuela(''); setEscuelasResultados([]); }}>
+                    <Text style={{ color: Colors.dark[400], fontSize: 18, paddingLeft: Spacing.sm }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.escuelaBuscadorWrap}>
+                    <Text style={styles.escuelaBuscadorIco}>🔍</Text>
+                    <RNTextInput
+                      style={styles.escuelaBuscadorInput}
+                      placeholder="Buscar escuela por nombre, municipio…"
+                      placeholderTextColor={Colors.dark[400]}
+                      value={busqEscuela}
+                      onChangeText={t => { setBusqEscuela(t); buscarEscuelas(t); }}
+                      returnKeyType="search"
+                      blurOnSubmit
+                    />
+                    {buscandoEscuela && <ActivityIndicator size="small" color={Colors.gold[400]} style={{ marginLeft: 6 }} />}
+                  </View>
+                  {escuelasResultados.length > 0 && (
+                    <View style={styles.escuelaDropdown}>
+                      {escuelasResultados.map(e => (
+                        <TouchableOpacity
+                          key={e.id}
+                          style={styles.escuelaDropdownItem}
+                          onPress={() => { setEscuelaSeleccionada(e); setBusqEscuela(''); setEscuelasResultados([]); }}
+                        >
+                          <Text style={styles.escuelaDropdownNombre} numberOfLines={1}>
+                            {e.nombre_lugar ?? 'Sin nombre'}
+                          </Text>
+                          <Text style={styles.escuelaDropdownSub} numberOfLines={1}>
+                            {[e.municipio, e.estado].filter(Boolean).join(', ')}
+                            {'  '}
+                            {({ verde: '🟢', amarillo: '🟡', rojo: '🔴' }[e.semaforo]) ?? '🟡'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                  {busqEscuela.length >= 2 && !buscandoEscuela && escuelasResultados.length === 0 && (
+                    <Text style={styles.escuelaSinResultados}>
+                      Sin resultados — la escuela se puede registrar desde el Mapa de Visitas.
+                    </Text>
+                  )}
+                </>
+              )}
+            </View>
+          </>
+        ) : null}
 
         {/* ── Precalificación FOVISSSTE ─────────────────────────────── */}
         {form.servicio === 'FOVISSSTE' ? (
@@ -658,4 +750,47 @@ const styles = StyleSheet.create({
     alignItems:      'center',
   },
   successText: { color: '#15803d', fontWeight: Typography.fontWeight.semibold, fontSize: Typography.fontSize.sm },
+
+  // ── Escuela ──────────────────────────────────────────────────────────────────
+  escuelaSeleccionada: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    backgroundColor: Colors.cream[100],
+    borderRadius:   Radius.md,
+    padding:        Spacing.md,
+    borderWidth:    1,
+    borderColor:    Colors.gold[400],
+  },
+  escuelaNombre:    { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
+  escuelaUbicacion: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
+  escuelaSemaforo:  { fontSize: Typography.fontSize.xs, color: Colors.dark[600], marginTop: 3 },
+  escuelaBuscadorWrap: {
+    flexDirection:    'row',
+    alignItems:       'center',
+    borderWidth:      1,
+    borderColor:      Colors.cream[300],
+    borderRadius:     Radius.md,
+    paddingHorizontal: Spacing.md,
+    minHeight:        46,
+    backgroundColor:  Colors.cream[50],
+  },
+  escuelaBuscadorIco:   { fontSize: 15, marginRight: 8 },
+  escuelaBuscadorInput: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[900], paddingVertical: Spacing.sm },
+  escuelaDropdown: {
+    marginTop:       Spacing.xs,
+    borderWidth:     1,
+    borderColor:     Colors.cream[300],
+    borderRadius:    Radius.md,
+    overflow:        'hidden',
+    backgroundColor: Colors.white,
+  },
+  escuelaDropdownItem: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical:   Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cream[200],
+  },
+  escuelaDropdownNombre: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
+  escuelaDropdownSub:    { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 1 },
+  escuelaSinResultados:  { fontSize: Typography.fontSize.xs, color: Colors.dark[400], fontStyle: 'italic', paddingTop: Spacing.sm, textAlign: 'center' },
 });

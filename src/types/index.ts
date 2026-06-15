@@ -55,6 +55,9 @@ export interface Contacto {
   estado_prospecto: EstadoProspecto;
   asesor_id?:       number;
   notas?:           string;
+  // Escuela vinculada (maestros FOVISSSTE)
+  escuela_id?:      number | null;
+  escuela?:         Escuela | null;
   latitud?:          number;
   longitud?:         number;
   updated_at?:      string;
@@ -129,21 +132,39 @@ export interface Documento {
   _pendiente_sync?: boolean;
 }
 
+export type SemaforoEscuela = 'verde' | 'amarillo' | 'rojo';
+
+export interface Escuela {
+  id:             number;
+  nombre_lugar?:  string;
+  direccion?:     string;
+  municipio?:     string;
+  estado?:        string;
+  latitud?:       number | null;
+  longitud?:      number | null;
+  semaforo:       SemaforoEscuela;
+  semaforo_notas?: string | null;
+  total_maestros: number;
+}
+
 export interface Ubicacion {
-  id?:           number;
-  contacto_id?:  number;
-  contacto?:     string;
-  latitud:       number;
-  longitud:      number;
-  tipo:          'visita_cliente' | 'propiedad' | 'escuela';
-  nombre_lugar?: string;
-  direccion?:    string;
-  notas?:        string;
-  municipio?:    string;
-  estado?:       string;
-  visitado_en:   string;
-  fotos?:        { id: number; url: string }[];
-  _local_id?:    string;
+  id?:             number;
+  contacto_id?:    number;
+  contacto?:       string;
+  latitud?:        number | null;
+  longitud?:       number | null;
+  tipo:            'visita_cliente' | 'propiedad' | 'escuela';
+  semaforo?:       SemaforoEscuela;
+  semaforo_notas?: string | null;
+  total_maestros?: number;
+  nombre_lugar?:   string;
+  direccion?:      string;
+  notas?:          string;
+  municipio?:      string;
+  estado?:         string;
+  visitado_en:     string;
+  fotos?:          { id: number; url: string }[];
+  _local_id?:      string;
   _pendiente_sync?: boolean;
 }
 

@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
-import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Comision, ResumenComisiones } from '../types';
+import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Comision, ResumenComisiones, Escuela, SemaforoEscuela } from '../types';
 
 // Selecciona la URL según plataforma en desarrollo
 // iOS simulador  → 127.0.0.1:8080
@@ -372,6 +372,28 @@ export async function subirFotosVisita(
   }
 
   const res = await response.json();
+  return res.data;
+}
+
+// ── Escuelas ───────────────────────────────────────────────────────────────
+
+/** Buscador de escuelas para vincular prospectos */
+export async function getEscuelas(q?: string): Promise<Escuela[]> {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  const res = await apiFetch<ApiResponse<Escuela[]>>(`/escuelas${qs}`);
+  return res.data;
+}
+
+/** Cambia el semáforo de una escuela */
+export async function actualizarSemaforoEscuela(
+  id: number,
+  semaforo: SemaforoEscuela,
+  semaforo_notas?: string,
+): Promise<Ubicacion> {
+  const res = await apiFetch<ApiResponse<Ubicacion>>(`/ubicaciones/${id}/semaforo`, {
+    method: 'PATCH',
+    body:   JSON.stringify({ semaforo, semaforo_notas }),
+  });
   return res.data;
 }
 

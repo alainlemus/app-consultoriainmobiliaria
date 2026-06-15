@@ -27,9 +27,9 @@ import {
 import MapView, { Marker, Region } from 'react-native-maps';
 
 import { ESTADOS_MX, MUNICIPIOS_MX } from '../src/data/mexico';
-import { getContactos, getUbicacionesMapa, registrarUbicacion, subirFotosVisita } from '../src/services/api';
+import { getContactos, getUbicacionesMapa, registrarUbicacion, subirFotosVisita, actualizarSemaforoEscuela } from '../src/services/api';
 import { Colors, Radius, Spacing, Typography } from '../src/theme';
-import type { Contacto, Ubicacion } from '../src/types';
+import type { Contacto, Ubicacion, SemaforoEscuela } from '../src/types';
 
 // ── Constantes de tipo ────────────────────────────────────────────────────────
 const TIPO_COLOR: Record<string, string> = {
@@ -46,6 +46,22 @@ const TIPO_LABEL: Record<string, string> = {
   visita_cliente: 'Cliente',
   propiedad:      'Propiedad',
   escuela:        'Escuela',
+};
+
+const SEMAFORO_COLOR: Record<SemaforoEscuela, string> = {
+  verde:    '#22c55e',
+  amarillo: '#f59e0b',
+  rojo:     '#ef4444',
+};
+const SEMAFORO_EMOJI: Record<SemaforoEscuela, string> = {
+  verde:    '🟢',
+  amarillo: '🟡',
+  rojo:     '🔴',
+};
+const SEMAFORO_LABEL: Record<SemaforoEscuela, string> = {
+  verde:    'Hay maestros clientes',
+  amarillo: 'Sin clientes aún',
+  rojo:     'Acceso denegado',
 };
 
 const REGION_CDMX: Region = {
@@ -78,6 +94,13 @@ export default function MapaScreen() {
   const [filtro, setFiltro]             = useState<string>('todos');
   const [detalle, setDetalle]           = useState<Ubicacion | null>(null);
   const [locationPermission, setLocationPermission] = useState(false);
+
+  // ── Semáforo ───────────────────────────────────────────────────────────────
+  const [semaforoModal, setSemaforoModal]     = useState(false);
+  const [semaforoEscuela, setSemaforoEscuela] = useState<Ubicacion | null>(null);
+  const [semaforoNuevo, setSemaforoNuevo]     = useState<SemaforoEscuela>('amarillo');
+  const [semaforoNotas, setSemaforoNotas]     = useState('');
+  const [guardandoSemaforo, setGuardandoSemaforo] = useState(false);
 
   // ── Prospecto ──────────────────────────────────────────────────────────────
   const [contactoId, setContactoId]     = useState<number | null>(null);
@@ -202,8 +225,40 @@ export default function MapaScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── GPS ───────────────────────────────────────────────────────────────────
-  const obtenerGPS = async () => {
+  // ── Semáforo ──────────────────────────────────────────────────────────────
+  const abrirSemaforoModal = (ubicacion: Ubicacion) => {
+    setSemaforoEscuela(ubicacion);
+    setSemaforoNuevo((ubicacion.semaforo as SemaforoEscuela) ?? 'amarillo');
+    setSemaforoNotas(ubicacion.semaforo_notas ?? '');
+    setSemaforoModal(true);
+  };
+
+  const guardarSemaforo = async () => {
+    if (!semaforoEscuela?.id) return;
+    setGuardandoSemaforo(true);
+    try {
+      const actualizada = await actualizarSemaforoEscuela(
+        semaforoEscuela.id,
+        semaforoNuevo,
+        semaforoNotas || undefined,
+      );
+      // Actualizar en la lista local sin recargar todo
+      setUbicaciones(prev =>
+        prev.map(u => u.id === actualizada.id ? { ...u, semaforo: actualizada.semaforo, semaforo_notas: actualizada.semaforo_notas } : u)
+      );
+      // Actualizar el detalle si está abierto
+      if (detalle?.id === actualizada.id) {
+        setDetalle(prev => prev ? { ...prev, semaforo: actualizada.semaforo, semaforo_notas: actualizada.semaforo_notas } : prev);
+      }
+      setSemaforoModal(false);
+    } catch (e: unknown) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo actualizar el semáforo.');
+    } finally {
+      setGuardandoSemaforo(false);
+    }
+  };
+
+  // ── GPS ───────────────────────────────────────────────────────────────────  const obtenerGPS = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permiso requerido', 'Activa el acceso a ubicación en Configuración.');
@@ -370,23 +425,36 @@ export default function MapaScreen() {
         )}
 
         <MapView ref={mapRef} style={s.map} initialRegion={REGION_CDMX} showsUserLocation={locationPermission} showsMyLocationButton={false} googleRenderer="LEGACY">
-          {marcadores.map((u, i) => (
-            <Marker
-              key={u.id ?? `l-${i}`}
-              coordinate={{ latitude: u.latitud, longitude: u.longitud }}
-              pinColor={TIPO_COLOR[u.tipo]}
-              onPress={() => setDetalle(u)}
-            >
-              <View style={[s.pin, { borderColor: TIPO_COLOR[u.tipo] }]}>
-                <Text style={s.pinIcon}>{TIPO_ICON[u.tipo]}</Text>
-                {(u.fotos?.length ?? 0) > 0 && (
-                  <View style={s.fotoBadge}>
-                    <Text style={s.fotoBadgeText}>{u.fotos!.length}</Text>
-                  </View>
-                )}
-              </View>
-            </Marker>
-          ))}
+          {marcadores.map((u, i) => {
+            const semaforoColor = u.tipo === 'escuela' && u.semaforo
+              ? SEMAFORO_COLOR[u.semaforo as SemaforoEscuela]
+              : null;
+            return (
+              <Marker
+                key={u.id ?? `l-${i}`}
+                coordinate={{ latitude: u.latitud ?? 0, longitude: u.longitud ?? 0 }}
+                pinColor={TIPO_COLOR[u.tipo]}
+                onPress={() => setDetalle(u)}
+              >
+                <View style={[
+                  s.pin,
+                  { borderColor: semaforoColor ?? TIPO_COLOR[u.tipo] },
+                  semaforoColor ? { borderWidth: 3 } : {},
+                ]}>
+                  <Text style={s.pinIcon}>{TIPO_ICON[u.tipo]}</Text>
+                  {(u.fotos?.length ?? 0) > 0 && (
+                    <View style={s.fotoBadge}>
+                      <Text style={s.fotoBadgeText}>{u.fotos!.length}</Text>
+                    </View>
+                  )}
+                  {/* Indicador de semáforo en la esquina del pin */}
+                  {semaforoColor && (
+                    <View style={[s.semaforoDot, { backgroundColor: semaforoColor }]} />
+                  )}
+                </View>
+              </Marker>
+            );
+          })}
         </MapView>
 
         {/* Buscador flotante sobre el mapa */}
@@ -759,6 +827,32 @@ export default function MapaScreen() {
                   <Text style={s.detalleVal}>{detalle.contacto}</Text>
                 </View>
               )}
+
+              {/* Semáforo — solo escuelas */}
+              {detalle.tipo === 'escuela' && (
+                <View style={s.semaforoSection}>
+                  <Text style={s.semaforoTitulo}>Estado del semáforo</Text>
+                  <View style={s.semaforoRow}>
+                    <Text style={s.semaforoEmoji}>
+                      {SEMAFORO_EMOJI[(detalle.semaforo as SemaforoEscuela) ?? 'amarillo']}
+                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.semaforoLabel}>
+                        {SEMAFORO_LABEL[(detalle.semaforo as SemaforoEscuela) ?? 'amarillo']}
+                      </Text>
+                      {detalle.semaforo_notas ? (
+                        <Text style={s.semaforoNotas}>{detalle.semaforo_notas}</Text>
+                      ) : null}
+                    </View>
+                    <Pressable
+                      style={s.semaforoCambiarBtn}
+                      onPress={() => { setDetalle(null); setTimeout(() => abrirSemaforoModal(detalle), 300); }}
+                    >
+                      <Text style={s.semaforoCambiarText}>Cambiar</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
               {detalle.direccion ? (
                 <View style={s.detalleRow}>
                   <Text style={s.detalleLabel}>Dirección</Text>
@@ -832,6 +926,62 @@ export default function MapaScreen() {
           )}
         </View>
       </Modal>
+
+      {/* ── Modal: semáforo de escuela ────────────────────────────────────────── */}
+      <Modal visible={semaforoModal} animationType="slide" transparent onRequestClose={() => setSemaforoModal(false)}>
+        <Pressable style={s.backdrop} onPress={() => setSemaforoModal(false)} />
+        <View style={s.sheet}>
+          <View style={s.handle} />
+          <Text style={s.sheetTitle}>
+            Semáforo — {semaforoEscuela?.nombre_lugar ?? 'Escuela'}
+          </Text>
+          <Text style={[s.sheetLabel, { marginBottom: Spacing.base }]}>
+            ¿Cuál es el estado actual de esta escuela?
+          </Text>
+
+          {(['verde', 'amarillo', 'rojo'] as SemaforoEscuela[]).map(op => (
+            <Pressable
+              key={op}
+              style={[
+                s.semaforoOpcion,
+                semaforoNuevo === op && { borderColor: SEMAFORO_COLOR[op], backgroundColor: SEMAFORO_COLOR[op] + '18' },
+              ]}
+              onPress={() => setSemaforoNuevo(op)}
+            >
+              <Text style={s.semaforoOpcionEmoji}>{SEMAFORO_EMOJI[op]}</Text>
+              <Text style={[
+                s.semaforoOpcionLabel,
+                semaforoNuevo === op && { color: SEMAFORO_COLOR[op], fontWeight: Typography.fontWeight.bold },
+              ]}>
+                {SEMAFORO_LABEL[op]}
+              </Text>
+              {semaforoNuevo === op && <Text style={{ color: SEMAFORO_COLOR[op], fontSize: 18 }}>✓</Text>}
+            </Pressable>
+          ))}
+
+          <Text style={[s.sheetLabel, { marginTop: Spacing.base }]}>Notas (opcional)</Text>
+          <TextInput
+            style={s.sheetInput}
+            placeholder="Ej: El director nos dijo que no les interesa"
+            placeholderTextColor={Colors.dark[400]}
+            value={semaforoNotas}
+            onChangeText={setSemaforoNotas}
+            multiline
+            numberOfLines={2}
+          />
+
+          <Pressable
+            style={[s.btnGuardar, guardandoSemaforo && s.btnDisabled]}
+            onPress={guardarSemaforo}
+            disabled={guardandoSemaforo}
+          >
+            {guardandoSemaforo
+              ? <ActivityIndicator color={Colors.white} />
+              : <Text style={s.btnGuardarText}>Guardar semáforo</Text>
+            }
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -893,6 +1043,11 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 4,
   },
   pinIcon: { fontSize: 18 },
+  semaforoDot: {
+    position: 'absolute', bottom: -2, right: -2,
+    width: 12, height: 12, borderRadius: 6,
+    borderWidth: 1.5, borderColor: Colors.white,
+  },
   fabs: {
     position: 'absolute', bottom: 32, right: 20,
     gap: Spacing.md, alignItems: 'center',
@@ -1135,4 +1290,48 @@ const s = StyleSheet.create({
     color: Colors.dark[900],
   },
   searchMapaItemSec: { fontSize: 11, color: Colors.dark[500], marginTop: 1 },
+
+  // ── Semáforo ─────────────────────────────────────────────────────────────
+  semaforoSection: {
+    backgroundColor: Colors.cream[100],
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.cream[300],
+  },
+  semaforoTitulo: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.dark[500],
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: Spacing.sm,
+  },
+  semaforoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  semaforoEmoji: { fontSize: 24 },
+  semaforoLabel: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
+  semaforoNotas: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
+  semaforoCambiarBtn: {
+    backgroundColor: Colors.dark[800],
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  semaforoCambiarText: { fontSize: Typography.fontSize.xs, color: Colors.white, fontWeight: Typography.fontWeight.semibold },
+
+  // ── Opciones del modal semáforo ───────────────────────────────────────────
+  semaforoOpcion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.cream[300],
+    backgroundColor: Colors.white,
+    marginBottom: Spacing.sm,
+  },
+  semaforoOpcionEmoji: { fontSize: 22 },
+  semaforoOpcionLabel: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[700] },
 });
