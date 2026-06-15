@@ -12,6 +12,7 @@ import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
 import EstadoSelectModal from '../../src/components/ui/EstadoSelectModal';
 import { getContacto, updateContacto, uploadFotoContacto, uploadSimuladorScreenshot, getUbicacionesMapa } from '../../src/services/api';
+import { getCacheContacto, getCacheContactos } from '../../src/services/offline';
 import { useSyncContext } from '../../src/contexts/SyncContext';
 import type { Contacto, EstadoProspecto, ServicioProspecto, Ubicacion } from '../../src/types';
 import { SERVICIO_LABEL } from '../../src/types';
@@ -45,6 +46,7 @@ export default function DetalleProspectoScreen() {
   const [loading,   setLoading]   = useState(true);
   const [editing,   setEditing]   = useState(false);
   const [saving,    setSaving]    = useState(false);
+  const [desdeCache, setDesdeCache] = useState(false);
   const [ultimaVisita, setUltimaVisita] = useState<Ubicacion | null>(null);
 
   // Campos del formulario de edición
@@ -69,6 +71,23 @@ export default function DetalleProspectoScreen() {
   useEffect(() => {
     if (!id) return;
     const numId = Number(id);
+
+    // Intentar online primero, con fallback al cache
+    if (!online) {
+      // Offline: buscar directamente en el cache
+      Promise.all([
+        getCacheContacto(numId),
+        Promise.resolve<Ubicacion[]>([]),
+      ]).then(([c, _visitas]) => {
+        if (c) {
+          setContacto(c);
+          poblarFormulario(c);
+          setDesdeCache(true);
+        }
+      }).finally(() => setLoading(false));
+      return;
+    }
+
     Promise.all([
       getContacto(numId),
       getUbicacionesMapa(),
@@ -76,15 +95,23 @@ export default function DetalleProspectoScreen() {
       .then(([c, visitas]) => {
         setContacto(c);
         poblarFormulario(c);
-        // Visita más reciente de este prospecto
+        setDesdeCache(false);
         const suyas = visitas
           .filter(v => v.contacto_id === numId)
           .sort((a, b) => new Date(b.visitado_en).getTime() - new Date(a.visitado_en).getTime());
         setUltimaVisita(suyas[0] ?? null);
       })
-      .catch(() => {})
+      .catch(async () => {
+        // Fallo de red: intentar desde cache
+        const cached = await getCacheContacto(numId);
+        if (cached) {
+          setContacto(cached);
+          poblarFormulario(cached);
+          setDesdeCache(true);
+        }
+      })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, online]);
 
   function poblarFormulario(c: Contacto) {
     setNombre(c.nombre ?? '');
@@ -263,6 +290,12 @@ export default function DetalleProspectoScreen() {
           contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 32 }]}
           showsVerticalScrollIndicator={false}
         >
+          {/* Banner offline */}
+          {desdeCache && (
+            <View style={styles.cacheBanner}>
+              <Text style={styles.cacheText}>📴 Sin conexión — mostrando datos guardados</Text>
+            </View>
+          )}
           {/* Foto + badges */}
           <View style={styles.heroRow}>
             {fotoUri ? (
@@ -1053,4 +1086,14 @@ const styles = StyleSheet.create({
     fontSize:    Typography.fontSize.xs,
     paddingVertical: Spacing.md,
   },
+
+  cacheBanner: {
+    backgroundColor:  Colors.dark[800],
+    paddingHorizontal: Spacing.base,
+    paddingVertical:   Spacing.md,
+    marginBottom:      Spacing.sm,
+    borderLeftWidth:   4,
+    borderLeftColor:   Colors.gold[400],
+  },
+  cacheText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold },
 });

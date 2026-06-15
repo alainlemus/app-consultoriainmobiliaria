@@ -18,13 +18,14 @@ import NetInfo from '@react-native-community/netinfo';
 import { v4 as uuidv4 } from 'uuid';
 
 import { syncBatch, uploadDocumento } from './api';
-import type { Contacto, Expediente, OperacionSync } from '../types';
+import type { Contacto, Expediente, Ubicacion, OperacionSync } from '../types';
 
 // ── Claves de AsyncStorage ───────────────────────────────────────────────────
 
 const KEYS = {
   CONTACTOS:       'cache:contactos',
   EXPEDIENTES:     'cache:expedientes',
+  UBICACIONES:     'cache:ubicaciones',
   SYNC_QUEUE:      'sync:queue',          // operaciones JSON
   DOCS_QUEUE:      'sync:docs_queue',     // uploads de documentos
   LAST_SYNC:       'sync:last_at',
@@ -67,6 +68,64 @@ export async function getCacheContactos(): Promise<Contacto[]> {
   }
 }
 
+/**
+ * Busca un contacto específico en el cache por id.
+ * Útil para mostrar el detalle offline sin recargar toda la lista.
+ */
+export async function getCacheContacto(id: number): Promise<Contacto | null> {
+  try {
+    const all = await getCacheContactos();
+    return all.find(c => c.id === id) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Agrega o actualiza un contacto individual en el cache.
+ * Estrategia de búsqueda:
+ *  1. Por _local_id (para reemplazar el pendiente con el id real del servidor)
+ *  2. Por id numérico real (para actualizar un contacto que ya existe)
+ * Se usa al crear un contacto offline para que aparezca en la lista de inmediato,
+ * y al sincronizar para reemplazar el placeholder con el dato real del servidor.
+ */
+export async function upsertCacheContacto(contacto: Contacto): Promise<void> {
+  try {
+    const all = await getCacheContactos();
+    // Buscar primero por _local_id (caso: sync recibió el id real del servidor)
+    let idx = contacto._local_id
+      ? all.findIndex(c => c._local_id === contacto._local_id)
+      : -1;
+    // Si no encontró por _local_id, buscar por id numérico real (no 0)
+    if (idx < 0 && contacto.id > 0) {
+      idx = all.findIndex(c => c.id === contacto.id);
+    }
+    if (idx >= 0) {
+      all[idx] = contacto;
+    } else {
+      // Los creados offline van al inicio para que se vean primero
+      all.unshift(contacto);
+    }
+    await cacheContactos(all);
+  } catch {
+    // No bloquear si falla el cache
+  }
+}
+
+/**
+ * Elimina un contacto del cache local por id o _local_id.
+ * Se usa cuando el sync regresa el id real del servidor para reemplazar el local.
+ */
+export async function removeCacheContacto(idOrLocalId: number | string): Promise<void> {
+  try {
+    const all = await getCacheContactos();
+    const filtrados = all.filter(c =>
+      c.id !== idOrLocalId && c._local_id !== String(idOrLocalId)
+    );
+    await cacheContactos(filtrados);
+  } catch {}
+}
+
 // ── Cache: Expedientes ───────────────────────────────────────────────────────
 
 export async function cacheExpedientes(data: Expediente[]): Promise<void> {
@@ -82,8 +141,111 @@ export async function getCacheExpedientes(): Promise<Expediente[]> {
   }
 }
 
-// ── Cola de operaciones JSON ─────────────────────────────────────────────────
+/**
+ * Busca un expediente específico en el cache por id.
+ * Útil para mostrar el detalle offline sin recargar toda la lista.
+ */
+export async function getCacheExpediente(id: number): Promise<Expediente | null> {
+  try {
+    const all = await getCacheExpedientes();
+    return all.find(e => e.id === id) ?? null;
+  } catch {
+    return null;
+  }
+}
 
+/**
+ * Agrega o actualiza un expediente individual en el cache.
+ * Misma estrategia que upsertCacheContacto: _local_id primero, luego id.
+ */
+export async function upsertCacheExpediente(expediente: Expediente): Promise<void> {
+  try {
+    const all = await getCacheExpedientes();
+    let idx = expediente._local_id
+      ? all.findIndex(e => e._local_id === expediente._local_id)
+      : -1;
+    if (idx < 0 && expediente.id > 0) {
+      idx = all.findIndex(e => e.id === expediente.id);
+    }
+    if (idx >= 0) {
+      all[idx] = expediente;
+    } else {
+      all.unshift(expediente);
+    }
+    await cacheExpedientes(all);
+  } catch {}
+}
+
+// ── Cache: Ubicaciones ────────────────────────────────────────────────────────
+
+export async function cacheUbicaciones(data: Ubicacion[]): Promise<void> {
+  await AsyncStorage.setItem(KEYS.UBICACIONES, JSON.stringify(data));
+}
+
+export async function getCacheUbicaciones(): Promise<Ubicacion[]> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.UBICACIONES);
+    return raw ? (JSON.parse(raw) as Ubicacion[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Agrega una ubicación creada offline al cache local.
+ * Aparece en el mapa inmediatamente con _pendiente_sync: true.
+ */
+export async function upsertCacheUbicacion(ubicacion: Ubicacion): Promise<void> {
+  try {
+    const all = await getCacheUbicaciones();
+    const idx = ubicacion._local_id
+      ? all.findIndex(u => u._local_id === ubicacion._local_id)
+      : ubicacion.id
+        ? all.findIndex(u => u.id === ubicacion.id)
+        : -1;
+    if (idx >= 0) {
+      all[idx] = ubicacion;
+    } else {
+      all.unshift(ubicacion);
+    }
+    await cacheUbicaciones(all);
+  } catch {}
+}
+
+/**
+ * Devuelve las ubicaciones de la cola pendiente como objetos Ubicacion
+ * para mostrarlas en el mapa aunque no se hayan sincronizado aún.
+ */
+export async function getUbicacionesPendientesSync(): Promise<Ubicacion[]> {
+  try {
+    const queue = await getQueue();
+    return queue
+      .filter(op => op.tipo === 'registrar_ubicacion' && op.estado === 'pendiente')
+      .map(op => {
+        const datos = op.datos as Record<string, unknown>;
+        return {
+          id:               undefined,
+          _local_id:        op.id_local,
+          _pendiente_sync:  true,
+          latitud:          datos.latitud   != null ? Number(datos.latitud)  : null,
+          longitud:         datos.longitud  != null ? Number(datos.longitud) : null,
+          tipo:             (datos.tipo as any) ?? 'visita_cliente',
+          semaforo:         datos.tipo === 'escuela' ? 'amarillo' : undefined,
+          nombre_lugar:     datos.nombre_lugar ? String(datos.nombre_lugar) : undefined,
+          direccion:        datos.direccion   ? String(datos.direccion)     : undefined,
+          municipio:        datos.municipio   ? String(datos.municipio)     : undefined,
+          estado:           datos.estado      ? String(datos.estado)        : undefined,
+          notas:            datos.notas       ? String(datos.notas)         : undefined,
+          visitado_en:      String(datos.visitado_en ?? op.timestamp),
+          contacto_id:      datos.contacto_id ? Number(datos.contacto_id)  : undefined,
+        } as Ubicacion;
+      });
+  } catch {
+    return [];
+  }
+}
+
+// ── Cola de operaciones JSON ─────────────────────────────────────────────────
 export async function encolarOperacion(
   tipo: OperacionSync['tipo'],
   datos: Record<string, unknown>,
@@ -163,6 +325,64 @@ export async function contarPendientes(): Promise<number> {
   return ops.length + docs.length;
 }
 
+// ── Contactos pendientes de sync visibles en la lista ────────────────────────
+
+/**
+ * Devuelve los contactos de la cola pendiente que aún no tienen id de servidor.
+ * Se usan para mezclarlos con la lista cacheada y mostrarlos con badge de "pendiente".
+ */
+export async function getContactosPendientesSync(): Promise<Contacto[]> {
+  try {
+    const queue = await getQueue();
+    return queue
+      .filter(op => op.tipo === 'crear_contacto' && op.estado === 'pendiente')
+      .map(op => {
+        const datos = op.datos as Record<string, unknown>;
+        return {
+          id:               0,   // sin id real aún
+          _local_id:        op.id_local,
+          _pendiente_sync:  true,
+          nombre:           String(datos.nombre ?? ''),
+          telefono:         datos.telefono ? String(datos.telefono) : undefined,
+          email:            datos.email    ? String(datos.email)    : undefined,
+          servicio:         datos.servicio as any,
+          estado_prospecto: (datos.estado_prospecto as any) ?? 'nuevo',
+          notas:            datos.notas ? String(datos.notas) : undefined,
+          created_at:       op.timestamp,
+        } as Contacto;
+      });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Devuelve los expedientes de la cola pendiente que aún no tienen id de servidor.
+ */
+export async function getExpedientesPendientesSync(): Promise<Expediente[]> {
+  try {
+    const queue = await getQueue();
+    return queue
+      .filter(op => op.tipo === 'crear_expediente' && op.estado === 'pendiente')
+      .map(op => {
+        const datos = op.datos as Record<string, unknown>;
+        return {
+          id:               0,
+          _local_id:        op.id_local,
+          _pendiente_sync:  true,
+          contacto_id:      Number(datos.contacto_id ?? 0),
+          tipo_tramite_id:  Number(datos.tipo_tramite_id ?? 0),
+          asesor_id:        0,
+          estado:           (datos.estado as any) ?? 'en_proceso',
+          created_at:       op.timestamp,
+          updated_at:       op.timestamp,
+        } as Expediente;
+      });
+  } catch {
+    return [];
+  }
+}
+
 // ── Sincronización ───────────────────────────────────────────────────────────
 
 let syncEnProceso = false;
@@ -202,6 +422,43 @@ export async function sincronizar(): Promise<{ ok: number; errores: number }> {
           const original = queue.find(q => q.id_local === res.id_local);
           if (res.estado === 'ok') {
             ok++;
+            // Si el servidor nos devuelve el id real, actualizar el cache local
+            if (res.id_servidor && original) {
+              if (original.tipo === 'crear_contacto') {
+                // Reemplazar el contacto local (sin id) por el que tiene id del servidor
+                const contactoLocal = original.datos as Record<string, unknown>;
+                const contactoConId: Contacto = {
+                  id:               res.id_servidor,
+                  _local_id:        original.id_local,
+                  _pendiente_sync:  false,
+                  nombre:           String(contactoLocal.nombre ?? ''),
+                  telefono:         contactoLocal.telefono ? String(contactoLocal.telefono) : undefined,
+                  email:            contactoLocal.email    ? String(contactoLocal.email)    : undefined,
+                  servicio:         contactoLocal.servicio as any,
+                  estado_prospecto: (contactoLocal.estado_prospecto as any) ?? 'nuevo',
+                };
+                await upsertCacheContacto(contactoConId);
+              }
+
+              if (original.tipo === 'registrar_ubicacion') {
+                // Reemplazar la ubicación local por la que tiene id del servidor
+                const datos = original.datos as Record<string, unknown>;
+                const ubicacionConId: Ubicacion = {
+                  id:              res.id_servidor,
+                  _local_id:       original.id_local,
+                  _pendiente_sync: false,
+                  latitud:         datos.latitud  != null ? Number(datos.latitud)  : null,
+                  longitud:        datos.longitud != null ? Number(datos.longitud) : null,
+                  tipo:            (datos.tipo as any) ?? 'visita_cliente',
+                  nombre_lugar:    datos.nombre_lugar ? String(datos.nombre_lugar) : undefined,
+                  municipio:       datos.municipio   ? String(datos.municipio)     : undefined,
+                  estado:          datos.estado      ? String(datos.estado)        : undefined,
+                  notas:           datos.notas       ? String(datos.notas)         : undefined,
+                  visitado_en:     String(datos.visitado_en ?? original.timestamp),
+                };
+                await upsertCacheUbicacion(ubicacionConId);
+              }
+            }
           } else {
             errores++;
             // Reintentar máximo 3 veces, luego descartar

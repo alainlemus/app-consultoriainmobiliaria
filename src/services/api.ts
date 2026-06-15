@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
-import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Comision, ResumenComisiones, Escuela, SemaforoEscuela } from '../types';
+import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Comision, ResumenComisiones, Escuela, SemaforoEscuela, Anuncio, EstadoAnuncio } from '../types';
 
 // Selecciona la URL según plataforma en desarrollo
 // iOS simulador  → 127.0.0.1:8080
@@ -163,13 +163,24 @@ export async function subirFotoPerfil(uri: string): Promise<string | null> {
   return resolveStorageUrl(res.foto_perfil_url) ?? null;
 }
 
+// ── Asesores (solo para super_admin) ──────────────────────────────────────
+
+export interface AsesorBasico { id: number; name: string; email: string; }
+
+/** Lista de asesores activos para el dropdown de filtro del super_admin */
+export async function getAsesores(): Promise<AsesorBasico[]> {
+  const res = await apiFetch<{ data: AsesorBasico[] }>('/auth/asesores');
+  return res.data;
+}
+
 // ── Prospectos ─────────────────────────────────────────────────────────────
 
-export async function getContactos(params?: { estado?: string; q?: string; page?: number }): Promise<PaginatedResponse<Contacto>> {
+export async function getContactos(params?: { estado?: string; q?: string; page?: number; asesor_id?: number }): Promise<PaginatedResponse<Contacto>> {
   const p: Record<string, string> = {};
-  if (params?.q)      p['q']      = params.q;
-  if (params?.estado) p['estado'] = params.estado;
-  if (params?.page)   p['page']   = String(params.page);
+  if (params?.q)         p['q']         = params.q;
+  if (params?.estado)    p['estado']     = params.estado;
+  if (params?.page)      p['page']       = String(params.page);
+  if (params?.asesor_id) p['asesor_id']  = String(params.asesor_id);
   const qs = new URLSearchParams(p).toString();
   return apiFetch<PaginatedResponse<Contacto>>(`/contactos${qs ? `?${qs}` : ''}`);
 }
@@ -230,10 +241,13 @@ export async function uploadSimuladorScreenshot(
 
 // ── Expedientes ────────────────────────────────────────────────────────────
 
-export async function getExpedientes(params?: { estado?: string; etapa?: string }): Promise<PaginatedResponse<Expediente>> {
-  const qs = new URLSearchParams(
-    Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== ''))
-  ).toString();
+export async function getExpedientes(params?: { estado?: string; etapa?: string; asesor_id?: number }): Promise<PaginatedResponse<Expediente>> {
+  const p: Record<string, string> = Object.fromEntries(
+    Object.entries(params ?? {})
+      .filter(([, v]) => v !== undefined && v !== '')
+      .map(([k, v]) => [k, String(v)])
+  );
+  const qs = new URLSearchParams(p).toString();
   const res = await apiFetch<PaginatedResponse<Expediente>>(`/expedientes${qs ? `?${qs}` : ''}`);
   // Resolver foto del contacto para cada expediente
   res.data = res.data.map(exp => {
@@ -340,8 +354,9 @@ export async function registrarUbicacion(data: Omit<Ubicacion, 'id'>): Promise<U
   return res.data;
 }
 
-export async function getUbicacionesMapa(): Promise<Ubicacion[]> {
-  const res = await apiFetch<ApiResponse<Ubicacion[]>>('/ubicaciones/mapa');
+export async function getUbicacionesMapa(params?: { asesor_id?: number }): Promise<Ubicacion[]> {
+  const qs = params?.asesor_id ? `?asesor_id=${params.asesor_id}` : '';
+  const res = await apiFetch<ApiResponse<Ubicacion[]>>(`/ubicaciones/mapa${qs}`);
   // Resolver URLs de fotos para acceso desde móvil en dev
   return res.data.map(u => ({
     ...u,
@@ -397,7 +412,57 @@ export async function actualizarSemaforoEscuela(
   return res.data;
 }
 
-// ── Sync offline ───────────────────────────────────────────────────────────
+// ── Anuncios ───────────────────────────────────────────────────────────────
+
+/** Todos los anuncios activos para mostrar en el mapa (todos los asesores ven todos) */
+export async function getAnunciosMapa(): Promise<Anuncio[]> {
+  const res = await apiFetch<ApiResponse<Anuncio[]>>('/anuncios/mapa');
+  return res.data.map(a => ({
+    ...a,
+    fotos: a.fotos?.map(f => ({ ...f, url: resolveStorageUrl(f.url) ?? f.url })),
+  }));
+}
+
+/** Registra un anuncio colocado por el asesor */
+export async function registrarAnuncio(data: Omit<Anuncio, 'id' | 'fotos'>): Promise<Anuncio> {
+  const res = await apiFetch<ApiResponse<Anuncio>>('/anuncios', {
+    method: 'POST',
+    body:   JSON.stringify(data),
+  });
+  return res.data;
+}
+
+/** Marca un anuncio como retirado o lo reactiva */
+export async function actualizarEstadoAnuncio(id: number, estado: EstadoAnuncio): Promise<Anuncio> {
+  const res = await apiFetch<ApiResponse<Anuncio>>(`/anuncios/${id}/estado`, {
+    method: 'PATCH',
+    body:   JSON.stringify({ estado }),
+  });
+  return res.data;
+}
+
+/** Sube fotos del anuncio */
+export async function subirFotosAnuncio(
+  anuncioId: number,
+  fotos: { uri: string; name: string; type: string }[],
+): Promise<{ id: number; url: string }[]> {
+  const token = await getToken();
+  const form  = new FormData();
+  fotos.forEach(f => {
+    form.append('fotos[]', { uri: f.uri, name: f.name, type: f.type } as unknown as Blob);
+  });
+  const response = await fetch(`${API_BASE}/anuncios/${anuncioId}/fotos`, {
+    method:  'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body:    form,
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err?.message ?? `Error ${response.status} al subir fotos`);
+  }
+  const res = await response.json();
+  return res.data;
+}
 
 export async function syncBatch(operaciones: OperacionSync[]): Promise<SyncResponse> {
   return apiFetch<SyncResponse>('/sync', {

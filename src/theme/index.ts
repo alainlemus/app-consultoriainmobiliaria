@@ -1,7 +1,13 @@
 /**
  * Tema visual — idéntico al manual de marca de consultoriaInmobiliaria
  * Fuente: resources/css/app.css del proyecto Laravel
+ *
+ * Los tamaños de fuente y espaciado se escalan dinámicamente según el
+ * ancho de pantalla usando el utilitario responsive.ts.
+ * Esto garantiza legibilidad para asesores con dispositivos variados.
  */
+
+import { fs, sp } from '../utils/responsive';
 
 export const Colors = {
   // Brand blacks / grays — PANTONE Neutral Black C / 4287 C
@@ -53,20 +59,27 @@ export const Colors = {
   info:    '#2563eb',
 };
 
+/**
+ * Tipografía escalada dinámicamente.
+ * Los tamaños base son conservadores — el escalado los agranda
+ * en pantallas Samsung Galaxy típicas (+5% a +10%).
+ * Todos los tamaños son al menos 2pt más grandes que antes
+ * para mejorar la legibilidad de usuarios mayores.
+ */
 export const Typography = {
   fontFamily: {
     sans:   'System',  // Helvetica Neue en iOS, Roboto en Android
     serif:  'System',
   },
   fontSize: {
-    xs:   11,
-    sm:   13,
-    base: 15,
-    lg:   17,
-    xl:   20,
-    '2xl': 24,
-    '3xl': 30,
-    '4xl': 36,
+    xs:    fs(13),   // antes 11 — textos secundarios, badges
+    sm:    fs(15),   // antes 13 — subtítulos, etiquetas
+    base:  fs(17),   // antes 15 — texto principal de listas y tarjetas
+    lg:    fs(19),   // antes 17 — títulos de sección
+    xl:    fs(22),   // antes 20 — títulos de pantalla
+    '2xl': fs(26),   // antes 24 — encabezados grandes
+    '3xl': fs(32),   // antes 30 — branding/login
+    '4xl': fs(38),   // antes 36 — números KPI
   },
   fontWeight: {
     normal:    '400' as const,
@@ -85,25 +98,30 @@ export const Typography = {
   },
 };
 
+/**
+ * Espaciado escalado — crece moderadamente en pantallas más grandes
+ * para que los elementos táctiles sean más fáciles de tocar.
+ * Área mínima táctil recomendada: 44×44pt (WCAG 2.5.5).
+ */
 export const Spacing = {
-  xs:   4,
-  sm:   8,
-  md:   12,
-  base: 16,
-  lg:   20,
-  xl:   24,
-  '2xl': 32,
-  '3xl': 40,
-  '4xl': 48,
-  '5xl': 64,
+  xs:    sp(4),
+  sm:    sp(8),
+  md:    sp(12),
+  base:  sp(16),
+  lg:    sp(20),
+  xl:    sp(24),
+  '2xl': sp(32),
+  '3xl': sp(40),
+  '4xl': sp(48),
+  '5xl': sp(64),
 };
 
 export const Radius = {
   none: 0,
-  sm:   2,   // rounded-sm de Tailwind — estilo "arquitectónico" de la marca
+  sm:   2,
   base: 4,
-  md:   6,
-  lg:   10,
+  md:   8,    // antes 6 — más redondeado, más amigable
+  lg:   12,   // antes 10
   full: 9999,
 };
 

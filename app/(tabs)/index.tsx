@@ -9,6 +9,7 @@ import { Colors, Typography, Spacing, Radius, Shadows } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
 import { getContactos, getExpedientes, getMe, logout } from '../../src/services/api';
 import { useOfflineSync } from '../../src/hooks/useOfflineSync';
+import { useAuth } from '../../src/contexts/AuthContext';
 import type { User, Contacto } from '../../src/types';
 
 interface Stats {
@@ -21,6 +22,7 @@ interface Stats {
 export default function DashboardScreen() {
   const router   = useRouter();
   const insets   = useSafeAreaInsets();
+  const { user: authUser, isSuperAdmin, refresh: refreshAuth, clearUser } = useAuth();
 
   const [user,       setUser]       = useState<User | null>(null);
   const [stats,      setStats]      = useState<Stats | null>(null);
@@ -29,6 +31,11 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { online, pendientes, sincronizar } = useOfflineSync();
+
+  // Usar el user del AuthContext si está disponible (evita llamar getMe() de nuevo)
+  useEffect(() => {
+    if (authUser) setUser(authUser);
+  }, [authUser]);
 
   async function load() {
     try {
@@ -42,7 +49,7 @@ export default function DashboardScreen() {
         totalProspectos:  prospectos.meta.total,
         totalExpedientes: expedientes.meta.total,
         enTramite: expedientes.data.filter(e =>
-          ['en_proceso','documentacion','autorizado','escrituracion'].includes(e.estado)
+          ['en_proceso','documentacion','en_catastro','pre_avaluo','cuv_generada','avaluo_cerrado','en_notaria'].includes(e.estado)
         ).length,
         cerrados: expedientes.data.filter(e => e.estado === 'cerrado').length,
       });
@@ -99,6 +106,7 @@ export default function DashboardScreen() {
           styles.headerBg,
           { paddingTop: showBanner ? Spacing.base : insets.top + Spacing.base },
         ]}>
+          {/* Fila superior: logo+nombre | botón salir */}
           <View style={styles.headerRow}>
             <View style={styles.headerLeft}>
               <Image
@@ -106,16 +114,22 @@ export default function DashboardScreen() {
                 style={styles.headerLogo}
                 resizeMode="contain"
               />
-              <View>
+              <View style={styles.headerTexts}>
                 <Text style={styles.headerGreeting}>Bienvenido</Text>
-                <Text style={styles.headerName} numberOfLines={1}>
+                <Text style={styles.headerName} numberOfLines={2}>
                   {user?.name ?? '…'}
                 </Text>
               </View>
             </View>
+            {/* Botón salir: posición absoluta para nunca encimarse */}
             <TouchableOpacity
               style={styles.logoutBtn}
-              onPress={async () => { await logout(); router.replace('/(auth)/login'); }}
+              onPress={async () => {
+                await logout();
+                clearUser();
+                router.replace('/(auth)/login');
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Text style={styles.logoutText}>Salir</Text>
             </TouchableOpacity>
@@ -124,6 +138,14 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.body}>
+          {/* Banner super_admin */}
+          {isSuperAdmin && (
+            <View style={styles.superAdminBanner}>
+              <Text style={styles.superAdminBannerText}>
+                👑 Vista de administrador — mostrando datos de todos los asesores
+              </Text>
+            </View>
+          )}
           {/* ── KPI cards ── */}
           <View style={styles.kpiGrid}>
             <KpiCard label="Prospectos"  value={stats?.totalProspectos  ?? '—'} icon="👥" accent={Colors.gold[400]}    />
@@ -195,8 +217,8 @@ function SectionHeader({ title, action }: { title: string; action?: { label: str
 }
 const sh = StyleSheet.create({
   row:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm, marginTop: Spacing.base },
-  title: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, color: Colors.dark[500], letterSpacing: 1.2, textTransform: 'uppercase' },
-  link:  { fontSize: Typography.fontSize.xs, color: Colors.gold[500], fontWeight: Typography.fontWeight.semibold },
+  title: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold, color: Colors.dark[500], letterSpacing: 1, textTransform: 'uppercase' },
+  link:  { fontSize: Typography.fontSize.sm, color: Colors.gold[500], fontWeight: Typography.fontWeight.semibold },
 });
 
 function KpiCard({ label, value, icon, accent }: { label: string; value: number | string; icon: string; accent: string }) {
@@ -228,39 +250,64 @@ const styles = StyleSheet.create({
   root:   { flex: 1, backgroundColor: Colors.cream[50] },
   scroll: { flex: 1 },
 
-  // Banner offline
+  // Banner offline — más visible y más grande
   banner: {
     paddingHorizontal: Spacing.base,
-    paddingBottom:     Spacing.sm,
+    paddingBottom:     Spacing.md,
   },
   bannerOffline:   { backgroundColor: Colors.crimson[500] },
   bannerPendiente: { backgroundColor: Colors.gold[500] },
   bannerText: {
-    color:         Colors.white,
-    fontSize:      Typography.fontSize.xs,
-    fontWeight:    Typography.fontWeight.semibold,
-    textAlign:     'center',
-    paddingTop:    Spacing.sm,
+    color:      Colors.white,
+    fontSize:   Typography.fontSize.sm,   // antes xs — más legible
+    fontWeight: Typography.fontWeight.semibold,
+    textAlign:  'center',
+    paddingTop: Spacing.sm,
+    lineHeight: Typography.fontSize.sm * 1.4,
   },
 
-  // Header
+  // Header — layout mejorado para evitar encimamiento
   headerBg: {
     backgroundColor:   Colors.dark[900],
     paddingHorizontal: Spacing.base,
     paddingBottom:     Spacing.xl,
   },
-  headerRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerLeft:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
-  headerLogo:    { width: 40, height: 40, borderRadius: Radius.sm },
-  headerGreeting:{ fontSize: Typography.fontSize.xs, color: Colors.gold[400], letterSpacing: 2, fontWeight: Typography.fontWeight.semibold, textTransform: 'uppercase' },
-  headerName:    { fontSize: Typography.fontSize['2xl'], fontWeight: Typography.fontWeight.black, color: Colors.cream[50], marginTop: 2 },
-  goldBar:       { width: 28, height: 2, backgroundColor: Colors.gold[400], marginTop: Spacing.sm },
-  logoutBtn:     { borderWidth: 1, borderColor: Colors.dark[600], borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 5, marginTop: 4 },
-  logoutText:    { color: Colors.dark[400], fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold },
+  headerRow: {
+    flexDirection:  'row',
+    alignItems:     'flex-start',  // align top para que el botón no se mueva con nombres de 2 líneas
+    justifyContent: 'space-between',
+    gap:            Spacing.sm,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           Spacing.sm,
+    flex:          1,              // ocupa todo el espacio disponible
+    marginRight:   Spacing.sm,    // deja espacio para el botón salir
+  },
+  headerTexts: {
+    flex: 1,                       // el texto se comprime antes de encimarse con el botón
+  },
+  headerLogo:     { width: 44, height: 44, borderRadius: Radius.sm, flexShrink: 0 },
+  headerGreeting: { fontSize: Typography.fontSize.xs, color: Colors.gold[400], letterSpacing: 2, fontWeight: Typography.fontWeight.semibold, textTransform: 'uppercase' },
+  headerName:     { fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.black, color: Colors.cream[50], marginTop: 2 },
+  goldBar:        { width: 28, height: 2, backgroundColor: Colors.gold[400], marginTop: Spacing.sm },
+  logoutBtn: {
+    borderWidth:       1,
+    borderColor:       Colors.dark[600],
+    borderRadius:      Radius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical:   Spacing.sm,
+    marginTop:         Spacing.xs,
+    flexShrink:        0,          // nunca se comprime
+    minWidth:          52,
+    alignItems:        'center',
+  },
+  logoutText: { color: Colors.dark[400], fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold },
 
   body: { padding: Spacing.base },
 
-  // KPIs
+  // KPIs — texto de etiqueta más legible
   kpiGrid: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.xs },
   kpiCard: {
     flex:            1,
@@ -273,30 +320,31 @@ const styles = StyleSheet.create({
     borderColor:     Colors.cream[200],
     ...Shadows.sm,
   },
-  kpiIcon:  { fontSize: 18, marginBottom: 2 },
-  kpiValue: { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.black, marginBottom: 1 },
-  kpiLabel: { fontSize: 9, color: Colors.dark[500], textAlign: 'center', letterSpacing: 0.5, textTransform: 'uppercase' },
+  kpiIcon:  { fontSize: Typography.fontSize.lg, marginBottom: 2 },
+  kpiValue: { fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.black, marginBottom: 2 },
+  kpiLabel: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], textAlign: 'center', letterSpacing: 0.3, textTransform: 'uppercase' },
 
-  // Acciones
+  // Acciones — tiles más altas para área táctil cómoda
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.xs },
   actionTile: {
     width:           '47.5%',
     backgroundColor: Colors.white,
     borderRadius:    Radius.md,
-    paddingVertical: Spacing.lg,
+    paddingVertical: Spacing.xl,   // antes lg — más espacio vertical
     alignItems:      'center',
-    gap:             Spacing.xs,
+    gap:             Spacing.sm,   // antes xs
     borderWidth:     1,
     borderColor:     Colors.cream[200],
     ...Shadows.sm,
+    minHeight:       90,           // área táctil mínima cómoda
   },
   actionTilePrimary: {
     backgroundColor: Colors.dark[900],
     borderColor:     Colors.dark[900],
   },
-  actionIcon:       { fontSize: 26 },
-  actionIconPrimary:{ fontSize: 26 },
-  actionLabel:      { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[700], textAlign: 'center' },
+  actionIcon:         { fontSize: Typography.fontSize['2xl'] },
+  actionIconPrimary:  { fontSize: Typography.fontSize['2xl'] },
+  actionLabel:        { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[700], textAlign: 'center' },
   actionLabelPrimary: { color: Colors.gold[400] },
 
   // Card genérica
@@ -309,14 +357,32 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
 
-  // Recientes
-  recentRow:  { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, gap: Spacing.sm },
-  divider:    { borderBottomWidth: 1, borderBottomColor: Colors.cream[200] },
-  avatar:     { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.dark[800], alignItems: 'center', justifyContent: 'center' },
-  avatarLetter: { color: Colors.gold[400], fontWeight: Typography.fontWeight.bold, fontSize: Typography.fontSize.base },
-  recentInfo: { flex: 1 },
-  recentNombre: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
-  recentSub:    { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 1 },
+  // Recientes — filas más altas y texto más grande
+  recentRow:    { flexDirection: 'row', alignItems: 'center', padding: Spacing.base, gap: Spacing.sm, minHeight: 64 },
+  divider:      { borderBottomWidth: 1, borderBottomColor: Colors.cream[200] },
+  avatar:       { width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.dark[800], alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  avatarLetter: { color: Colors.gold[400], fontWeight: Typography.fontWeight.bold, fontSize: Typography.fontSize.lg },
+  recentInfo:   { flex: 1 },
+  recentNombre: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
+  recentSub:    { fontSize: Typography.fontSize.sm, color: Colors.dark[400], marginTop: 2 },
 
-  empty: { color: Colors.dark[400], fontSize: Typography.fontSize.sm, textAlign: 'center', padding: Spacing.xl },
+  empty: { color: Colors.dark[400], fontSize: Typography.fontSize.base, textAlign: 'center', padding: Spacing.xl },
+
+  // Banner super_admin
+  superAdminBanner: {
+    backgroundColor: Colors.gold[50],
+    borderWidth:     1,
+    borderColor:     Colors.gold[300],
+    borderRadius:    Radius.md,
+    padding:         Spacing.md,
+    marginBottom:    Spacing.sm,
+    flexDirection:   'row',
+    alignItems:      'center',
+  },
+  superAdminBannerText: {
+    fontSize:   Typography.fontSize.sm,
+    color:      Colors.gold[700],
+    fontWeight: Typography.fontWeight.semibold,
+    flex:       1,
+  },
 });

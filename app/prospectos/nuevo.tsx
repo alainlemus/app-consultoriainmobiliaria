@@ -13,6 +13,7 @@ import Input from '../../src/components/ui/Input';
 import EstadoSelectModal from '../../src/components/ui/EstadoSelectModal';
 import { createContacto, uploadFotoContacto, uploadSimuladorScreenshot, getEscuelas } from '../../src/services/api';
 import { useSyncContext } from '../../src/contexts/SyncContext';
+import { upsertCacheContacto } from '../../src/services/offline';
 import type { ServicioProspecto, Escuela } from '../../src/types';
 import { SERVICIO_LABEL } from '../../src/types';
 
@@ -139,6 +140,7 @@ export default function NuevoProspectoScreen() {
         notas:                 form.notas                 || undefined,
         estado_prospecto:      form.estado_prospecto,
         servicio:              form.servicio              || undefined,
+        origen:                'app_movil' as const,
         // Escuela vinculada (solo FOVISSSTE)
         ...(form.servicio === 'FOVISSSTE' && escuelaSeleccionada
           ? { escuela_id: escuelaSeleccionada.id }
@@ -160,11 +162,24 @@ export default function NuevoProspectoScreen() {
       };
 
       if (!online) {
-        // ── Sin internet: guardar en cola, fotos y screenshots quedan pendientes ──
-        await encolar('crear_contacto', payload);
+        // ── Sin internet: encolar Y guardar en cache local para ver de inmediato ──
+        const localId = await encolar('crear_contacto', payload);
+        // Crear un objeto Contacto local con _pendiente_sync para que aparezca en la lista
+        await upsertCacheContacto({
+          id:               0,
+          _local_id:        localId,
+          _pendiente_sync:  true,
+          nombre:           payload.nombre,
+          telefono:         payload.telefono,
+          email:            payload.email,
+          servicio:         payload.servicio as any,
+          estado_prospecto: payload.estado_prospecto as any ?? 'nuevo',
+          notas:            payload.notas,
+          created_at:       new Date().toISOString(),
+        });
         Alert.alert(
           'Guardado sin conexión',
-          'El prospecto se registró en tu dispositivo. Se enviará al CRM automáticamente cuando recuperes internet.',
+          'El prospecto se registró en tu dispositivo y ya aparece en la lista. Se enviará al CRM automáticamente cuando recuperes internet.',
           [{ text: 'Entendido', onPress: () => router.replace({ pathname: '/(tabs)/prospectos', params: { refresh: Date.now() } }) }],
         );
         return;

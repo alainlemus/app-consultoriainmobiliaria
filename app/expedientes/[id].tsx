@@ -11,6 +11,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Badge, { ESTADO_EXPEDIENTE_BADGE } from '../../src/components/ui/Badge';
 import { getExpediente, deleteDocumento, reemplazarDocumento, getDocumentoUrl } from '../../src/services/api';
+import { getCacheExpediente } from '../../src/services/offline';
+import { useSyncContext } from '../../src/contexts/SyncContext';
 import type { Expediente, Documento } from '../../src/types';
 
 const ESTADO_LABEL: Record<string, string> = {
@@ -46,26 +48,55 @@ export default function DetalleExpedienteScreen() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
   const { id }  = useLocalSearchParams<{ id: string }>();
+  const { online } = useSyncContext();
 
-  const [exp,     setExp]     = useState<Expediente | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(false);
+  const [exp,        setExp]        = useState<Expediente | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState(false);
+  const [desdeCache, setDesdeCache] = useState(false);
+
+  const cargar = async (numId: number) => {
+    if (!online) {
+      const cached = await getCacheExpediente(numId);
+      if (cached) {
+        setExp(cached);
+        setDesdeCache(true);
+      } else {
+        setError(true);
+      }
+      setLoading(false);
+      return;
+    }
+    try {
+      const data = await getExpediente(numId);
+      setExp(data);
+      setDesdeCache(false);
+    } catch {
+      // Fallo de red: intentar desde cache
+      const cached = await getCacheExpediente(numId);
+      if (cached) {
+        setExp(cached);
+        setDesdeCache(true);
+      } else {
+        setError(true);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
-    getExpediente(Number(id))
-      .then(setExp)
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [id]);
+    cargar(Number(id));
+  }, [id, online]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!id) return;
+      if (!id || !online) return;
       getExpediente(Number(id))
-        .then(setExp)
+        .then(data => { setExp(data); setDesdeCache(false); })
         .catch(() => {});
-    }, [id])
+    }, [id, online])
   );
 
   if (loading) return (
@@ -180,6 +211,12 @@ export default function DetalleExpedienteScreen() {
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Banner offline */}
+        {desdeCache && (
+          <View style={styles.cacheBanner}>
+            <Text style={styles.cacheText}>📴 Sin conexión — mostrando datos guardados. No puedes subir documentos.</Text>
+          </View>
+        )}
         {/* ── Datos generales ── */}
         <SectionLabel>Información del trámite</SectionLabel>
         <View style={styles.card}>
@@ -564,4 +601,15 @@ const styles = StyleSheet.create({
   screenshotContainer: { borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cream[200] },
   screenshotThumb:     { width: '100%', height: 180 },
   screenshotHint:      { fontSize: Typography.fontSize.xs, color: Colors.dark[400], textAlign: 'center', paddingVertical: Spacing.xs },
+
+  cacheBanner: {
+    backgroundColor:  Colors.dark[800],
+    paddingHorizontal: Spacing.base,
+    paddingVertical:   Spacing.md,
+    marginBottom:      Spacing.sm,
+    borderRadius:      Radius.sm,
+    borderLeftWidth:   4,
+    borderLeftColor:   Colors.gold[400],
+  },
+  cacheText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, lineHeight: Typography.fontSize.sm * 1.4 },
 });

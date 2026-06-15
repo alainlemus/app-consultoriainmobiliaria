@@ -19,6 +19,7 @@ import {
   getBiometricLabel,
   authenticateWithBiometric,
 } from '../../src/services/biometrics';
+import { isSmallScreen, screenHeight } from '../../src/utils/responsive';
 
 export default function LoginScreen() {
   const router  = useRouter();
@@ -44,7 +45,6 @@ export default function LoginScreen() {
     })();
   }, []);
 
-  // Si biometría está disponible y activada, lanzar automáticamente al montar
   useEffect(() => {
     if (biometricAvailable && biometricEnabled) {
       handleBiometricLogin();
@@ -58,7 +58,7 @@ export default function LoginScreen() {
       const result = await authenticateWithBiometric();
       if (!result) { setLoading(false); return; }
       await loginWithToken(result.token);
-      registrarPushToken().catch(() => {}); // fire-and-forget
+      registrarPushToken().catch(() => {});
       router.replace('/(tabs)');
     } catch {
       setError('La sesión guardada expiró. Inicia sesión con tu contraseña.');
@@ -73,14 +73,11 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const state = await login(email.trim().toLowerCase(), password);
-
-      // Si biometría disponible y no activada, activarla ahora
       if (biometricAvailable && !biometricEnabled && state.token) {
         await enableBiometric(email.trim().toLowerCase(), state.token);
         setBiometricEnabled(true);
       }
-
-      registrarPushToken().catch(() => {}); // fire-and-forget
+      registrarPushToken().catch(() => {});
       router.replace('/(tabs)');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Credenciales incorrectas.');
@@ -91,22 +88,37 @@ export default function LoginScreen() {
 
   const biometricIcon = biometricLabel === 'Face ID' ? 'scan-outline' : 'finger-print-outline';
 
+  // En pantallas pequeñas reducimos el logo y los márgenes para que todo quepa
+  const logoSize    = isSmallScreen ? 80 : 110;
+  const brandMargin = isSmallScreen ? Spacing.xl : Spacing['3xl'];
+  // En pantallas muy cortas (< 640px de alto) ocultamos el logo
+  const showLogo    = screenHeight >= 640;
+
   return (
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerStyle={[styles.container, { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 }]}
+        contentContainerStyle={[
+          styles.container,
+          {
+            paddingTop:    insets.top + (isSmallScreen ? Spacing.lg : Spacing['2xl']),
+            paddingBottom: insets.bottom + Spacing['2xl'],
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         {/* Logo / branding */}
-        <View style={styles.brand}>
-          <Image
-            source={require('../../assets/icon.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+        <View style={[styles.brand, { marginBottom: brandMargin }]}>
+          {showLogo && (
+            <Image
+              source={require('../../assets/icon.png')}
+              style={[styles.logo, { width: logoSize, height: logoSize }]}
+              resizeMode="contain"
+            />
+          )}
           <View style={styles.goldBar} />
           <Text style={styles.title}>CONSULTORÍA</Text>
           <Text style={styles.titleAccent}>INMOBILIARIA</Text>
@@ -145,7 +157,6 @@ export default function LoginScreen() {
             dark={false}
           />
 
-          {/* Olvidé mi contraseña */}
           <TouchableOpacity
             onPress={() => router.push('/(auth)/forgot-password')}
             style={styles.forgotRow}
@@ -162,14 +173,13 @@ export default function LoginScreen() {
             style={styles.loginBtn}
           />
 
-          {/* Botón biométrico */}
           {biometricAvailable && biometricEnabled && (
             <TouchableOpacity
               style={styles.biometricBtn}
               onPress={handleBiometricLogin}
               disabled={loading}
             >
-              <Ionicons name={biometricIcon as any} size={28} color={Colors.gold[400]} />
+              <Ionicons name={biometricIcon as any} size={32} color={Colors.gold[400]} />
               <Text style={styles.biometricText}>Entrar con {biometricLabel}</Text>
             </TouchableOpacity>
           )}
@@ -197,20 +207,19 @@ const styles = StyleSheet.create({
   },
 
   brand: {
-    alignItems:   'center',
-    marginBottom: Spacing['3xl'],
+    alignItems: 'center',
+    width:      '100%',
   },
   logo: {
-    width:        120,
-    height:       120,
     borderRadius: 16,
     marginBottom: Spacing.lg,
   },
   goldBar: {
     width:           80,
-    height:          2,
+    height:          3,
     backgroundColor: Colors.gold[400],
     marginVertical:  Spacing.sm,
+    borderRadius:    2,
   },
   title: {
     fontSize:      Typography.fontSize['3xl'],
@@ -234,9 +243,9 @@ const styles = StyleSheet.create({
   card: {
     width:           '100%',
     backgroundColor: Colors.white,
-    borderRadius:    4,
+    borderRadius:    8,
     padding:         Spacing['2xl'],
-    borderTopWidth:  3,
+    borderTopWidth:  4,
     borderTopColor:  Colors.gold[400],
   },
   cardTitle: {
@@ -248,26 +257,29 @@ const styles = StyleSheet.create({
   },
   cardDivider: {
     width:           32,
-    height:          2,
+    height:          3,
     backgroundColor: Colors.gold[400],
     marginBottom:    Spacing.xl,
+    borderRadius:    2,
   },
   errorBox: {
     backgroundColor: '#fef2f2',
     borderWidth:     1,
     borderColor:     '#fecaca',
-    borderRadius:    4,
+    borderRadius:    6,
     padding:         Spacing.md,
     marginBottom:    Spacing.base,
   },
   errorText: {
-    color:    Colors.crimson[600],
-    fontSize: Typography.fontSize.sm,
+    color:      Colors.crimson[600],
+    fontSize:   Typography.fontSize.base,
+    lineHeight: Typography.fontSize.base * 1.4,
   },
   forgotRow: {
     alignSelf:    'flex-end',
-    marginTop:    -Spacing.xs,
+    marginTop:    Spacing.xs,
     marginBottom: Spacing.base,
+    padding:      Spacing.xs,
   },
   forgotText: {
     fontSize: Typography.fontSize.sm,
@@ -277,19 +289,20 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   biometricBtn: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'center',
-    marginTop:      Spacing.lg,
-    gap:            Spacing.sm,
-    paddingVertical: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark[100] ?? '#f3f4f6',
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'center',
+    marginTop:       Spacing.lg,
+    gap:             Spacing.sm,
+    paddingVertical: Spacing.base,
+    borderTopWidth:  1,
+    borderTopColor:  Colors.cream[300],
+    minHeight:       56,
   },
   biometricText: {
     fontSize:   Typography.fontSize.base,
-    color:      Colors.dark[700] ?? '#374151',
-    fontWeight: Typography.fontWeight.medium,
+    color:      Colors.dark[700],
+    fontWeight: Typography.fontWeight.semibold,
   },
 
   footer: {
@@ -298,7 +311,6 @@ const styles = StyleSheet.create({
     color:     Colors.dark[500],
     textAlign: 'center',
   },
-
   version: {
     marginTop: Spacing.xs,
     fontSize:  Typography.fontSize.xs,

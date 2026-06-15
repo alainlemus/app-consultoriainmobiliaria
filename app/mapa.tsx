@@ -27,9 +27,13 @@ import {
 import MapView, { Marker, Region } from 'react-native-maps';
 
 import { ESTADOS_MX, MUNICIPIOS_MX } from '../src/data/mexico';
-import { getContactos, getUbicacionesMapa, registrarUbicacion, subirFotosVisita, actualizarSemaforoEscuela } from '../src/services/api';
+import { getContactos, getUbicacionesMapa, registrarUbicacion, subirFotosVisita, actualizarSemaforoEscuela, getAnunciosMapa, actualizarEstadoAnuncio, getAsesores, type AsesorBasico } from '../src/services/api';
+import { cacheUbicaciones, getCacheUbicaciones, getUbicacionesPendientesSync, upsertCacheUbicacion } from '../src/services/offline';
+import { useSyncContext } from '../src/contexts/SyncContext';
+import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Radius, Spacing, Typography } from '../src/theme';
-import type { Contacto, Ubicacion, SemaforoEscuela } from '../src/types';
+import type { Contacto, Ubicacion, SemaforoEscuela, Anuncio } from '../src/types';
+import { ANUNCIO_TIPO_EMOJI, ANUNCIO_TIPO_LABEL } from '../src/types';
 
 // ── Constantes de tipo ────────────────────────────────────────────────────────
 const TIPO_COLOR: Record<string, string> = {
@@ -79,6 +83,8 @@ export default function MapaScreen() {
     lat?: string;
     lng?: string;
   }>();
+  const { online, encolar } = useSyncContext();
+  const { isSuperAdmin }    = useAuth();
 
   // Coordenadas de llegada (desde detalle de prospecto)
   const initLat = lat ? parseFloat(lat) : null;
@@ -94,6 +100,22 @@ export default function MapaScreen() {
   const [filtro, setFiltro]             = useState<string>('todos');
   const [detalle, setDetalle]           = useState<Ubicacion | null>(null);
   const [locationPermission, setLocationPermission] = useState(false);
+  const [desdeCache, setDesdeCache]     = useState(false);
+
+  // ── Anuncios ───────────────────────────────────────────────────────────────
+  const [anuncios,        setAnuncios]        = useState<Anuncio[]>([]);
+  const [mostrarAnuncios, setMostrarAnuncios] = useState(true);
+  const [detalleAnuncio,  setDetalleAnuncio]  = useState<Anuncio | null>(null);
+
+  // ── Filtro por asesor (solo super_admin) ───────────────────────────────────
+  const [asesores,       setAsesores]       = useState<AsesorBasico[]>([]);
+  const [asesorFiltrado, setAsesorFiltrado] = useState<AsesorBasico | null>(null);
+  const [modalAsesores,  setModalAsesores]  = useState(false);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    getAsesores().then(setAsesores).catch(() => {});
+  }, [isSuperAdmin]);
 
   // ── Semáforo ───────────────────────────────────────────────────────────────
   const [semaforoModal, setSemaforoModal]     = useState(false);
@@ -165,22 +187,67 @@ export default function MapaScreen() {
   // ── Carga datos del mapa ───────────────────────────────────────────────────
   const cargar = useCallback(async () => {
     setLoading(true);
+
+    // Siempre mezclar con las ubicaciones pendientes de sync
+    const pendientesCola = await getUbicacionesPendientesSync();
+
+    if (!online) {
+      // Sin red: cargar desde cache con filtro de asesor
+      const cached = await getCacheUbicaciones();
+      const filtradosPorAsesor = asesorFiltrado
+        ? cached.filter(u => u.asesor_id === asesorFiltrado.id)
+        : cached;
+      const pendientesNuevos = pendientesCola.filter(p =>
+        !filtradosPorAsesor.some(u => u._local_id === p._local_id)
+      );
+      setUbicaciones([...pendientesNuevos, ...filtradosPorAsesor]);
+      setDesdeCache(true);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const data = await getUbicacionesMapa();
-      setUbicaciones(data);
-      if (data.length > 0) {
-        const u = data[data.length - 1];
-        mapRef.current?.animateToRegion({
-          latitude: u.latitud, longitude: u.longitud,
-          latitudeDelta: 0.12, longitudeDelta: 0.12,
-        }, 600);
+      const data = await getUbicacionesMapa(
+        asesorFiltrado ? { asesor_id: asesorFiltrado.id } : undefined
+      );
+      const pendientesNuevos = pendientesCola.filter(p =>
+        !data.some(u => u._local_id === p._local_id)
+      );
+      const todo = [...pendientesNuevos, ...data];
+      setUbicaciones(todo);
+      setDesdeCache(false);
+      if (!asesorFiltrado) {
+        cacheUbicaciones(data).catch(() => {});
+      }
+
+      // Cargar anuncios en paralelo (no bloqueante — fallo silencioso)
+      getAnunciosMapa().then(setAnuncios).catch(() => {});
+
+      if (todo.length > 0) {
+        // Centrar en la última ubicación real (no pendiente)
+        const ultima = data[data.length - 1];
+        if (ultima?.latitud != null && ultima?.longitud != null) {
+          mapRef.current?.animateToRegion({
+            latitude: ultima.latitud, longitude: ultima.longitud,
+            latitudeDelta: 0.12, longitudeDelta: 0.12,
+          }, 600);
+        }
       }
     } catch {
-      Alert.alert('Error', 'No se pudieron cargar las visitas.');
+      // Fallo de red: caer al cache
+      const cached = await getCacheUbicaciones();
+      const filtradosPorAsesor = asesorFiltrado
+        ? cached.filter(u => u.asesor_id === asesorFiltrado.id)
+        : cached;
+      const pendientesNuevos = pendientesCola.filter(p =>
+        !filtradosPorAsesor.some(u => u._local_id === p._local_id)
+      );
+      setUbicaciones([...pendientesNuevos, ...filtradosPorAsesor]);
+      setDesdeCache(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [online, asesorFiltrado]);
 
   useEffect(() => { cargar(); }, [cargar]);
 
@@ -203,6 +270,7 @@ export default function MapaScreen() {
     }, 300);
     // Buscar la visita más cercana a esas coordenadas y mostrar detalle
     const match = ubicaciones.find(u =>
+      u.latitud != null && u.longitud != null &&
       Math.abs(u.latitud - initLat) < 0.001 &&
       Math.abs(u.longitud - initLng) < 0.001
     );
@@ -258,7 +326,8 @@ export default function MapaScreen() {
     }
   };
 
-  // ── GPS ───────────────────────────────────────────────────────────────────  const obtenerGPS = async () => {
+  // ── GPS ───────────────────────────────────────────────────────────────────
+  const obtenerGPS = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permiso requerido', 'Activa el acceso a ubicación en Configuración.');
@@ -352,19 +421,43 @@ export default function MapaScreen() {
   const registrar = async () => {
     if (!userLoc) return;
     setRegistrando(true);
+
+    const payload = {
+      latitud:      userLoc.lat,
+      longitud:     userLoc.lng,
+      tipo,
+      nombre_lugar: nombreLugar || undefined,
+      direccion:    direccion   || undefined,
+      notas:        notas       || undefined,
+      municipio:    municipio   || undefined,
+      estado:       estadoVal   || undefined,
+      contacto_id:  tipo === 'visita_cliente' ? (contactoId ?? undefined) : undefined,
+      visitado_en:  new Date().toISOString(),
+    };
+
     try {
-      const ubicacion = await registrarUbicacion({
-        latitud:      userLoc.lat,
-        longitud:     userLoc.lng,
-        tipo,
-        nombre_lugar: nombreLugar || undefined,
-        direccion:    direccion   || undefined,
-        notas:        notas       || undefined,
-        municipio:    municipio   || undefined,
-        estado:       estadoVal   || undefined,
-        contacto_id:  tipo === 'visita_cliente' ? (contactoId ?? undefined) : undefined,
-        visitado_en:  new Date().toISOString(),
-      });
+      if (!online) {
+        // ── Sin red: encolar y guardar en cache local para verla de inmediato ──
+        const localId = await encolar('registrar_ubicacion', payload as any);
+        await upsertCacheUbicacion({
+          ...payload,
+          _local_id:       localId,
+          _pendiente_sync: true,
+          visitado_en:     payload.visitado_en,
+        } as Ubicacion);
+        setModalVisible(false);
+        resetForm();
+        setContactoId(null);
+        setBusqProspecto('');
+        // Recargar para que aparezca en el mapa
+        await cargar();
+        return;
+      }
+
+      const ubicacion = await registrarUbicacion(payload);
+
+      // Guardar en caché local también cuando hay internet
+      await upsertCacheUbicacion({ ...ubicacion, _pendiente_sync: false });
 
       if (fotosSeleccionadas.length > 0 && ubicacion.id) {
         const fotos = fotosSeleccionadas.map((f, i) => ({
@@ -399,11 +492,18 @@ export default function MapaScreen() {
         <Pressable onPress={() => router.back()} style={s.backBtn}>
           <Text style={s.backIcon}>←</Text>
         </Pressable>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Mapa de visitas</Text>
-          <Text style={s.headerSub}>{ubicaciones.length} registros</Text>
+          <Text style={s.headerSub}>{ubicaciones.filter(u => !u._pendiente_sync).length} registros{desdeCache ? ' · sin conexión' : ''}</Text>
         </View>
       </View>
+
+      {/* Banner offline */}
+      {desdeCache && (
+        <View style={s.cacheBanner}>
+          <Text style={s.cacheText}>📴 Sin conexión — mostrando visitas guardadas en el dispositivo</Text>
+        </View>
+      )}
 
       {/* Filtros */}
       <View style={s.filtrosCont}>
@@ -414,6 +514,25 @@ export default function MapaScreen() {
             </Text>
           </Pressable>
         ))}
+        <Pressable
+          style={[s.chip, mostrarAnuncios && s.chipAnuncioActivo]}
+          onPress={() => setMostrarAnuncios(v => !v)}
+        >
+          <Text style={[s.chipText, mostrarAnuncios && s.chipTextActivo]}>
+            📢 Anuncios {anuncios.length > 0 ? `(${anuncios.filter(a => a.estado !== 'retirado').length})` : ''}
+          </Text>
+        </Pressable>
+        {/* Filtro por asesor — solo super_admin */}
+        {isSuperAdmin && (
+          <Pressable
+            style={[s.chip, asesorFiltrado ? s.chipAsesorActivo : null]}
+            onPress={() => setModalAsesores(true)}
+          >
+            <Text style={[s.chipText, asesorFiltrado ? s.chipTextActivo : null]} numberOfLines={1}>
+              👤 {asesorFiltrado ? asesorFiltrado.name : 'Todos'}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Mapa */}
@@ -425,13 +544,13 @@ export default function MapaScreen() {
         )}
 
         <MapView ref={mapRef} style={s.map} initialRegion={REGION_CDMX} showsUserLocation={locationPermission} showsMyLocationButton={false} googleRenderer="LEGACY">
-          {marcadores.map((u, i) => {
+          {marcadores.filter(u => u.latitud != null && u.longitud != null).map((u, i) => {
             const semaforoColor = u.tipo === 'escuela' && u.semaforo
               ? SEMAFORO_COLOR[u.semaforo as SemaforoEscuela]
               : null;
             return (
               <Marker
-                key={u.id ?? `l-${i}`}
+                key={u.id ?? u._local_id ?? `l-${i}`}
                 coordinate={{ latitude: u.latitud ?? 0, longitude: u.longitud ?? 0 }}
                 pinColor={TIPO_COLOR[u.tipo]}
                 onPress={() => setDetalle(u)}
@@ -440,6 +559,7 @@ export default function MapaScreen() {
                   s.pin,
                   { borderColor: semaforoColor ?? TIPO_COLOR[u.tipo] },
                   semaforoColor ? { borderWidth: 3 } : {},
+                  u._pendiente_sync ? { opacity: 0.6, borderStyle: 'dashed' } : {},
                 ]}>
                   <Text style={s.pinIcon}>{TIPO_ICON[u.tipo]}</Text>
                   {(u.fotos?.length ?? 0) > 0 && (
@@ -455,6 +575,23 @@ export default function MapaScreen() {
               </Marker>
             );
           })}
+
+          {/* Marcadores de anuncios */}
+          {mostrarAnuncios && anuncios.map((a, i) => (
+            <Marker
+              key={`anuncio-${a.id ?? i}`}
+              coordinate={{ latitude: a.latitud, longitude: a.longitud }}
+              onPress={() => setDetalleAnuncio(a)}
+            >
+              <View style={[
+                s.pin,
+                { borderColor: '#f97316', backgroundColor: '#fff7ed' },
+                a.estado === 'retirado' ? { opacity: 0.45 } : {},
+              ]}>
+                <Text style={s.pinIcon}>{ANUNCIO_TIPO_EMOJI[a.tipo]}</Text>
+              </View>
+            </Marker>
+          ))}
         </MapView>
 
         {/* Buscador flotante sobre el mapa */}
@@ -488,7 +625,7 @@ export default function MapaScreen() {
                     setBusqMapa('');
                     setBusqVisible(false);
                     mapRef.current?.animateToRegion({
-                      latitude: u.latitud, longitude: u.longitud,
+                      latitude: u.latitud ?? 0, longitude: u.longitud ?? 0,
                       latitudeDelta: 0.02, longitudeDelta: 0.02,
                     }, 600);
                     setTimeout(() => setDetalle(u), 700);
@@ -523,6 +660,10 @@ export default function MapaScreen() {
         <View style={s.fabs}>
           <Pressable style={s.fabSec} onPress={centrarEnMi}>
             <Text style={s.fabIcon}>🎯</Text>
+          </Pressable>
+          {/* FAB anuncio — naranja para distinguirlo */}
+          <Pressable style={s.fabAnuncio} onPress={() => router.push('/anuncio/nuevo')}>
+            <Text style={s.fabIcon}>📢</Text>
           </Pressable>
           <Pressable style={s.fab} onPress={() => abrirRegistro()}>
             <Text style={s.fabIcon}>＋</Text>
@@ -801,6 +942,12 @@ export default function MapaScreen() {
           <View style={s.handle} />
           {detalle && (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+              {/* Badge de pendiente sync */}
+              {detalle._pendiente_sync && (
+                <View style={s.pendienteSyncBanner}>
+                  <Text style={s.pendienteSyncText}>⏳ Pendiente de sincronizar — se enviará cuando haya conexión</Text>
+                </View>
+              )}
               <View style={s.detalleHeader}>
                 <View style={[s.detalleIconWrap, { backgroundColor: TIPO_COLOR[detalle.tipo] + '22', borderColor: TIPO_COLOR[detalle.tipo] }]}>
                   <Text style={s.detalleIconGrande}>{TIPO_ICON[detalle.tipo]}</Text>
@@ -875,7 +1022,11 @@ export default function MapaScreen() {
               ) : null}
               <View style={s.detalleRow}>
                 <Text style={s.detalleLabel}>Coordenadas</Text>
-                <Text style={s.detalleVal}>{detalle.latitud.toFixed(6)}, {detalle.longitud.toFixed(6)}</Text>
+                <Text style={s.detalleVal}>
+                  {detalle.latitud != null && detalle.longitud != null
+                    ? `${detalle.latitud.toFixed(6)}, ${detalle.longitud.toFixed(6)}`
+                    : 'Sin coordenadas registradas'}
+                </Text>
               </View>
 
               {(detalle.fotos?.length ?? 0) > 0 && (
@@ -900,14 +1051,14 @@ export default function MapaScreen() {
               <View style={s.navRow}>
                 <Pressable
                   style={[s.navBtn, { backgroundColor: '#4285F4' }]}
-                  onPress={() => abrirNavegacion(detalle.latitud, detalle.longitud, 'google')}
+                  onPress={() => detalle.latitud != null && detalle.longitud != null && abrirNavegacion(detalle.latitud, detalle.longitud, 'google')}
                 >
                   <Text style={s.navBtnIco}>🗺️</Text>
                   <Text style={s.navBtnTxt}>Google Maps</Text>
                 </Pressable>
                 <Pressable
                   style={[s.navBtn, { backgroundColor: '#00C4B3' }]}
-                  onPress={() => abrirNavegacion(detalle.latitud, detalle.longitud, 'waze')}
+                  onPress={() => detalle.latitud != null && detalle.longitud != null && abrirNavegacion(detalle.latitud, detalle.longitud, 'waze')}
                 >
                   <Text style={s.navBtnIco}>🚗</Text>
                   <Text style={s.navBtnTxt}>Waze</Text>
@@ -915,7 +1066,7 @@ export default function MapaScreen() {
                 {Platform.OS === 'ios' && (
                   <Pressable
                     style={[s.navBtn, { backgroundColor: Colors.dark[600] }]}
-                    onPress={() => abrirNavegacion(detalle.latitud, detalle.longitud, 'apple')}
+                    onPress={() => detalle.latitud != null && detalle.longitud != null && abrirNavegacion(detalle.latitud, detalle.longitud, 'apple')}
                   >
                     <Text style={s.navBtnIco}>🍎</Text>
                     <Text style={s.navBtnTxt}>Maps</Text>
@@ -982,6 +1133,138 @@ export default function MapaScreen() {
           </Pressable>
         </View>
       </Modal>
+
+      {/* ── Modal: detalle de anuncio ──────────────────────────────────────────── */}
+      <Modal visible={!!detalleAnuncio} animationType="slide" transparent onRequestClose={() => setDetalleAnuncio(null)}>
+        <Pressable style={s.backdrop} onPress={() => setDetalleAnuncio(null)} />
+        <View style={s.sheet}>
+          <View style={s.handle} />
+          {detalleAnuncio && (
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+              <View style={s.detalleHeader}>
+                <View style={[s.detalleIconWrap, { backgroundColor: '#fff7ed', borderColor: '#f97316' }]}>
+                  <Text style={s.detalleIconGrande}>{ANUNCIO_TIPO_EMOJI[detalleAnuncio.tipo]}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.detalleTipo}>
+                    Anuncio — {ANUNCIO_TIPO_LABEL[detalleAnuncio.tipo]}
+                  </Text>
+                  {detalleAnuncio.estado === 'retirado' && (
+                    <View style={{ backgroundColor: '#fee2e2', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 2 }}>
+                      <Text style={{ color: '#dc2626', fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold }}>RETIRADO</Text>
+                    </View>
+                  )}
+                  {detalleAnuncio.colocado_en && (
+                    <Text style={s.detalleFecha}>📅 Colocado: {detalleAnuncio.colocado_en}</Text>
+                  )}
+                </View>
+                <Pressable onPress={() => setDetalleAnuncio(null)} style={s.detalleClose}>
+                  <Text style={{ color: Colors.dark[500], fontSize: 18 }}>✕</Text>
+                </Pressable>
+              </View>
+
+              {detalleAnuncio.asesor && (
+                <View style={s.detalleRow}>
+                  <Text style={s.detalleLabel}>Asesor</Text>
+                  <Text style={s.detalleVal}>{detalleAnuncio.asesor}</Text>
+                </View>
+              )}
+              {(detalleAnuncio.direccion || detalleAnuncio.colonia) && (
+                <View style={s.detalleRow}>
+                  <Text style={s.detalleLabel}>Dirección</Text>
+                  <Text style={s.detalleVal}>
+                    {[detalleAnuncio.direccion, detalleAnuncio.colonia, detalleAnuncio.municipio, detalleAnuncio.estado_geo]
+                      .filter(Boolean).join(', ')}
+                  </Text>
+                </View>
+              )}
+              {detalleAnuncio.descripcion && (
+                <View style={s.detalleRow}>
+                  <Text style={s.detalleLabel}>Notas</Text>
+                  <Text style={s.detalleVal}>{detalleAnuncio.descripcion}</Text>
+                </View>
+              )}
+
+              {/* Fotos */}
+              {(detalleAnuncio.fotos?.length ?? 0) > 0 && (
+                <>
+                  <Text style={[s.sheetLabel, { marginTop: Spacing.base }]}>
+                    Fotos ({detalleAnuncio.fotos!.length})
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                      {detalleAnuncio.fotos!.map(f => (
+                        <View key={f.id} style={s.detalleThumb}>
+                          <Image source={{ uri: f.url }} style={s.detalleImg} resizeMode="cover" />
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </>
+              )}
+
+              {/* Acción: marcar como retirado / reactivar */}
+              {detalleAnuncio.es_mio && (
+                <Pressable
+                  style={[
+                    s.btnGuardar,
+                    { backgroundColor: detalleAnuncio.estado === 'activo' ? Colors.crimson[600] : Colors.success },
+                  ]}
+                  onPress={async () => {
+                    if (!detalleAnuncio.id) return;
+                    const nuevoEstado = detalleAnuncio.estado === 'activo' ? 'retirado' : 'activo';
+                    try {
+                      await actualizarEstadoAnuncio(detalleAnuncio.id, nuevoEstado);
+                      setAnuncios(prev => prev.map(a =>
+                        a.id === detalleAnuncio.id ? { ...a, estado: nuevoEstado } : a
+                      ));
+                      setDetalleAnuncio(null);
+                    } catch {
+                      Alert.alert('Error', 'No se pudo actualizar el estado del anuncio.');
+                    }
+                  }}
+                >
+                  <Text style={s.btnGuardarText}>
+                    {detalleAnuncio.estado === 'activo' ? '🗑️ Marcar como retirado' : '✓ Reactivar anuncio'}
+                  </Text>
+                </Pressable>
+              )}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
+
+      {/* Modal selector de asesor — mapa */}
+      {isSuperAdmin && (
+        <Modal visible={modalAsesores} animationType="slide" transparent onRequestClose={() => setModalAsesores(false)}>
+          <Pressable style={s.backdrop} onPress={() => setModalAsesores(false)} />
+          <View style={s.sheet}>
+            <View style={s.handle} />
+            <Text style={s.sheetTitle}>Filtrar por asesor</Text>
+            <Pressable
+              style={[s.asesorItem, !asesorFiltrado && s.asesorItemActivo]}
+              onPress={() => { setAsesorFiltrado(null); setModalAsesores(false); }}
+            >
+              <Text style={[s.asesorItemText, !asesorFiltrado && s.asesorItemTextoActivo]}>
+                👥 Todos los asesores
+              </Text>
+              {!asesorFiltrado && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+            </Pressable>
+            {asesores.map(a => (
+              <Pressable
+                key={a.id}
+                style={[s.asesorItem, asesorFiltrado?.id === a.id && s.asesorItemActivo]}
+                onPress={() => { setAsesorFiltrado(a); setModalAsesores(false); }}
+              >
+                <Text style={[s.asesorItemText, asesorFiltrado?.id === a.id && s.asesorItemTextoActivo]}>
+                  👤 {a.name}
+                </Text>
+                {asesorFiltrado?.id === a.id && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+              </Pressable>
+            ))}
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -1011,6 +1294,36 @@ const s = StyleSheet.create({
   },
   headerSub: { fontSize: Typography.fontSize.xs, color: Colors.gold[300] },
 
+  // Banner offline
+  cacheBanner: {
+    backgroundColor: Colors.dark[800],
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.gold[400],
+  },
+  cacheText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+  },
+
+  // Badge pendiente sync en detalle modal
+  pendienteSyncBanner: {
+    backgroundColor: Colors.gold[50],
+    borderWidth: 1,
+    borderColor: Colors.gold[400],
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  pendienteSyncText: {
+    color: Colors.gold[700],
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
+    lineHeight: Typography.fontSize.sm * 1.4,
+  },
+
   // Filtros
   filtrosCont: {
     flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm,
@@ -1023,6 +1336,8 @@ const s = StyleSheet.create({
     borderRadius: Radius.full, borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
+  chipAnuncioActivo: { backgroundColor: '#f97316', borderColor: '#f97316' },
+  chipAsesorActivo:  { backgroundColor: Colors.gold[600], borderColor: Colors.gold[600] },
   chipActivo: { backgroundColor: Colors.gold[400], borderColor: Colors.gold[400] },
   chipText: { fontSize: Typography.fontSize.xs, color: '#ffffff' },
   chipTextActivo: { color: Colors.dark[900], fontWeight: Typography.fontWeight.bold },
@@ -1054,14 +1369,20 @@ const s = StyleSheet.create({
   },
   fab: {
     width: 56, height: 56, borderRadius: 28,
-    backgroundColor: Colors.gold[400],
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.gold[400],    alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOpacity: 0.25,
     shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 8,
   },
   fabSec: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: Colors.dark[800],
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 4,
+  },
+  fabAnuncio: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#f97316',
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 4,
@@ -1334,4 +1655,18 @@ const s = StyleSheet.create({
   },
   semaforoOpcionEmoji: { fontSize: 22 },
   semaforoOpcionLabel: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[700] },
+
+  // Selector de asesor — mapa
+  asesorItem: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    borderRadius:    Radius.md,
+    marginBottom:    Spacing.xs,
+  },
+  asesorItemActivo:      { backgroundColor: Colors.gold[50] },
+  asesorItemText:        { fontSize: Typography.fontSize.base, color: Colors.dark[800] },
+  asesorItemTextoActivo: { color: Colors.gold[700], fontWeight: Typography.fontWeight.semibold },
 });

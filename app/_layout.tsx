@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { SyncProvider } from '../src/contexts/SyncContext';
+import { AuthProvider } from '../src/contexts/AuthContext';
 import { registrarPushToken, registrarListeners, limpiarBadge } from '../src/services/notifications';
 
 export default function RootLayout() {
@@ -52,6 +53,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      <AuthProvider>
       <SyncProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)"                               options={{ headerShown: false }} />
@@ -62,8 +64,10 @@ export default function RootLayout() {
         <Stack.Screen name="expedientes/documentos/subir"         options={{ headerShown: false }} />
         <Stack.Screen name="mapa"                                  options={{ headerShown: false }} />
         <Stack.Screen name="ayuda"                                  options={{ headerShown: false }} />
+        <Stack.Screen name="anuncio/nuevo"                         options={{ headerShown: false }} />
       </Stack>
       </SyncProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

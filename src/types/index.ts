@@ -75,6 +75,9 @@ export interface Contacto {
     folio?: string | null;
     estado: string;
   } | null;
+  // Campos para gestión offline local
+  _local_id?:       string;
+  _pendiente_sync?: boolean;
 }
 
 export type EstadoExpediente =
@@ -132,6 +135,46 @@ export interface Documento {
   _pendiente_sync?: boolean;
 }
 
+export type TipoAnuncio = 'lona' | 'hoja_tienda' | 'hoja_poste' | 'volante' | 'otro';
+export type EstadoAnuncio = 'activo' | 'retirado';
+
+export const ANUNCIO_TIPO_LABEL: Record<TipoAnuncio, string> = {
+  lona:        'Lona',
+  hoja_tienda: 'Hoja en tienda',
+  hoja_poste:  'Hoja en poste',
+  volante:     'Volante',
+  otro:        'Otro',
+};
+
+export const ANUNCIO_TIPO_EMOJI: Record<TipoAnuncio, string> = {
+  lona:        '📢',
+  hoja_tienda: '🏪',
+  hoja_poste:  '📌',
+  volante:     '📄',
+  otro:        '📣',
+};
+
+export interface Anuncio {
+  id?:          number;
+  user_id?:     number;
+  asesor?:      string;
+  asesor_id?:   number;
+  es_mio?:      boolean;
+  latitud:      number;
+  longitud:     number;
+  tipo:         TipoAnuncio;
+  estado?:      EstadoAnuncio;
+  descripcion?: string;
+  direccion?:   string;
+  colonia?:     string;
+  municipio?:   string;
+  estado_geo?:  string;
+  colocado_en?: string;
+  fotos?:       { id: number; url: string }[];
+  _local_id?:   string;
+  _pendiente_sync?: boolean;
+}
+
 export type SemaforoEscuela = 'verde' | 'amarillo' | 'rojo';
 
 export interface Escuela {
@@ -151,6 +194,8 @@ export interface Ubicacion {
   id?:             number;
   contacto_id?:    number;
   contacto?:       string;
+  user_id?:        number;
+  asesor_id?:      number;   // alias de user_id, devuelto por el API
   latitud?:        number | null;
   longitud?:       number | null;
   tipo:            'visita_cliente' | 'propiedad' | 'escuela';

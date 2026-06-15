@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
-  TouchableOpacity, TextInput, ActivityIndicator, RefreshControl,
+  TouchableOpacity, TextInput, ActivityIndicator, RefreshControl, Modal, Pressable,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
-import { getContactos } from '../../src/services/api';
-import { cacheContactos, getCacheContactos } from '../../src/services/offline';
+import { getContactos, getAsesores, type AsesorBasico } from '../../src/services/api';
+import { cacheContactos, getCacheContactos, getContactosPendientesSync } from '../../src/services/offline';
 import { useSyncContext } from '../../src/contexts/SyncContext';
+import { useAuth } from '../../src/contexts/AuthContext';
 import type { Contacto } from '../../src/types';
 
 const ESTADOS = [
@@ -23,6 +24,7 @@ export default function ProspectosScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ refresh?: string }>();
   const { online } = useSyncContext();
+  const { isSuperAdmin } = useAuth();
 
   const [items,      setItems]      = useState<Contacto[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -32,20 +34,36 @@ export default function ProspectosScreen() {
   const [query,      setQuery]      = useState('');
   const [estado,     setEstado]     = useState('todos');
 
+  // Filtro por asesor — solo super_admin
+  const [asesores,         setAsesores]         = useState<AsesorBasico[]>([]);
+  const [asesorFiltrado,   setAsesorFiltrado]   = useState<AsesorBasico | null>(null);
+  const [modalAsesores,    setModalAsesores]    = useState(false);
+
+  // Cargar lista de asesores una sola vez si es super_admin
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    getAsesores().then(setAsesores).catch(() => {});
+  }, [isSuperAdmin]);
+
   const load = useCallback(async (opts?: { refreshing?: boolean }) => {
     if (opts?.refreshing) setRefreshing(true);
     else setLoading(true);
     setErrorMsg(null);
 
+    const pendientesCola = await getContactosPendientesSync();
+
     if (!online) {
-      // Sin internet: mostrar datos cacheados
       const cached = await getCacheContactos();
       const filtrados = cached.filter(c => {
-        const matchEstado = estado === 'todos' || c.estado_prospecto === estado;
-        const matchQuery  = !query || c.nombre?.toLowerCase().includes(query.toLowerCase());
-        return matchEstado && matchQuery;
+        const matchEstado  = estado === 'todos' || c.estado_prospecto === estado;
+        const matchQuery   = !query || c.nombre?.toLowerCase().includes(query.toLowerCase());
+        const matchAsesor  = !asesorFiltrado || c.asesor_id === asesorFiltrado.id;
+        return matchEstado && matchQuery && matchAsesor;
       });
-      setItems(filtrados);
+      const pendientesNuevos = pendientesCola.filter(p =>
+        !filtrados.some(c => c._local_id === p._local_id)
+      );
+      setItems([...pendientesNuevos, ...filtrados]);
       setDesdeCache(true);
       setLoading(false);
       setRefreshing(false);
@@ -54,20 +72,25 @@ export default function ProspectosScreen() {
 
     try {
       const res = await getContactos({
-        q:      query  || undefined,
-        estado: estado !== 'todos' ? estado : undefined,
+        q:          query  || undefined,
+        estado:     estado !== 'todos' ? estado : undefined,
+        asesor_id:  asesorFiltrado?.id,
       });
-      setItems(res.data);
+      const pendientesNuevos = pendientesCola.filter(p =>
+        !res.data.some(c => c._local_id === p._local_id)
+      );
+      setItems([...pendientesNuevos, ...res.data]);
       setDesdeCache(false);
-      // Guardar en cache solo cuando no hay filtros activos (para tener la lista completa)
-      if (!query && estado === 'todos') {
+      if (!query && estado === 'todos' && !asesorFiltrado) {
         cacheContactos(res.data).catch(() => {});
       }
     } catch (e: unknown) {
-      // Fallo de red: caer al cache
       const cached = await getCacheContactos();
-      if (cached.length > 0) {
-        setItems(cached);
+      const pendientesNuevos = pendientesCola.filter(p =>
+        !cached.some(c => c._local_id === p._local_id)
+      );
+      if (cached.length > 0 || pendientesNuevos.length > 0) {
+        setItems([...pendientesNuevos, ...cached]);
         setDesdeCache(true);
       } else {
         setErrorMsg(e instanceof Error ? e.message : 'Error de conexión');
@@ -76,7 +99,7 @@ export default function ProspectosScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [online, query, estado]);
+  }, [online, query, estado, asesorFiltrado]);
 
   // Un solo efecto: carga cuando cambian los filtros (incluyendo montaje inicial)
   useEffect(() => {
@@ -119,6 +142,28 @@ export default function ProspectosScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Filtro por asesor — solo super_admin */}
+        {isSuperAdmin && (
+          <TouchableOpacity
+            style={styles.asesorFiltro}
+            onPress={() => setModalAsesores(true)}
+          >
+            <Text style={styles.asesorFiltroIcon}>👤</Text>
+            <Text style={styles.asesorFiltroText} numberOfLines={1}>
+              {asesorFiltrado ? asesorFiltrado.name : 'Todos los asesores'}
+            </Text>
+            {asesorFiltrado && (
+              <TouchableOpacity
+                onPress={() => setAsesorFiltrado(null)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={{ color: Colors.dark[400], fontSize: 14 }}>✕</Text>
+              </TouchableOpacity>
+            )}
+            {!asesorFiltrado && <Text style={styles.asesorFiltroChevron}>▾</Text>}
+          </TouchableOpacity>
+        )}
 
         <FlatList
           horizontal
@@ -186,9 +231,12 @@ export default function ProspectosScreen() {
           }
           renderItem={({ item: c }) => (
             <TouchableOpacity
-              style={styles.row}
-              onPress={() => router.push(`/prospectos/${c.id}`)}
-              activeOpacity={0.75}
+              style={[styles.row, c._pendiente_sync && styles.rowPendiente]}
+              onPress={() => c._pendiente_sync
+                ? undefined  // no navegar a pendientes sin id
+                : router.push(`/prospectos/${c.id}`)
+              }
+              activeOpacity={c._pendiente_sync ? 1 : 0.75}
             >
               <View style={styles.avatar}>
                 <Text style={styles.avatarLetter}>
@@ -201,16 +249,51 @@ export default function ProspectosScreen() {
                   {c.servicio ? `${c.servicio} · ` : ''}
                   {c.email ?? c.telefono ?? '—'}
                 </Text>
+                {c._pendiente_sync && (
+                  <Text style={styles.pendienteSyncText}>⏳ Pendiente de sincronizar</Text>
+                )}
               </View>
-              <Badge
-                label={c.estado_prospecto}
-                variant={ESTADO_PROSPECTO_BADGE[c.estado_prospecto] ?? 'gray'}
-                small
-              />
+              {!c._pendiente_sync && (
+                <Badge
+                  label={c.estado_prospecto}
+                  variant={ESTADO_PROSPECTO_BADGE[c.estado_prospecto] ?? 'gray'}
+                  small
+                />
+              )}
             </TouchableOpacity>
           )}
         />
       )}
+
+      {/* Modal selector de asesor */}
+      <Modal visible={modalAsesores} animationType="slide" transparent onRequestClose={() => setModalAsesores(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setModalAsesores(false)} />
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHandle} />
+          <Text style={styles.modalTitle}>Filtrar por asesor</Text>
+          <TouchableOpacity
+            style={[styles.asesorItem, !asesorFiltrado && styles.asesorItemActive]}
+            onPress={() => { setAsesorFiltrado(null); setModalAsesores(false); }}
+          >
+            <Text style={[styles.asesorItemText, !asesorFiltrado && styles.asesorItemTextActive]}>
+              👥 Todos los asesores
+            </Text>
+            {!asesorFiltrado && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+          </TouchableOpacity>
+          {asesores.map(a => (
+            <TouchableOpacity
+              key={a.id}
+              style={[styles.asesorItem, asesorFiltrado?.id === a.id && styles.asesorItemActive]}
+              onPress={() => { setAsesorFiltrado(a); setModalAsesores(false); }}
+            >
+              <Text style={[styles.asesorItemText, asesorFiltrado?.id === a.id && styles.asesorItemTextActive]}>
+                👤 {a.name}
+              </Text>
+              {asesorFiltrado?.id === a.id && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -283,11 +366,13 @@ const styles = StyleSheet.create({
   retryText:  { color: '#dc2626', fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, marginLeft: Spacing.sm },
 
   cacheBanner: {
-    backgroundColor: Colors.dark[800],
+    backgroundColor:  Colors.dark[800],
     paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.xs,
+    paddingVertical:   Spacing.md,     // más espacio vertical
+    borderLeftWidth:   4,
+    borderLeftColor:   Colors.gold[400],
   },
-  cacheText: { color: 'rgba(255,255,255,0.8)', fontSize: Typography.fontSize.xs },
+  cacheText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, lineHeight: Typography.fontSize.sm * 1.4 },
 
   listContent: { padding: Spacing.sm },
 
@@ -296,6 +381,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white, borderRadius: Radius.md,
     padding: Spacing.md, marginBottom: Spacing.xs,
     borderWidth: 1, borderColor: Colors.cream[200], gap: Spacing.sm,
+  },
+  rowPendiente: {
+    borderColor: Colors.gold[400],
+    borderStyle: 'dashed',
+    opacity: 0.85,
+  },
+  pendienteSyncText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.gold[600],
+    marginTop: 2,
+    fontStyle: 'italic',
   },
   avatar:       { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.cream[200], alignItems: 'center', justifyContent: 'center' },
   avatarLetter: { color: Colors.dark[700], fontWeight: Typography.fontWeight.bold, fontSize: Typography.fontSize.base },
@@ -307,4 +403,54 @@ const styles = StyleSheet.create({
   emptyIcon:  { fontSize: 48, marginBottom: Spacing.md },
   emptyTitle: { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[700], marginBottom: Spacing.xs },
   emptyText:  { fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center', paddingHorizontal: Spacing.xl },
+
+  // Selector de asesor
+  asesorFiltro: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    backgroundColor:   Colors.cream[100],
+    borderRadius:      Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical:   Spacing.sm,
+    marginBottom:      Spacing.sm,
+    borderWidth:       1,
+    borderColor:       Colors.cream[300],
+    gap:               Spacing.sm,
+  },
+  asesorFiltroIcon:    { fontSize: 16 },
+  asesorFiltroText:    { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[700], fontWeight: Typography.fontWeight.semibold },
+  asesorFiltroChevron: { fontSize: 12, color: Colors.dark[400] },
+
+  // Modal asesor
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalSheet: {
+    backgroundColor:     Colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius:20,
+    padding:             Spacing.base,
+    paddingBottom:       40,
+  },
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: Colors.dark[300],
+    alignSelf: 'center', marginBottom: Spacing.base,
+  },
+  modalTitle: {
+    fontSize:     Typography.fontSize.lg,
+    fontWeight:   Typography.fontWeight.bold,
+    color:        Colors.dark[900],
+    marginBottom: Spacing.md,
+  },
+  asesorItem: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'space-between',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    borderRadius:    Radius.md,
+    marginBottom:    Spacing.xs,
+  },
+  asesorItemActive:    { backgroundColor: Colors.gold[50] },
+  asesorItemText:      { fontSize: Typography.fontSize.base, color: Colors.dark[800] },
+  asesorItemTextActive: { color: Colors.gold[700], fontWeight: Typography.fontWeight.semibold },
 });
