@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  KeyboardAvoidingView, Platform, Image, TouchableOpacity,
+  KeyboardAvoidingView, Platform, Image, TouchableOpacity, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
@@ -186,10 +186,16 @@ export default function LoginScreen() {
         </View>
 
         <Text style={styles.footer}>
-          © 2025 Consultoría Inmobiliaria · Uso exclusivo asesores
+          © 2026 Consultoría Inmobiliaria · Uso exclusivo asesores
         </Text>
+        <TouchableOpacity
+          onPress={() => Linking.openURL('https://consultoriainmobiliaria.com.mx/aviso-de-privacidad')}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.privacyLink}>Aviso de Privacidad</Text>
+        </TouchableOpacity>
         <Text style={styles.version}>
-          v{Constants.expoConfig?.version ?? '1.0.0'}
+          v{Constants.expoConfig?.version ?? '1.4.2'}
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -316,5 +322,12 @@ const styles = StyleSheet.create({
     fontSize:  Typography.fontSize.xs,
     color:     Colors.dark[600],
     textAlign: 'center',
+  },
+  privacyLink: {
+    marginTop:  Spacing.xs,
+    fontSize:   Typography.fontSize.xs,
+    color:      Colors.gold[400],
+    textAlign:  'center',
+    textDecorationLine: 'underline',
   },
 });

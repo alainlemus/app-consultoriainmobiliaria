@@ -110,6 +110,16 @@ export async function logout(): Promise<void> {
   await removeToken();
 }
 
+/**
+ * Solicita la cancelación/desactivación de la cuenta del usuario.
+ * Requerimiento de Apple App Store.
+ * Desactiva la cuenta en el servidor y revoca todos los tokens.
+ */
+export async function solicitarCancelacionCuenta(): Promise<void> {
+  await apiFetch('/auth/solicitar-cancelacion', { method: 'POST' });
+  await removeToken();
+}
+
 export async function getMe(): Promise<AuthState['user']> {
   const res = await apiFetch<ApiResponse<AuthState['user']>>('/auth/me');
   const u = res.data;

@@ -2,19 +2,21 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, TextInput, Image,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Linking,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Card from '../../src/components/ui/Card';
-import { getMe, logout, updatePerfil, subirFotoPerfil } from '../../src/services/api';
+import { getMe, logout, updatePerfil, subirFotoPerfil, solicitarCancelacionCuenta } from '../../src/services/api';
+import { useAuth } from '../../src/contexts/AuthContext';
 import type { User } from '../../src/types';
 
 export default function PerfilScreen() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
+  const { clearUser } = useAuth();
 
   const [user,      setUser]      = useState<User | null>(null);
   const [editando,  setEditando]  = useState(false);
@@ -107,7 +109,36 @@ export default function PerfilScreen() {
   // ── Logout ─────────────────────────────────────────────────────────────────
   async function handleLogout() {
     await logout();
+    clearUser();
     router.replace('/(auth)/login');
+  }
+
+  // ── Cancelar cuenta (requerimiento Apple App Store) ────────────────────────
+  async function handleCancelarCuenta() {
+    Alert.alert(
+      'Cancelar cuenta',
+      'Tu cuenta será desactivada y se cerrará la sesión en todos tus dispositivos. Tus datos (expedientes, prospectos) se conservan y un administrador procesará tu solicitud.\n\n¿Deseas continuar?',
+      [
+        { text: 'No, mantener cuenta', style: 'cancel' },
+        {
+          text: 'Sí, cancelar mi cuenta',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await solicitarCancelacionCuenta();
+              clearUser();
+              Alert.alert(
+                'Cuenta cancelada',
+                'Tu cuenta ha sido desactivada. Si fue un error, contacta a tu administrador.',
+                [{ text: 'Aceptar', onPress: () => router.replace('/(auth)/login') }]
+              );
+            } catch (e: any) {
+              Alert.alert('Error', e?.message ?? 'No se pudo procesar la solicitud.');
+            }
+          },
+        },
+      ]
+    );
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -217,6 +248,28 @@ export default function PerfilScreen() {
               <Text style={s.logoutText}>Cerrar sesión</Text>
             </TouchableOpacity>
           </Card>
+
+          {/* ── Legal ── */}
+          <Card title="Legal" subtitle="Información" style={s.card}>
+            <TouchableOpacity
+              style={s.legalItem}
+              onPress={() => Linking.openURL('https://consultoriainmobiliaria.com.mx/aviso-de-privacidad')}
+            >
+              <Text style={s.legalIcon}>🔒</Text>
+              <Text style={s.legalText}>Aviso de Privacidad</Text>
+              <Text style={s.legalChevron}>›</Text>
+            </TouchableOpacity>
+          </Card>
+
+          {/* ── Zona de peligro ── */}
+          <Card title="Zona de peligro" subtitle="Acciones irreversibles" style={s.card}>
+            <Text style={s.dangerInfo}>
+              Al cancelar tu cuenta se cerrará la sesión en todos tus dispositivos y tu cuenta quedará desactivada. Tus expedientes y prospectos se conservan. Un administrador procesará tu solicitud.
+            </Text>
+            <TouchableOpacity style={s.cancelBtn} onPress={handleCancelarCuenta}>
+              <Text style={s.cancelBtnText}>Cancelar mi cuenta</Text>
+            </TouchableOpacity>
+          </Card>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -312,4 +365,30 @@ const s = StyleSheet.create({
   ayudaIcon:  { fontSize: 18 },
   ayudaText:  { flex: 1, color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.medium },
   ayudaChevron: { fontSize: 20, color: Colors.gold[400] },
+
+  // Legal
+  legalItem:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
+  legalIcon:    { fontSize: 18 },
+  legalText:    { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[700], fontWeight: Typography.fontWeight.medium },
+  legalChevron: { fontSize: 20, color: Colors.dark[400] },
+
+  // Cancelar cuenta
+  dangerInfo: {
+    fontSize:     Typography.fontSize.sm,
+    color:        Colors.dark[500],
+    lineHeight:   Typography.fontSize.sm * 1.5,
+    marginBottom: Spacing.base,
+  },
+  cancelBtn: {
+    borderWidth:   1.5,
+    borderColor:   Colors.crimson[600],
+    borderRadius:  Radius.sm,
+    padding:       Spacing.md,
+    alignItems:    'center',
+  },
+  cancelBtnText: {
+    color:      Colors.crimson[600],
+    fontWeight: Typography.fontWeight.bold,
+    fontSize:   Typography.fontSize.sm,
+  },
 });
