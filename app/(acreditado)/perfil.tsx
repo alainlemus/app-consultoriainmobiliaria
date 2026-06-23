@@ -86,14 +86,41 @@ export default function PerfilAcreditadoScreen() {
   }
 
   async function handleSubirFoto() {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permiso requerido', 'Activa el acceso a la galería.'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.85 });
-    if (result.canceled) return;
-    try {
-      await subirFotoAcreditado(result.assets[0].uri);
-      await cargar();
-    } catch {}
+    Alert.alert(
+      'Foto de perfil',
+      '¿Cómo quieres actualizar tu foto?',
+      [
+        {
+          text: 'Tomar foto',
+          onPress: async () => {
+            const perm = await ImagePicker.requestCameraPermissionsAsync();
+            if (!perm.granted) { Alert.alert('Permiso requerido', 'Activa el acceso a la cámara.'); return; }
+            const result = await ImagePicker.launchCameraAsync({
+              quality: 0.85,
+              allowsEditing: true,
+              aspect: [1, 1],
+            });
+            if (result.canceled) return;
+            try { await subirFotoAcreditado(result.assets[0].uri); await cargar(); } catch {}
+          },
+        },
+        {
+          text: 'Elegir de galería',
+          onPress: async () => {
+            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) { Alert.alert('Permiso requerido', 'Activa el acceso a la galería.'); return; }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              quality: 0.85,
+              allowsEditing: true,
+              aspect: [1, 1],
+            });
+            if (result.canceled) return;
+            try { await subirFotoAcreditado(result.assets[0].uri); await cargar(); } catch {}
+          },
+        },
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
   }
 
   async function handleLogout() {

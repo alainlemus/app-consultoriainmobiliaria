@@ -97,7 +97,7 @@ export default function RegistroAcreditadoScreen() {
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
-            placeholder="Como aparece en tu identificación"
+            placeholder="Nombre como en tu ID"
             dark={false}
           />
 

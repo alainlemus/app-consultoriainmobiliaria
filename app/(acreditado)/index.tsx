@@ -65,7 +65,11 @@ export default function MiTramiteScreen() {
           <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? 'bienvenido'} 👋</Text>
           <Text style={styles.headerSub}>Consultoría Inmobiliaria</Text>
         </View>
-        <ScrollView contentContainerStyle={styles.emptyContainer}>
+        <ScrollView
+          contentContainerStyle={styles.emptyContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <Ionicons name="home-outline" size={64} color={Colors.dark[600]} />
           <Text style={styles.emptyTitle}>Aún no tienes un trámite activo</Text>
           <Text style={styles.emptySubtitle}>
@@ -271,7 +275,14 @@ const styles = StyleSheet.create({
   asesorBtn:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: Colors.dark[700], paddingHorizontal: Spacing.base, paddingVertical: Spacing.sm, borderRadius: Radius.md },
   asesorBtnText: { fontSize: Typography.fontSize.sm, color: Colors.cream[200] },
 
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing['3xl'], gap: Spacing.base },
+  emptyContainer: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing['3xl'],
+    gap: Spacing.base,
+    paddingBottom: Spacing['3xl'] * 2,
+  },
   emptyTitle:    { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.cream[50], textAlign: 'center' },
   emptySubtitle: { fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center', lineHeight: Typography.fontSize.sm * 1.6 },
   servicioBtn:   { width: '100%', backgroundColor: Colors.dark[800], borderRadius: Radius.md, padding: Spacing.lg, alignItems: 'center', borderWidth: 1, borderColor: Colors.gold[400] },

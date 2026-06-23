@@ -72,7 +72,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name:    'Consultoría Inmobiliaria',
     slug:    'app-consultoriainmobiliaria',
-    version: '1.4.2',
+    version: '1.5.2',
     orientation: 'portrait',
     icon:    './assets/icon.png',
     userInterfaceStyle: 'light',

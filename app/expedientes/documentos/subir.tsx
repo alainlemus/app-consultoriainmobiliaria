@@ -104,7 +104,10 @@ export default function SubirDocumentoScreen() {
       return;
     }
     try {
-      const { scannedImages } = await DocumentScanner.scanDocument();
+      const { scannedImages } = await DocumentScanner.scanDocument({
+        croppedImageQuality: 90,
+        maxNumDocuments: 10, // hasta 10 páginas, sin auto-captura forzada
+      });
       if (!scannedImages || scannedImages.length === 0) return; // usuario canceló
 
       setPages(scannedImages);
