@@ -16,8 +16,11 @@ export default function RootLayout() {
       const asesorToken     = await SecureStore.getItemAsync('auth_token');
       const acreditadoToken = await getAcreditadoToken();
       const inAuth          = segments[0] === '(auth)';
-      const inAsesor        = segments[0] === '(tabs)';
       const inAcreditado    = segments[0] === '(acreditado)';
+
+      // Rutas válidas para el asesor (tabs + pantallas del stack del asesor)
+      const rutasAsesor = ['(tabs)', 'mapa', 'prospectos', 'expedientes', 'ayuda', 'anuncio'];
+      const inAsesor    = rutasAsesor.includes(segments[0] ?? '');
 
       // Acreditado con sesión activa → ir a su sección
       if (acreditadoToken && !inAcreditado && !inAuth) {
@@ -25,7 +28,7 @@ export default function RootLayout() {
         return;
       }
 
-      // Asesor con sesión activa → ir a sus tabs
+      // Asesor con sesión activa → si está en una ruta válida, no hacer nada
       if (asesorToken && !inAsesor && !inAuth) {
         router.replace('/(tabs)');
         return;
