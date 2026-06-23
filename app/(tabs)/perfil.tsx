@@ -59,9 +59,10 @@ export default function PerfilScreen() {
       // Preservar foto_perfil_url del estado actual por si la URL firmada
       // de la respuesta difiere o viene sin resolver
       setUser(prev => ({
+        ...prev,
         ...updated,
         foto_perfil_url: updated?.foto_perfil_url ?? prev?.foto_perfil_url,
-      }));
+      }) as typeof prev);
       setEditando(false);
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'No se pudo guardar.');

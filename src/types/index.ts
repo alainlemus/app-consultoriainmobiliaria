@@ -284,3 +284,69 @@ export interface ResumenComisiones {
   cantidad_pagadas:    number;
   cantidad_pendientes: number;
 }
+
+// ── Tipos del Acreditado ────────────────────────────────────────────────────
+
+export interface Acreditado {
+  id:               number;
+  name:             string;
+  email:            string;
+  telefono?:        string;
+  curp?:            string;
+  nss?:             string;
+  rfc?:             string;
+  foto_perfil_url?: string | null;
+  curp_verificado:  boolean;
+  tiene_expediente: boolean;
+}
+
+export interface AcreditadoAuthState {
+  acreditado: Acreditado | null;
+  token:      string | null;
+}
+
+export interface EtapaExpedienteAcreditado {
+  orden:  number;
+  nombre: string;
+  total:  number;
+}
+
+export interface ExpedienteAcreditado {
+  id:                    number;
+  folio:                 string;
+  estado:                string;
+  etapa:                 EtapaExpedienteAcreditado;
+  tipo_tramite?:         string;
+  fecha_apertura?:       string;
+  fecha_firma?:          string;
+  fecha_esperada_pago?:  string;
+  guia_paso_actual:      string;
+  documentos_pendientes: number;
+  asesor?: {
+    name:      string;
+    telefono?: string;
+    email?:    string;
+  };
+}
+
+export interface DocumentoAcreditado {
+  id:                     number;
+  nombre:                 string;
+  seccion:                string;
+  categoria?:             string;
+  estado:                 'pendiente' | 'recibido' | 'no_aplica';
+  tiene_archivo:          boolean;
+  subido_por_acreditado:  boolean;
+  notas?:                 string;
+}
+
+export interface SeguimientoAcreditado {
+  tipo:        string;
+  descripcion: string;
+  fecha:       string;
+}
+
+export interface ServicioTramite {
+  id:     number;
+  nombre: string;
+}

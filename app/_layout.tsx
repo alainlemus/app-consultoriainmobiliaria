@@ -5,6 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 import { SyncProvider } from '../src/contexts/SyncContext';
 import { AuthProvider } from '../src/contexts/AuthContext';
 import { registrarPushToken, registrarListeners, limpiarBadge } from '../src/services/notifications';
+import { getAcreditadoToken } from '../src/services/acreditadoApi';
 
 export default function RootLayout() {
   const router   = useRouter();
@@ -12,18 +13,31 @@ export default function RootLayout() {
 
   useEffect(() => {
     (async () => {
-      const token  = await SecureStore.getItemAsync('auth_token');
-      const inAuth = segments[0] === '(auth)';
+      const asesorToken     = await SecureStore.getItemAsync('auth_token');
+      const acreditadoToken = await getAcreditadoToken();
+      const inAuth          = segments[0] === '(auth)';
+      const inAsesor        = segments[0] === '(tabs)';
+      const inAcreditado    = segments[0] === '(acreditado)';
 
-      if (!token && !inAuth) {
-        router.replace('/(auth)/login');
-      } else if (token && inAuth) {
+      // Acreditado con sesión activa → ir a su sección
+      if (acreditadoToken && !inAcreditado && !inAuth) {
+        router.replace('/(acreditado)');
+        return;
+      }
+
+      // Asesor con sesión activa → ir a sus tabs
+      if (asesorToken && !inAsesor && !inAuth) {
         router.replace('/(tabs)');
+        return;
+      }
+
+      // Sin ninguna sesión → login
+      if (!asesorToken && !acreditadoToken && !inAuth) {
+        router.replace('/(auth)/login');
       }
     })();
   }, [segments]);
 
-  // Sync automático: manejado por SyncContext (SyncProvider en el árbol)
   // Push notifications
   useEffect(() => {
     SecureStore.getItemAsync('auth_token').then(token => {
@@ -56,15 +70,16 @@ export default function RootLayout() {
       <AuthProvider>
       <SyncProvider>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)"                               options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)"                               options={{ headerShown: false }} />
-        <Stack.Screen name="prospectos/[id]"                      options={{ headerShown: false }} />
-        <Stack.Screen name="prospectos/nuevo"                     options={{ headerShown: false }} />
-        <Stack.Screen name="expedientes/[id]"                     options={{ headerShown: false }} />
-        <Stack.Screen name="expedientes/documentos/subir"         options={{ headerShown: false }} />
-        <Stack.Screen name="mapa"                                  options={{ headerShown: false }} />
-        <Stack.Screen name="ayuda"                                  options={{ headerShown: false }} />
-        <Stack.Screen name="anuncio/nuevo"                         options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)"                           options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)"                           options={{ headerShown: false }} />
+        <Stack.Screen name="(acreditado)"                     options={{ headerShown: false }} />
+        <Stack.Screen name="prospectos/[id]"                  options={{ headerShown: false }} />
+        <Stack.Screen name="prospectos/nuevo"                 options={{ headerShown: false }} />
+        <Stack.Screen name="expedientes/[id]"                 options={{ headerShown: false }} />
+        <Stack.Screen name="expedientes/documentos/subir"     options={{ headerShown: false }} />
+        <Stack.Screen name="mapa"                             options={{ headerShown: false }} />
+        <Stack.Screen name="ayuda"                            options={{ headerShown: false }} />
+        <Stack.Screen name="anuncio/nuevo"                    options={{ headerShown: false }} />
       </Stack>
       </SyncProvider>
       </AuthProvider>
