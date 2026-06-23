@@ -7,13 +7,13 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, Radius } from '../../../src/theme';
+import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import {
   getDocumentosAcreditado,
   subirDocumentoAcreditado,
   getUrlDocumentoAcreditado,
-} from '../../../src/services/acreditadoApi';
-import type { DocumentoAcreditado } from '../../../src/types';
+} from '@/src/services/acreditadoApi';
+import type { DocumentoAcreditado } from '@/src/types';
 import { Linking } from 'react-native';
 
 const TIPOS_DOCUMENTO = [

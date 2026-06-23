@@ -5,9 +5,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, Radius } from '../../../src/theme';
-import { getSeguimientoAcreditado } from '../../../src/services/acreditadoApi';
-import type { SeguimientoAcreditado } from '../../../src/types';
+import { Colors, Typography, Spacing, Radius } from '@/src/theme';
+import { getSeguimientoAcreditado } from '@/src/services/acreditadoApi';
+import type { SeguimientoAcreditado } from '@/src/types';
 
 const TIPO_ICON: Record<string, { icon: string; color: string }> = {
   cambio_etapa: { icon: 'arrow-forward-circle', color: '#1d4ed8' },

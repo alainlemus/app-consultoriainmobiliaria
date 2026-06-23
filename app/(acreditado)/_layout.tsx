@@ -3,8 +3,8 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing } from '../../src/theme';
-import { AcreditadoAuthProvider } from '../../src/contexts/AcreditadoAuthContext';
+import { Colors, Spacing } from '@/src/theme';
+import { AcreditadoAuthProvider } from '@/src/contexts/AcreditadoAuthContext';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 

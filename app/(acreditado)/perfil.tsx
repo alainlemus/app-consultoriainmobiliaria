@@ -9,7 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, Radius } from '../../../src/theme';
+import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import {
   getMeAcreditado,
   updatePerfilAcreditado,
@@ -17,9 +17,9 @@ import {
   solicitarCancelacionAcreditado,
   logoutAcreditado,
   subirFotoAcreditado,
-} from '../../../src/services/acreditadoApi';
-import { useAcreditadoAuth } from '../../../src/contexts/AcreditadoAuthContext';
-import type { Acreditado } from '../../../src/types';
+} from '@/src/services/acreditadoApi';
+import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
+import type { Acreditado } from '@/src/types';
 
 export default function PerfilAcreditadoScreen() {
   const router  = useRouter();

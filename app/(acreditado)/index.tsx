@@ -5,10 +5,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, Radius } from '../../../src/theme';
-import { getExpedienteAcreditado, solicitarAsesoria, getServiciosDisponibles } from '../../../src/services/acreditadoApi';
-import { useAcreditadoAuth } from '../../../src/contexts/AcreditadoAuthContext';
-import type { ExpedienteAcreditado, ServicioTramite } from '../../../src/types';
+import { Colors, Typography, Spacing, Radius } from '@/src/theme';
+import { getExpedienteAcreditado, solicitarAsesoria, getServiciosDisponibles } from '@/src/services/acreditadoApi';
+import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
+import type { ExpedienteAcreditado, ServicioTramite } from '@/src/types';
 
 const ESTADO_COLOR: Record<string, string> = {
   en_proceso: '#1d4ed8',
