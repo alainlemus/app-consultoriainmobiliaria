@@ -11,35 +11,32 @@ export default function RootLayout() {
   const router   = useRouter();
   const segments = useSegments();
 
+  // Guard de autenticación — solo al montar la app (sin [segments] en deps)
+  // Decide el flujo inicial: login, tabs del asesor o tabs del acreditado.
+  // Una vez que el usuario está navegando no volvemos a interrumpirlo.
   useEffect(() => {
     (async () => {
       const asesorToken     = await SecureStore.getItemAsync('auth_token');
       const acreditadoToken = await getAcreditadoToken();
       const inAuth          = segments[0] === '(auth)';
-      const inAcreditado    = segments[0] === '(acreditado)';
 
-      // Rutas válidas para el asesor (tabs + pantallas del stack del asesor)
-      const rutasAsesor = ['(tabs)', 'mapa', 'prospectos', 'expedientes', 'ayuda', 'anuncio'];
-      const inAsesor    = rutasAsesor.includes(segments[0] ?? '');
+      // Ya está en auth → no hacer nada
+      if (inAuth) return;
 
-      // Acreditado con sesión activa → ir a su sección
-      if (acreditadoToken && !inAcreditado && !inAuth) {
+      // Acreditado con sesión → su sección
+      if (acreditadoToken && segments[0] !== '(acreditado)') {
         router.replace('/(acreditado)');
         return;
       }
 
-      // Asesor con sesión activa → si está en una ruta válida, no hacer nada
-      if (asesorToken && !inAsesor && !inAuth) {
-        router.replace('/(tabs)');
-        return;
-      }
-
       // Sin ninguna sesión → login
-      if (!asesorToken && !acreditadoToken && !inAuth) {
+      if (!asesorToken && !acreditadoToken) {
         router.replace('/(auth)/login');
       }
+      // Asesor con sesión → puede navegar libremente, no redirigimos
     })();
-  }, [segments]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Solo al montar — sin segments en dependencias
 
   // Push notifications
   useEffect(() => {
