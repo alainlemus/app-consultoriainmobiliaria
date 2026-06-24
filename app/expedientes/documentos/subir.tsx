@@ -3,11 +3,11 @@
  * Ruta: /expedientes/documentos/subir?expedienteId=X
  *
  * Flujo primario:  DocumentScanner nativo → N imágenes → PDF → preview → subir
- * Flujo secundario: Galería → imagen JPEG → preview → subir
+ * Flujo secundario: Archivo → PDF u otro archivo → preview → subir
  *
  * Los módulos nativos (DocumentScanner, RNImageToPdf) se cargan con require()
  * dentro de un try-catch: si no están disponibles (Expo Go / simulador) el
- * componente carga igual y muestra la galería como única opción.
+ * componente carga igual y muestra la opción de archivo como única opción.
  * En producción (EAS Build) ambos módulos están compilados y el escáner funciona.
  */
 
@@ -33,6 +33,7 @@ try {
 
 // ── Resto de imports ──────────────────────────────────────────────────────────
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -99,7 +100,7 @@ export default function SubirDocumentoScreen() {
     if (!DocumentScanner || !RNImageToPdf) {
       Alert.alert(
         'Escáner no disponible',
-        'El escáner de documentos requiere un build nativo (EAS Build). Por ahora usa la opción Galería.',
+        'El escáner de documentos requiere un build nativo (EAS Build). Por ahora usa la opción Archivo.',
       );
       return;
     }
@@ -128,24 +129,25 @@ export default function SubirDocumentoScreen() {
     }
   };
 
-  // ── Seleccionar desde galería ─────────────────────────────────────────────────
+  // ── Seleccionar archivo (PDF, imágenes, etc.) ─────────────────────────────────
   const seleccionarGaleria = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permiso requerido', 'Activa el acceso a la galería en Configuración.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.85,
-      allowsEditing: false,
-    });
-    if (!result.canceled && result.assets[0]?.uri) {
-      const uri = result.assets[0].uri;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+      const uri = asset.uri;
+      const mime = asset.mimeType ?? (asset.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+
       setPages([uri]);
       setResultUri(uri);
-      setMimeType('image/jpeg');
+      setMimeType(mime);
       setMode('preview');
+    } catch (err) {
+      Alert.alert('Error', 'No se pudo seleccionar el archivo.');
     }
   };
 
@@ -370,9 +372,9 @@ export default function SubirDocumentoScreen() {
           </Pressable>
 
           <Pressable style={s.btnGaleria} onPress={seleccionarGaleria}>
-            <Text style={s.btnIcon}>🖼️</Text>
-            <Text style={s.btnLabel}>Galería</Text>
-            <Text style={s.btnSubLabel}>Seleccionar imagen</Text>
+            <Text style={s.btnIcon}>📁</Text>
+            <Text style={s.btnLabel}>Archivo</Text>
+            <Text style={s.btnSubLabel}>Seleccionar archivo PDF</Text>
           </Pressable>
         </View>
       </ScrollView>
