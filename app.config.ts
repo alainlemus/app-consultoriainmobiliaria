@@ -83,7 +83,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       backgroundColor: '#222121',
     },
     ios: {
-      bundleIdentifier: 'mx.consultoriainmobiliaria.app',
+      bundleIdentifier: 'com.consultoriainmobiliaria.app',
       supportsTablet: true,
       infoPlist: {
         NSAppTransportSecurity: {
@@ -96,7 +96,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
     },
      android: {
-      package: 'mx.consultoriainmobiliaria.app',
+      package: 'com.consultoriainmobiliaria.app',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#222121',
