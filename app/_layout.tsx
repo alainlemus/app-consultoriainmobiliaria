@@ -11,32 +11,39 @@ export default function RootLayout() {
   const router   = useRouter();
   const segments = useSegments();
 
-  // Guard de autenticación — solo al montar la app (sin [segments] en deps)
-  // Decide el flujo inicial: login, tabs del asesor o tabs del acreditado.
-  // Una vez que el usuario está navegando no volvemos a interrumpirlo.
   useEffect(() => {
     (async () => {
       const asesorToken     = await SecureStore.getItemAsync('auth_token');
       const acreditadoToken = await getAcreditadoToken();
       const inAuth          = segments[0] === '(auth)';
 
-      // Ya está en auth → no hacer nada
-      if (inAuth) return;
+      // ── Flujo original del asesor (sin cambios) ───────────────────────────
+      // Sin sesión → login
+      if (!asesorToken && !acreditadoToken && !inAuth) {
+        router.replace('/(auth)/login');
+        return;
+      }
 
-      // Acreditado con sesión → su sección
-      if (acreditadoToken && segments[0] !== '(acreditado)') {
+      // Asesor con token y está en auth → ir a tabs
+      if (asesorToken && inAuth) {
+        router.replace('/(tabs)');
+        return;
+      }
+
+      // ── Flujo adicional del acreditado ────────────────────────────────────
+      // Acreditado con token y está en auth → ir a su sección
+      if (acreditadoToken && !asesorToken && inAuth) {
         router.replace('/(acreditado)');
         return;
       }
 
-      // Sin ninguna sesión → login
-      if (!asesorToken && !acreditadoToken) {
-        router.replace('/(auth)/login');
+      // Acreditado con token, sin token de asesor, y no está en su sección
+      if (acreditadoToken && !asesorToken && segments[0] !== '(acreditado)' && !inAuth) {
+        router.replace('/(acreditado)');
+        return;
       }
-      // Asesor con sesión → puede navegar libremente, no redirigimos
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Solo al montar — sin segments en dependencias
+  }, [segments]);
 
   // Push notifications
   useEffect(() => {

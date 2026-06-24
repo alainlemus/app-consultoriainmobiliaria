@@ -370,6 +370,7 @@ export async function getUbicacionesMapa(params?: { asesor_id?: number }): Promi
   // Resolver URLs de fotos para acceso desde móvil en dev
   return res.data.map(u => ({
     ...u,
+    contacto_foto_url: u.contacto_foto_url ? resolveStorageUrl(u.contacto_foto_url) ?? u.contacto_foto_url : null,
     fotos: u.fotos?.map(f => ({ ...f, url: resolveStorageUrl(f.url) ?? f.url })),
   }));
 }

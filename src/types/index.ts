@@ -191,11 +191,12 @@ export interface Escuela {
 }
 
 export interface Ubicacion {
-  id?:             number;
-  contacto_id?:    number;
-  contacto?:       string;
-  user_id?:        number;
-  asesor_id?:      number;   // alias de user_id, devuelto por el API
+  id?:                 number;
+  contacto_id?:        number;
+  contacto?:           string;
+  contacto_foto_url?:  string | null;
+  user_id?:            number;
+  asesor_id?:          number;   // alias de user_id, devuelto por el API
   latitud?:        number | null;
   longitud?:       number | null;
   tipo:            'visita_cliente' | 'propiedad' | 'escuela';

@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, TextInput, Alert,
   KeyboardAvoidingView, Platform, ActivityIndicator,
-  Linking,
+  Linking, Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -118,10 +118,22 @@ export default function PerfilAcreditadoScreen() {
       }
 
       setGuardando(true);
-      await subirFotoAcreditado(uri);
+
+      // Subir la foto y obtener la nueva URL directamente del response
+      const nuevaUrl = await subirFotoAcreditado(uri);
+
+      // Actualizar el estado local inmediatamente con la URL devuelta
+      // Esto hace que la foto aparezca al instante sin esperar a cargar()
+      if (nuevaUrl) {
+        setAcreditado(prev => prev ? { ...prev, foto_perfil_url: nuevaUrl } : prev);
+      }
+
+      // Recargar para sincronizar todos los datos
       await cargar();
+
+      Alert.alert('✅ Foto actualizada', 'Tu foto de perfil se actualizó correctamente.');
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'No se pudo subir la foto.');
+      Alert.alert('Error', e?.message ?? 'No se pudo subir la foto. Intenta de nuevo.');
     } finally {
       setGuardando(false);
     }
@@ -186,9 +198,25 @@ export default function PerfilAcreditadoScreen() {
       >
         {/* Header con foto */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={handleSubirFoto} style={styles.avatarBtn}>
+          <TouchableOpacity onPress={handleSubirFoto} style={styles.avatarBtn} disabled={guardando}>
             <View style={styles.avatar}>
-              <Ionicons name="person" size={40} color={Colors.dark[400]} />
+              {acreditado?.foto_perfil_url ? (
+                <Image
+                  source={{ uri: acreditado.foto_perfil_url }}
+                  style={styles.avatarImg}
+                  onError={() => {
+                    // Si la URL firmada expiró, recargar para obtener una nueva
+                    cargar();
+                  }}
+                />
+              ) : (
+                <Ionicons name="person" size={40} color={Colors.dark[400]} />
+              )}
+              {guardando && (
+                <View style={styles.avatarLoading}>
+                  <ActivityIndicator color={Colors.gold[400]} size="small" />
+                </View>
+              )}
             </View>
             <View style={styles.avatarEdit}>
               <Ionicons name="camera" size={12} color={Colors.dark[900]} />
@@ -322,9 +350,11 @@ const styles = StyleSheet.create({
   center:  { alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: Spacing.base, gap: Spacing.base },
   header:  { alignItems: 'center', paddingVertical: Spacing.xl },
-  avatarBtn: { position: 'relative', marginBottom: Spacing.base },
-  avatar:    { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.dark[700], alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.gold[400] },
-  avatarEdit:{ position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.gold[400], alignItems: 'center', justifyContent: 'center' },
+  avatarBtn:     { position: 'relative', marginBottom: Spacing.base },
+  avatar:        { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.dark[700], alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.gold[400], overflow: 'hidden' },
+  avatarImg:     { width: 80, height: 80, borderRadius: 40 },
+  avatarLoading: { position: 'absolute', width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  avatarEdit:    { position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.gold[400], alignItems: 'center', justifyContent: 'center' },
   userName:  { fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.bold, color: Colors.cream[50] },
   userEmail: { fontSize: Typography.fontSize.sm, color: Colors.dark[400], marginTop: 2 },
   verificadoBadge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.sm, backgroundColor: '#f0fdf4', paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: Radius.full },

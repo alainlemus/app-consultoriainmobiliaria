@@ -76,7 +76,8 @@ const REGION_CDMX: Region = {
 type TipoVisita = 'visita_cliente' | 'propiedad' | 'escuela';
 
 export default function MapaScreen() {
-  const mapRef = useRef<MapView>(null);
+  const mapRef    = useRef<MapView>(null);
+  const searchRef = useRef<any>(null);
   const { contacto_id, contacto_nombre, lat, lng } = useLocalSearchParams<{
     contacto_id?: string;
     contacto_nombre?: string;
@@ -150,8 +151,9 @@ export default function MapaScreen() {
   const [fotosSeleccionadas, setFotosSeleccionadas] = useState<ImagePicker.ImagePickerAsset[]>([]);
 
   // ── Buscador del mapa ──────────────────────────────────────────────────────
-  const [busqMapa, setBusqMapa]       = useState('');
-  const [busqVisible, setBusqVisible] = useState(false);
+  const [busqMapa, setBusqMapa]           = useState('');
+  const [busqVisible, setBusqVisible]     = useState(false);
+  const [searchExpanded, setSearchExpanded] = useState(false);
   const resultadosBusq = useMemo(() => {
     if (busqMapa.trim().length < 2) return [];
     const q = busqMapa.toLowerCase();
