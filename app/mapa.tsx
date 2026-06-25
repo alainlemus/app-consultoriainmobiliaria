@@ -408,7 +408,7 @@ export default function MapaScreen() {
       return;
     }
     const result = origen === 'camara'
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.5, allowsMultipleSelection: false })
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.5, allowsMultipleSelection: true, selectionLimit: 5 })
       : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.5, allowsMultipleSelection: true, selectionLimit: 5 });
     if (!result.canceled) {
       setFotosSeleccionadas(prev => [...prev, ...result.assets].slice(0, 5));
