@@ -4,6 +4,9 @@
  *
  * El asesor registra dónde colocó propaganda (lona, hoja, volante, etc.)
  * desde su ubicación GPS actual, con fotos opcionales.
+ *
+ * Soporte offline: si no hay red, el anuncio se encola en AsyncStorage y
+ * se sincroniza automáticamente cuando se recupera la conexión.
  */
 
 import * as ImagePicker from 'expo-image-picker';
@@ -27,6 +30,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { registrarAnuncio, subirFotosAnuncio } from '../../src/services/api';
+import { encolarAnuncio, encolarFotos } from '../../src/services/offline';
+import { comprimirFotos } from '../../src/utils/comprimirFoto';
+import { useSyncContext } from '../../src/contexts/SyncContext';
 import { Colors, Radius, Spacing, Typography } from '../../src/theme';
 import type { TipoAnuncio } from '../../src/types';
 import { ANUNCIO_TIPO_EMOJI, ANUNCIO_TIPO_LABEL } from '../../src/types';
@@ -35,6 +41,7 @@ const TIPOS: TipoAnuncio[] = ['lona', 'hoja_tienda', 'hoja_poste', 'volante', 'o
 
 export default function NuevoAnuncioScreen() {
   const insets = useSafeAreaInsets();
+  const { online, refrescar } = useSyncContext();
 
   const [tipo,        setTipo]        = useState<TipoAnuncio>('hoja_poste');
   const [descripcion, setDescripcion] = useState('');
@@ -74,34 +81,73 @@ export default function NuevoAnuncioScreen() {
         return;
       }
 
-      setGpsMsg('Guardando anuncio…');
+      const fotosPayload = fotos.length > 0
+        ? await comprimirFotos(fotos, 'anuncio')
+        : [];
 
-      // 2. Registrar el anuncio
-      const anuncio = await registrarAnuncio({
+      // Sube las fotos en background sin retener al asesor en pantalla.
+      // Si falla → encola en FOTOS_QUEUE para reintento automático.
+      const subirFotosBackground = (anuncioId: number) => {
+        if (fotosPayload.length === 0) return;
+        subirFotosAnuncio(anuncioId, fotosPayload).catch(() => {
+          encolarFotos({
+            entidad:    'anuncio',
+            entidad_id: anuncioId,
+            fotos:      fotosPayload,
+          });
+        });
+      };
+
+      // 2a. Con red: intentar guardar directo
+      if (online) {
+        setGpsMsg('Guardando anuncio…');
+        try {
+          const anuncio = await registrarAnuncio({
+            latitud:     coords.latitude,
+            longitud:    coords.longitude,
+            tipo,
+            descripcion: descripcion || undefined,
+            colocado_en: colocadoEn,
+          });
+
+          // Anuncio guardado → cerrar pantalla inmediatamente
+          // Las fotos se suben en background sin bloquear al asesor
+          Alert.alert(
+            '✓ Anuncio registrado',
+            'Se guardó el anuncio en tu ubicación actual.',
+            [{ text: 'Aceptar', onPress: () => router.back() }],
+          );
+          if (anuncio.id) subirFotosBackground(anuncio.id);
+          return;
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : '';
+          const esErrorDeRed = msg.toLowerCase().includes('network') ||
+                               msg.toLowerCase().includes('failed') ||
+                               msg.toLowerCase().includes('timeout');
+          if (!esErrorDeRed) {
+            Alert.alert('Error', msg || 'No se pudo registrar el anuncio.');
+            return;
+          }
+          // Error de red → encolar todo
+        }
+      }
+
+      // 2b. Sin red (o con fallo de red): encolar para sync posterior
+      setGpsMsg('Guardando localmente…');
+      await encolarAnuncio({
         latitud:     coords.latitude,
         longitud:    coords.longitude,
         tipo,
         descripcion: descripcion || undefined,
         colocado_en: colocadoEn,
+        fotos:       fotosPayload,
       });
-
-      // 3. Subir fotos si hay
-      if (fotos.length > 0 && anuncio.id) {
-        setGpsMsg('Subiendo fotos…');
-        await subirFotosAnuncio(
-          anuncio.id,
-          fotos.map((f, i) => ({
-            uri:  f.uri,
-            name: f.fileName ?? `anuncio_${i + 1}.jpg`,
-            type: f.mimeType ?? 'image/jpeg',
-          }))
-        );
-      }
+      await refrescar();
 
       Alert.alert(
-        '✓ Anuncio registrado',
-        `Se guardó el anuncio en tu ubicación actual.`,
-        [{ text: 'Aceptar', onPress: () => router.back() }]
+        '📋 Guardado sin conexión',
+        'El anuncio se guardó en tu dispositivo y se enviará automáticamente cuando recuperes la conexión a internet.',
+        [{ text: 'Aceptar', onPress: () => router.back() }],
       );
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo registrar el anuncio.');
@@ -121,10 +167,10 @@ export default function NuevoAnuncioScreen() {
       mediaTypes: ['images'],
       quality: 0.6,
       allowsMultipleSelection: true,
-      selectionLimit: 5,
+      selectionLimit: 3,
     });
     if (!result.canceled) {
-      setFotos(prev => [...prev, ...result.assets].slice(0, 5));
+      setFotos(prev => [...prev, ...result.assets].slice(0, 3));
     }
   }
 
@@ -139,7 +185,7 @@ export default function NuevoAnuncioScreen() {
       quality: 0.6,
     });
     if (!result.canceled && result.assets[0]) {
-      setFotos(prev => [...prev, result.assets[0]].slice(0, 5));
+      setFotos(prev => [...prev, result.assets[0]].slice(0, 3));
     }
   }
 
@@ -219,7 +265,7 @@ export default function NuevoAnuncioScreen() {
 
         {/* Fotos */}
         <Text style={s.sectionLabel}>
-          Fotos del anuncio{fotos.length > 0 ? ` (${fotos.length}/5)` : ' (opcional)'}
+          Fotos del anuncio{fotos.length > 0 ? ` (${fotos.length}/3)` : ' (opcional)'}
         </Text>
         <View style={s.fotosRow}>
           {fotos.map((f, i) => (
@@ -233,7 +279,7 @@ export default function NuevoAnuncioScreen() {
               </Pressable>
             </View>
           ))}
-          {fotos.length < 5 && (
+          {fotos.length < 3 && (
             <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
               <TouchableOpacity style={s.fotoBtn} onPress={tomarFoto}>
                 <Text style={s.fotoBtnIcon}>📷</Text>
@@ -249,7 +295,7 @@ export default function NuevoAnuncioScreen() {
 
         {/* Botón guardar */}
         <Pressable
-          style={[s.saveBtn, guardando && s.saveBtnDisabled]}
+          style={[s.saveBtn, guardando && s.saveBtnDisabled, !online && s.saveBtnOffline]}
           onPress={handleGuardar}
           disabled={guardando}
         >
@@ -259,9 +305,17 @@ export default function NuevoAnuncioScreen() {
               {gpsMsg ? <Text style={s.saveBtnText}>{gpsMsg}</Text> : null}
             </View>
           ) : (
-            <Text style={s.saveBtnText}>📍 Registrar en mi ubicación actual</Text>
+            <Text style={s.saveBtnText}>
+              {online ? '📍 Registrar en mi ubicación actual' : '📋 Guardar sin conexión'}
+            </Text>
           )}
         </Pressable>
+
+        {!online && (
+          <Text style={s.offlineHint}>
+            Sin conexión. El anuncio se guardará localmente y se enviará cuando recuperes internet.
+          </Text>
+        )}
 
       </ScrollView>
     </KeyboardAvoidingView>
@@ -381,9 +435,17 @@ const s = StyleSheet.create({
     justifyContent:  'center',
   },
   saveBtnDisabled: { opacity: 0.6 },
+  saveBtnOffline:  { backgroundColor: Colors.dark[600] },
   saveBtnText: {
     color:      Colors.white,
     fontSize:   Typography.fontSize.base,
     fontWeight: Typography.fontWeight.bold,
+  },
+  offlineHint: {
+    marginTop:  Spacing.sm,
+    fontSize:   Typography.fontSize.xs,
+    color:      Colors.dark[400],
+    textAlign:  'center',
+    lineHeight: Typography.fontSize.xs * 1.5,
   },
 });

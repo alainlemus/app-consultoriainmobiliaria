@@ -20,10 +20,11 @@ import * as path from 'path';
 
 // 10.0.2.2 es el gateway del emulador Android (apunta a la Mac del host).
 // Puerto 8082 escucha en 0.0.0.0 (todas las interfaces), funciona desde emulador Android.
-// Puerto 8080 escucha en 127.0.0.1, funciona desde simulador iOS.
-// Para dispositivo físico real usar EXPO_PUBLIC_API_URL=http://192.168.100.7:8082/api/v1
+// 127.0.0.1:80 es el nginx de Herd (Apple Silicon) — funciona desde simulador iOS
+// porque el simulador resuelve 127.0.0.1 como la Mac host.
+// Para dispositivo físico real usar EXPO_PUBLIC_API_URL=http://192.168.x.x/api/v1
 const DEV_API_URL_ANDROID = 'http://10.0.2.2:8082/api/v1';
-const DEV_API_URL_IOS     = 'https://consultoriainmobiliaria.com.mx/api/v1';
+const DEV_API_URL_IOS     = 'http://127.0.0.1/api/v1';
 const STAGING_API_URL     = 'https://dev.consultoriainmobiliaria.com.mx/api/v1';
 const PROD_API_URL        = 'https://consultoriainmobiliaria.com.mx/api/v1';
 
@@ -72,7 +73,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name:    'Consultoría Inmobiliaria',
     slug:    'app-consultoriainmobiliaria',
-    version: '1.5.2',
+    version: '2.0.1',
     orientation: 'portrait',
     icon:    './assets/icon.png',
     userInterfaceStyle: 'light',
@@ -88,6 +89,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       infoPlist: {
         NSAppTransportSecurity: {
           NSExceptionDomains: {
+            // Permite HTTP plano a 127.0.0.1 (Herd local) en builds de desarrollo/simulador
+            '127.0.0.1': {
+              NSExceptionAllowsInsecureHTTPLoads: true,
+              NSExceptionMinimumTLSVersion: '1.0',
+              NSIncludesSubdomains: false,
+            },
             'dev.consultoriainmobiliaria.com.mx': {
               NSExceptionAllowsInsecureHTTPLoads: false,
             },

@@ -176,7 +176,7 @@ export default function LoginScreen() {
           <TouchableOpacity onPress={() => Linking.openURL('https://consultoriainmobiliaria.com.mx/aviso-de-privacidad')}>
             <Text style={styles.privacyLink}>Aviso de Privacidad</Text>
           </TouchableOpacity>
-          <Text style={styles.version}>v{Constants.expoConfig?.version ?? '1.5.2'}</Text>
+          <Text style={styles.version}>v{Constants.expoConfig?.version ?? '2.0.1'}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     );
@@ -236,7 +236,7 @@ export default function LoginScreen() {
           />
 
           <TouchableOpacity
-            onPress={() => router.push('/(auth)/forgot-password')}
+            onPress={() => router.push(`/(auth)/forgot-password?modo=${modo}`)}
             style={styles.forgotRow}
           >
             <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
@@ -274,7 +274,7 @@ export default function LoginScreen() {
         <TouchableOpacity onPress={() => Linking.openURL('https://consultoriainmobiliaria.com.mx/aviso-de-privacidad')}>
           <Text style={styles.privacyLink}>Aviso de Privacidad</Text>
         </TouchableOpacity>
-        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '1.5.2'}</Text>
+        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '2.0.1'}</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );

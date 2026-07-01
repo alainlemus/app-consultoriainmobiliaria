@@ -203,29 +203,30 @@ export default function ExpedientesScreen() {
               )}
 
               <View style={styles.info}>
-                <Text style={styles.nombre} numberOfLines={1}>
+                {/* Fila superior: badge + chevron */}
+                {!exp._pendiente_sync && (
+                  <View style={styles.badgeRow}>
+                    <Badge
+                      label={exp.etapa?.nombre ?? exp.estado}
+                      variant={ETAPA_BADGE[exp.etapa?.nombre ?? ''] ?? ESTADO_EXPEDIENTE_BADGE[exp.estado] ?? 'gray'}
+                      small
+                    />
+                    <Text style={styles.chevron}>›</Text>
+                  </View>
+                )}
+                <Text style={styles.nombre}>
                   {exp.contacto?.nombre ?? `Expediente #${exp.id}`}
                 </Text>
-                <Text style={styles.folio} numberOfLines={1}>
+                <Text style={styles.folio}>
                   {exp.folio ?? (exp._pendiente_sync ? 'Pendiente de asignar folio' : `#${exp.id}`)}
                 </Text>
-                <Text style={styles.tipo} numberOfLines={1}>
+                <Text style={styles.tipo}>
                   {exp.tipo_tramite?.nombre ?? '—'}
                 </Text>
                 {exp._pendiente_sync && (
                   <Text style={styles.pendienteSyncText}>⏳ Pendiente de sincronizar</Text>
                 )}
               </View>
-              {!exp._pendiente_sync && (
-                <View style={styles.rowRight}>
-                  <Badge
-                    label={exp.etapa?.nombre ?? exp.estado}
-                    variant={ETAPA_BADGE[exp.etapa?.nombre ?? ''] ?? ESTADO_EXPEDIENTE_BADGE[exp.estado] ?? 'gray'}
-                    small
-                  />
-                  <Text style={styles.chevron}>›</Text>
-                </View>
-              )}
             </TouchableOpacity>
           )}
         />
@@ -281,13 +282,14 @@ const styles = StyleSheet.create({
   filterTextActive: { color: Colors.dark[900] },
 
   listContent: { padding: Spacing.sm },
-  row:    { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: Spacing.xs, borderWidth: 1, borderColor: Colors.cream[300], gap: Spacing.sm },
+  row:    { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: Colors.white, borderRadius: Radius.sm, padding: Spacing.md, marginBottom: Spacing.xs, borderWidth: 1, borderColor: Colors.cream[300], gap: Spacing.sm },
   rowPendiente: { borderColor: Colors.gold[400], borderStyle: 'dashed', opacity: 0.85 },
   pendienteSyncText: { fontSize: Typography.fontSize.xs, color: Colors.gold[600], marginTop: 2, fontStyle: 'italic' },
   avatar:        { width: 48, height: 48, borderRadius: 24 },
   avatarFallback:{ width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.dark[800], alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.gold[700] },
   avatarLetter:  { color: Colors.gold[400], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
   info:   { flex: 1 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   nombre: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[800] },
   folio:  { fontSize: Typography.fontSize.xs, color: Colors.gold[600], fontWeight: Typography.fontWeight.semibold, marginTop: 1 },
   tipo:   { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },

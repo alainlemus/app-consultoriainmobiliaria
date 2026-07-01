@@ -3,17 +3,20 @@ import {
   View, Text, StyleSheet, ScrollView,
   KeyboardAvoidingView, Platform, TouchableOpacity,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '../../src/theme';
 import Input  from '../../src/components/ui/Input';
 import Button from '../../src/components/ui/Button';
 import { apiFetch } from '../../src/services/api';
+import { forgotPasswordAcreditado } from '../../src/services/acreditadoApi';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { modo } = useLocalSearchParams<{ modo?: string }>();
+  const esAcreditado = modo === 'acreditado';
 
   const [email,   setEmail]   = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,12 +28,16 @@ export default function ForgotPasswordScreen() {
     setError('');
     setLoading(true);
     try {
-      await apiFetch('/auth/forgot-password', {
-        method: 'POST',
-        body:   JSON.stringify({ email: email.trim().toLowerCase() }),
-      });
+      if (esAcreditado) {
+        await forgotPasswordAcreditado(email.trim().toLowerCase());
+      } else {
+        await apiFetch('/auth/forgot-password', {
+          method: 'POST',
+          body:   JSON.stringify({ email: email.trim().toLowerCase() }),
+        });
+      }
       setSent(true);
-    } catch (e: unknown) {
+    } catch {
       // Siempre mostramos éxito para no revelar si el correo existe
       setSent(true);
     } finally {
@@ -91,7 +98,7 @@ export default function ForgotPasswordScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
-                placeholder="asesor@ejemplo.com"
+                placeholder={esAcreditado ? 'correo@ejemplo.com' : 'asesor@ejemplo.com'}
                 dark={false}
               />
 

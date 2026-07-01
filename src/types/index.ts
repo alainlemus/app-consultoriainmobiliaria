@@ -221,7 +221,8 @@ export type TipoOperacion =
   | 'crear_expediente'
   | 'actualizar_expediente'
   | 'subir_documento'
-  | 'registrar_ubicacion';
+  | 'registrar_ubicacion'
+  | 'registrar_anuncio';
 
 export interface OperacionSync {
   id_local:  string;
@@ -350,4 +351,26 @@ export interface SeguimientoAcreditado {
 export interface ServicioTramite {
   id:     number;
   nombre: string;
+}
+
+// ── Rutas de Asesores ────────────────────────────────────────────────────────
+
+export interface RutaPunto {
+  id:        number;
+  lat:       number;
+  lng:       number;
+  precision: number;
+  velocidad: number;
+  hora:      string;
+  timestamp: string;
+}
+
+export interface RutaDia {
+  fecha:  string;
+  puntos: number;
+}
+
+export interface RutaAsesor {
+  id:   number;
+  name: string;
 }

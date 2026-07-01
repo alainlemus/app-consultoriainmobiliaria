@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
   TouchableOpacity, RefreshControl, StatusBar, Image,
+  Switch, ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +11,7 @@ import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
 import { getContactos, getExpedientes, getMe, logout } from '../../src/services/api';
 import { useOfflineSync } from '../../src/hooks/useOfflineSync';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useRouteTracking } from '../../src/hooks/useRouteTracking';
 import type { User, Contacto } from '../../src/types';
 
 interface Stats {
@@ -31,6 +33,10 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { online, pendientes, sincronizar } = useOfflineSync();
+
+  // Solo asesores (no super_admin, no acreditado)
+  const isAsesor = (!isSuperAdmin && user?.roles?.includes('asesor')) ?? false;
+  const { estaActivo, pendientes: routePendientes, iniciando, error: routeError, activar, desactivar } = useRouteTracking(isAsesor);
 
   // Usar el user del AuthContext si está disponible (evita llamar getMe() de nuevo)
   useEffect(() => {
@@ -161,7 +167,43 @@ export default function DashboardScreen() {
             <ActionTile icon="👥" label="Prospectos"      onPress={() => router.push('/(tabs)/prospectos')} />
             <ActionTile icon="📁" label="Expedientes"     onPress={() => router.push('/(tabs)/expedientes')} />
             <ActionTile icon="🗺️" label="Mapa"            onPress={() => router.push('/mapa')} />
+            {(isSuperAdmin || isAsesor) && (
+              <ActionTile icon="📍" label="Rutas"        onPress={() => router.push('/rutas')} />
+            )}
           </View>
+
+          {/* ── Rastreo GPS ── */}
+          {isAsesor && (
+            <View style={styles.trackingCard}>
+              <View style={styles.trackingRow}>
+                <View style={styles.trackingInfo}>
+                  <Text style={styles.trackingLabel}>📍 Rastreo de ubicación</Text>
+                  <Text style={styles.trackingSub}>
+                     {estaActivo
+                       ? routePendientes > 0
+                         ? `${routePendientes} punto${routePendientes !== 1 ? 's' : ''} pendiente${routePendientes !== 1 ? 's' : ''} de sync`
+                         : 'Registrando ruta'
+                       : iniciando
+                         ? 'Activando...'
+                         : 'Registra tu ruta para supervisión'}
+                  </Text>
+                </View>
+                {iniciando ? (
+                  <ActivityIndicator color={Colors.gold[400]} size="small" />
+                ) : (
+                  <Switch
+                    value={estaActivo}
+                    onValueChange={(val) => val ? activar() : desactivar()}
+                    trackColor={{ false: Colors.cream[300], true: Colors.gold[400] }}
+                    thumbColor={estaActivo ? Colors.dark[800] : Colors.cream[50]}
+                  />
+                )}
+              </View>
+              {routeError && estaActivo && (
+                <Text style={styles.trackingError}>{routeError}</Text>
+              )}
+            </View>
+          )}
 
           {/* ── Prospectos recientes ── */}
           <SectionHeader title="Recientes" action={{ label: 'Ver todos', onPress: () => router.push('/(tabs)/prospectos') }} />
@@ -384,5 +426,40 @@ const styles = StyleSheet.create({
     color:      Colors.gold[700],
     fontWeight: Typography.fontWeight.semibold,
     flex:       1,
+  },
+
+  // Tracking GPS
+  trackingCard: {
+    backgroundColor: Colors.white,
+    borderRadius:    Radius.md,
+    borderWidth:     1,
+    borderColor:     Colors.cream[200],
+    padding:         Spacing.md,
+    marginTop:       Spacing.sm,
+    ...Shadows.sm,
+  },
+  trackingRow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+  },
+  trackingInfo: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  trackingLabel: {
+    fontSize:   Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
+    color:      Colors.dark[800],
+  },
+  trackingSub: {
+    fontSize:   Typography.fontSize.sm,
+    color:      Colors.dark[400],
+    marginTop:  2,
+  },
+  trackingError: {
+    fontSize:   Typography.fontSize.xs,
+    color:      Colors.crimson[500],
+    marginTop:  Spacing.xs,
   },
 });

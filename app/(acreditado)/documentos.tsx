@@ -45,6 +45,8 @@ import {
   subirDocumentoAcreditado,
   getUrlDocumentoAcreditado,
 } from '@/src/services/acreditadoApi';
+import { encolarDocAcreditado } from '@/src/services/offline';
+import { persistirDocumento } from '@/src/utils/comprimirFoto';
 import type { DocumentoAcreditado } from '@/src/types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -186,11 +188,30 @@ export default function DocumentosScreen() {
         onPress: async () => {
           setSubiendo(true);
           try {
-            await subirDocumentoAcreditado(uri, nombreBase || tipo, mime);
-            await cargar();
-            Alert.alert('✅ Listo', `${tipo} subido correctamente.`);
+            // Persistir en documentDirectory para que sobreviva reinicios de app
+            const ext        = mime === 'application/pdf' ? 'pdf' : 'jpg';
+            const nombre     = `${tipo}_${Date.now()}.${ext}`;
+            const uriPersist = await persistirDocumento(uri, nombre);
+
+            try {
+              await subirDocumentoAcreditado(uriPersist, nombreBase || tipo, mime);
+              await cargar();
+              Alert.alert('✅ Listo', `${tipo} subido correctamente.`);
+            } catch (e: unknown) {
+              const msg = (e instanceof Error ? e.message : '').toLowerCase();
+              if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
+                // Red débil o nula → encolar para reintento automático
+                await encolarDocAcreditado({ uri: uriPersist, tipo, mimeType: mime });
+                Alert.alert(
+                  '📋 Guardado sin conexión',
+                  `El documento "${tipo}" se enviará automáticamente cuando tengas mejor señal.`,
+                );
+              } else {
+                Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo subir el documento.');
+              }
+            }
           } catch (e: any) {
-            Alert.alert('Error', e?.message ?? 'No se pudo subir el documento.');
+            Alert.alert('Error', e?.message ?? 'No se pudo procesar el documento.');
           } finally {
             setSubiendo(false);
           }

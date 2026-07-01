@@ -13,7 +13,8 @@ import Input from '../../src/components/ui/Input';
 import EstadoSelectModal from '../../src/components/ui/EstadoSelectModal';
 import { createContacto, uploadFotoContacto, uploadSimuladorScreenshot, getEscuelas } from '../../src/services/api';
 import { useSyncContext } from '../../src/contexts/SyncContext';
-import { upsertCacheContacto } from '../../src/services/offline';
+import { upsertCacheContacto, encolarFotos } from '../../src/services/offline';
+import { comprimirFoto, persistirDocumento } from '../../src/utils/comprimirFoto';
 import type { ServicioProspecto, Escuela } from '../../src/types';
 import { SERVICIO_LABEL } from '../../src/types';
 
@@ -162,9 +163,8 @@ export default function NuevoProspectoScreen() {
       };
 
       if (!online) {
-        // ── Sin internet: encolar Y guardar en cache local para ver de inmediato ──
+        // ── Sin internet: encolar JSON + persistir imágenes en documentDirectory ──
         const localId = await encolar('crear_contacto', payload);
-        // Crear un objeto Contacto local con _pendiente_sync para que aparezca en la lista
         await upsertCacheContacto({
           id:               0,
           _local_id:        localId,
@@ -177,29 +177,63 @@ export default function NuevoProspectoScreen() {
           notas:            payload.notas,
           created_at:       new Date().toISOString(),
         });
+        // Las fotos no se pueden asociar aún (sin id del servidor) — se encolan
+        // cuando el sync reciba el id_servidor del contacto creado.
+        // Por ahora simplemente avisamos al usuario que se guardará sin fotos.
         Alert.alert(
-          'Guardado sin conexión',
-          'El prospecto se registró en tu dispositivo y ya aparece en la lista. Se enviará al CRM automáticamente cuando recuperes internet.',
+          '📋 Guardado sin conexión',
+          'El prospecto se registró en tu dispositivo. Las fotos se podrán agregar cuando recuperes internet.',
           [{ text: 'Entendido', onPress: () => router.replace({ pathname: '/(tabs)/prospectos', params: { refresh: Date.now() } }) }],
         );
         return;
       }
 
-      const contacto = await createContacto(payload);
+      // ── Con red: crear contacto primero ──────────────────────────────────────
+      let contacto;
+      try {
+        contacto = await createContacto(payload);
+      } catch (e: unknown) {
+        const msg = (e instanceof Error ? e.message : '').toLowerCase();
+        if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
+          // Red caída → encolar sin fotos y avisar
+          const localId = await encolar('crear_contacto', payload);
+          await upsertCacheContacto({
+            id: 0, _local_id: localId, _pendiente_sync: true,
+            nombre: payload.nombre, telefono: payload.telefono,
+            email: payload.email, servicio: payload.servicio as any,
+            estado_prospecto: payload.estado_prospecto as any ?? 'nuevo',
+            notas: payload.notas, created_at: new Date().toISOString(),
+          });
+          Alert.alert(
+            '📋 Guardado sin conexión',
+            'El prospecto se registró en tu dispositivo y se enviará al CRM cuando recuperes internet.',
+            [{ text: 'Entendido', onPress: () => router.replace({ pathname: '/(tabs)/prospectos', params: { refresh: Date.now() } }) }],
+          );
+          return;
+        }
+        throw e;
+      }
 
+      // ── Contacto creado → subir imágenes en background ───────────────────────
       if (fotoAsset && contacto.id) {
-        await uploadFotoContacto(contacto.id, {
-          uri:  fotoAsset.uri,
-          name: fotoAsset.fileName ?? 'foto.jpg',
-          type: fotoAsset.mimeType ?? 'image/jpeg',
+        const foto = await comprimirFoto(fotoAsset.uri, 'foto_contacto');
+        uploadFotoContacto(contacto.id, foto).catch(() => {
+          encolarFotos({ entidad: 'contacto_foto', entidad_id: contacto.id, fotos: [foto] });
         });
       }
 
       if (screenshotAsset && contacto.id) {
-        await uploadSimuladorScreenshot(contacto.id, {
-          uri:  screenshotAsset.uri,
+        const screenshot = await persistirDocumento(
+          screenshotAsset.uri,
+          screenshotAsset.fileName ?? 'simulador.jpg',
+        );
+        const screenshotFoto = {
+          uri:  screenshot,
           name: screenshotAsset.fileName ?? 'simulador.jpg',
           type: screenshotAsset.mimeType ?? 'image/jpeg',
+        };
+        uploadSimuladorScreenshot(contacto.id, screenshotFoto).catch(() => {
+          encolarFotos({ entidad: 'contacto_screenshot', entidad_id: contacto.id, fotos: [screenshotFoto] });
         });
       }
 

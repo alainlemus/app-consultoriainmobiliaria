@@ -10,6 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Card from '../../src/components/ui/Card';
 import { getMe, logout, updatePerfil, subirFotoPerfil, solicitarCancelacionCuenta } from '../../src/services/api';
+import { encolarFotos } from '../../src/services/offline';
+import { comprimirFoto } from '../../src/utils/comprimirFoto';
 import { useAuth } from '../../src/contexts/AuthContext';
 import type { User } from '../../src/types';
 
@@ -88,20 +90,37 @@ export default function PerfilScreen() {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      cameraType:         ImagePicker.CameraType.front,
-      allowsEditing:      true,
-      aspect:             [1, 1],
-      quality:            0.7,
+      cameraType:    ImagePicker.CameraType.front,
+      allowsEditing: true,
+      aspect:        [1, 1],
+      quality:       0.7,
     });
 
     if (result.canceled || !result.assets?.[0]?.uri) return;
 
     setSubiendo(true);
     try {
-      const nuevaUrl = await subirFotoPerfil(result.assets[0].uri);
-      setUser(prev => prev ? { ...prev, foto_perfil_url: nuevaUrl } : prev);
+      // Comprimir y persistir antes de subir
+      const foto = await comprimirFoto(result.assets[0].uri, 'perfil_asesor');
+
+      try {
+        const nuevaUrl = await subirFotoPerfil(foto.uri);
+        setUser(prev => prev ? { ...prev, foto_perfil_url: nuevaUrl } : prev);
+      } catch (e: unknown) {
+        const msg = (e instanceof Error ? e.message : '').toLowerCase();
+        if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
+          // Red débil → encolar para reintento automático
+          await encolarFotos({ entidad: 'perfil_asesor', entidad_id: 0, fotos: [foto] });
+          Alert.alert(
+            '📋 Foto guardada',
+            'La foto se subirá automáticamente cuando tengas mejor señal.',
+          );
+        } else {
+          Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo subir la foto.');
+        }
+      }
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'No se pudo subir la foto.');
+      Alert.alert('Error', e?.message ?? 'No se pudo procesar la foto.');
     } finally {
       setSubiendo(false);
     }

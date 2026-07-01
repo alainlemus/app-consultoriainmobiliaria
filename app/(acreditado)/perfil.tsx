@@ -18,6 +18,8 @@ import {
   logoutAcreditado,
   subirFotoAcreditado,
 } from '@/src/services/acreditadoApi';
+import { encolarFotos } from '@/src/services/offline';
+import { comprimirFoto } from '@/src/utils/comprimirFoto';
 import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
 import type { Acreditado } from '@/src/types';
 
@@ -96,9 +98,7 @@ export default function PerfilAcreditadoScreen() {
           return;
         }
         const result = await ImagePicker.launchCameraAsync({
-          quality: 0.85,
-          allowsEditing: true,
-          aspect: [1, 1],
+          quality: 0.85, allowsEditing: true, aspect: [1, 1],
         });
         if (result.canceled || !result.assets?.[0]?.uri) return;
         uri = result.assets[0].uri;
@@ -109,9 +109,7 @@ export default function PerfilAcreditadoScreen() {
           return;
         }
         const result = await ImagePicker.launchImageLibraryAsync({
-          quality: 0.85,
-          allowsEditing: true,
-          aspect: [1, 1],
+          quality: 0.85, allowsEditing: true, aspect: [1, 1],
         });
         if (result.canceled || !result.assets?.[0]?.uri) return;
         uri = result.assets[0].uri;
@@ -119,21 +117,30 @@ export default function PerfilAcreditadoScreen() {
 
       setGuardando(true);
 
-      // Subir la foto y obtener la nueva URL directamente del response
-      const nuevaUrl = await subirFotoAcreditado(uri);
+      // Comprimir y persistir en documentDirectory antes de subir
+      const foto = await comprimirFoto(uri, 'perfil_acreditado');
 
-      // Actualizar el estado local inmediatamente con la URL devuelta
-      // Esto hace que la foto aparezca al instante sin esperar a cargar()
-      if (nuevaUrl) {
-        setAcreditado(prev => prev ? { ...prev, foto_perfil_url: nuevaUrl } : prev);
+      try {
+        const nuevaUrl = await subirFotoAcreditado(foto.uri);
+        if (nuevaUrl) {
+          setAcreditado(prev => prev ? { ...prev, foto_perfil_url: nuevaUrl } : prev);
+        }
+        await cargar();
+        Alert.alert('✅ Foto actualizada', 'Tu foto de perfil se actualizó correctamente.');
+      } catch (e: unknown) {
+        const msg = (e instanceof Error ? e.message : '').toLowerCase();
+        if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
+          await encolarFotos({ entidad: 'perfil_acreditado', entidad_id: 0, fotos: [foto] });
+          Alert.alert(
+            '📋 Foto guardada',
+            'La foto se subirá automáticamente cuando tengas mejor señal.',
+          );
+        } else {
+          Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo subir la foto. Intenta de nuevo.');
+        }
       }
-
-      // Recargar para sincronizar todos los datos
-      await cargar();
-
-      Alert.alert('✅ Foto actualizada', 'Tu foto de perfil se actualizó correctamente.');
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'No se pudo subir la foto. Intenta de nuevo.');
+      Alert.alert('Error', e?.message ?? 'No se pudo procesar la foto.');
     } finally {
       setGuardando(false);
     }

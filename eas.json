@@ -7,9 +7,11 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
       "env": {
         "APP_ENV": "development",
-        "EXPO_PUBLIC_API_URL": "http://192.168.100.7:8082/api/v1",
         "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyAC_cTEOtFqreDqAzDsqtd-MqC38eREKLQ"
       }
     },

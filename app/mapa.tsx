@@ -28,7 +28,8 @@ import MapView, { Marker, Region } from 'react-native-maps';
 
 import { ESTADOS_MX, MUNICIPIOS_MX } from '../src/data/mexico';
 import { getContactos, getUbicacionesMapa, registrarUbicacion, subirFotosVisita, actualizarSemaforoEscuela, getAnunciosMapa, actualizarEstadoAnuncio, getAsesores, type AsesorBasico } from '../src/services/api';
-import { cacheUbicaciones, getCacheUbicaciones, getUbicacionesPendientesSync, upsertCacheUbicacion } from '../src/services/offline';
+import { cacheUbicaciones, getCacheUbicaciones, getUbicacionesPendientesSync, upsertCacheUbicacion, encolarUbicacion, encolarFotos } from '../src/services/offline';
+import { comprimirFotos } from '../src/utils/comprimirFoto';
 import { useSyncContext } from '../src/contexts/SyncContext';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Radius, Spacing, Typography } from '../src/theme';
@@ -84,7 +85,7 @@ export default function MapaScreen() {
     lat?: string;
     lng?: string;
   }>();
-  const { online, encolar } = useSyncContext();
+  const { online } = useSyncContext();
   const { isSuperAdmin }    = useAuth();
 
   // Coordenadas de llegada (desde detalle de prospecto)
@@ -408,8 +409,8 @@ export default function MapaScreen() {
       return;
     }
     const result = origen === 'camara'
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.5, allowsMultipleSelection: true, selectionLimit: 5 })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.5, allowsMultipleSelection: true, selectionLimit: 5 });
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.5, allowsMultipleSelection: true, selectionLimit: 3 })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.5, allowsMultipleSelection: true, selectionLimit: 3 });
     if (!result.canceled) {
       setFotosSeleccionadas(prev => [...prev, ...result.assets].slice(0, 5));
     }
@@ -437,44 +438,81 @@ export default function MapaScreen() {
       visitado_en:  new Date().toISOString(),
     };
 
+    // Comprimir fotos antes de cualquier operación de red
+    const fotosPayload = fotosSeleccionadas.length > 0
+      ? await comprimirFotos(fotosSeleccionadas, 'visita')
+      : [];
+
+    // Cierra el modal y limpia el formulario — se llama siempre que la ubicación queda guardada
+    const cerrarFormulario = async (ubicacionActualizada?: Ubicacion) => {
+      if (ubicacionActualizada) {
+        await upsertCacheUbicacion({ ...ubicacionActualizada, _pendiente_sync: false });
+      }
+      setModalVisible(false);
+      resetForm();
+      setContactoId(null);
+      setBusqProspecto('');
+      await cargar();
+    };
+
+    // Sube las fotos en background sin bloquear la UI.
+    // Si falla → encola en FOTOS_QUEUE para reintento automático.
+    const subirFotosBackground = (ubicacionId: number) => {
+      if (fotosPayload.length === 0) return;
+      subirFotosVisita(ubicacionId, fotosPayload).catch(() => {
+        encolarFotos({
+          entidad:    'ubicacion',
+          entidad_id: ubicacionId,
+          fotos:      fotosPayload,
+        });
+      });
+    };
+
     try {
       if (!online) {
-        // ── Sin red: encolar y guardar en cache local para verla de inmediato ──
-        const localId = await encolar('registrar_ubicacion', payload as any);
+        // ── Sin red: encolar ubicación + fotos completas ──────────────────
+        const localId = await encolarUbicacion({ ...payload, fotos: fotosPayload });
         await upsertCacheUbicacion({
           ...payload,
           _local_id:       localId,
           _pendiente_sync: true,
           visitado_en:     payload.visitado_en,
         } as Ubicacion);
-        setModalVisible(false);
-        resetForm();
-        setContactoId(null);
-        setBusqProspecto('');
-        // Recargar para que aparezca en el mapa
-        await cargar();
+        await cerrarFormulario();
         return;
       }
 
-      const ubicacion = await registrarUbicacion(payload);
-
-      // Guardar en caché local también cuando hay internet
-      await upsertCacheUbicacion({ ...ubicacion, _pendiente_sync: false });
-
-      if (fotosSeleccionadas.length > 0 && ubicacion.id) {
-        const fotos = fotosSeleccionadas.map((f, i) => ({
-          uri:  f.uri,
-          name: f.fileName ?? `foto_${i + 1}.jpg`,
-          type: f.mimeType ?? 'image/jpeg',
-        }));
-        await subirFotosVisita(ubicacion.id, fotos);
+      // ── Con red: guardar ubicación primero ────────────────────────────────
+      let ubicacion: Ubicacion;
+      try {
+        ubicacion = await registrarUbicacion(payload);
+      } catch (e: unknown) {
+        const msg = (e instanceof Error ? e.message : '').toLowerCase();
+        const esErrorDeRed = msg.includes('network') || msg.includes('failed') || msg.includes('timeout');
+        if (esErrorDeRed) {
+          // Red falló — encolar todo para después
+          const localId = await encolarUbicacion({ ...payload, fotos: fotosPayload });
+          await upsertCacheUbicacion({
+            ...payload,
+            _local_id:       localId,
+            _pendiente_sync: true,
+            visitado_en:     payload.visitado_en,
+          } as Ubicacion);
+          await cerrarFormulario();
+          Alert.alert(
+            '📋 Guardado sin conexión',
+            'La visita se guardó en tu dispositivo y se enviará automáticamente cuando recuperes la conexión.',
+          );
+          return;
+        }
+        throw e;
       }
 
-      setModalVisible(false);
-      resetForm();
-      setContactoId(null);
-      setBusqProspecto('');
-      await cargar();
+      // ── Ubicación guardada → cerrar modal inmediatamente ─────────────────
+      // Las fotos se suben en background sin retener al asesor en pantalla.
+      await cerrarFormulario(ubicacion);
+      if (ubicacion.id) subirFotosBackground(ubicacion.id);
+
     } catch (e: unknown) {
       Alert.alert('Error al registrar', e instanceof Error ? e.message : 'Error desconocido');
     } finally {
@@ -895,7 +933,7 @@ export default function MapaScreen() {
 
               {/* ── Fotos ─────────────────────────────────────────────────── */}
               <Text style={s.sheetLabel}>
-                Fotos{fotosSeleccionadas.length > 0 ? ` (${fotosSeleccionadas.length}/5)` : ' (opcional)'}
+                Fotos{fotosSeleccionadas.length > 0 ? ` (${fotosSeleccionadas.length}/3)` : ' (opcional)'}
               </Text>
               <View style={s.fotosRow}>
                 {fotosSeleccionadas.map((f, i) => (
@@ -906,7 +944,7 @@ export default function MapaScreen() {
                     </TouchableOpacity>
                   </View>
                 ))}
-                {fotosSeleccionadas.length < 5 && (
+                {fotosSeleccionadas.length < 3 && (
                   <View style={s.fotosBtns}>
                     <TouchableOpacity style={s.fotoBtn} onPress={() => agregarFotos('camara')}>
                       <Text style={s.fotoBtnIcon}>📷</Text>

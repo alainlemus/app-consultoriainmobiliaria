@@ -508,3 +508,38 @@ export async function getResumenComisiones(): Promise<ResumenComisiones> {
   const res = await apiFetch<ApiResponse<ResumenComisiones>>('/comisiones/resumen');
   return res.data;
 }
+
+// ── Route Points ───────────────────────────────────────────────────────────────
+
+export interface RoutePointPayload {
+  lat:       number;
+  lng:       number;
+  precision: number;
+  velocidad: number;
+  timestamp: string;
+}
+
+export async function guardarPuntosRuta(puntos: RoutePointPayload[]): Promise<{ saved: number; ids: number[] }> {
+  const res = await apiFetch<ApiResponse<{ saved: number; ids: number[] }>>('/routes/points', {
+    method: 'POST',
+    body:   JSON.stringify({ points: puntos }),
+  });
+  return res.data;
+}
+
+// ── Rutas ───────────────────────────────────────────────────────────────────
+
+export async function getRutasAsesores(): Promise<RutaAsesor[]> {
+  const res = await apiFetch<ApiResponse<RutaAsesor[]>>('/routes/asesores');
+  return res.data;
+}
+
+export async function getRutasDias(asesorId: number): Promise<RutaDia[]> {
+  const res = await apiFetch<ApiResponse<RutaDia[]>>(`/routes/dias?asesor_id=${asesorId}`);
+  return res.data;
+}
+
+export async function getRutasPuntos(asesorId: number, fecha: string): Promise<RutaPunto[]> {
+  const res = await apiFetch<ApiResponse<RutaPunto[]>>(`/routes/points?asesor_id=${asesorId}&fecha=${fecha}`);
+  return res.data;
+}

@@ -12,8 +12,9 @@ import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
 import EstadoSelectModal from '../../src/components/ui/EstadoSelectModal';
 import { getContacto, updateContacto, uploadFotoContacto, uploadSimuladorScreenshot, getUbicacionesMapa } from '../../src/services/api';
-import { getCacheContacto, getCacheContactos } from '../../src/services/offline';
+import { getCacheContacto, getCacheContactos, encolarFotos } from '../../src/services/offline';
 import { useSyncContext } from '../../src/contexts/SyncContext';
+import { comprimirFoto, persistirDocumento } from '../../src/utils/comprimirFoto';
 import type { Contacto, EstadoProspecto, ServicioProspecto, Ubicacion } from '../../src/types';
 import { SERVICIO_LABEL } from '../../src/types';
 
@@ -166,37 +167,64 @@ export default function DetalleProspectoScreen() {
       };
 
       if (!online) {
-        // Sin internet: encolar la actualización
+        // Sin internet: encolar la actualización — fotos no se pueden asociar sin red
         await encolar('actualizar_contacto', payload);
         Alert.alert(
-          'Guardado sin conexión',
-          'Los cambios se guardarán en el CRM cuando recuperes internet.',
+          '📋 Guardado sin conexión',
+          'Los cambios se guardarán en el CRM cuando recuperes internet. Las fotos se podrán agregar al reconectarte.',
           [{ text: 'OK' }],
         );
         setEditing(false);
         return;
       }
 
-      const updated = await updateContacto(Number(id), payload);
+      // ── Con red: actualizar contacto primero ──────────────────────────────────
+      let updated: Contacto;
+      try {
+        updated = await updateContacto(Number(id), payload);
+      } catch (e: unknown) {
+        const msg = (e instanceof Error ? e.message : '').toLowerCase();
+        if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
+          await encolar('actualizar_contacto', payload);
+          Alert.alert(
+            '📋 Guardado sin conexión',
+            'Los cambios se guardarán en el CRM cuando recuperes internet.',
+            [{ text: 'OK' }],
+          );
+          setEditing(false);
+          return;
+        }
+        throw e;
+      }
 
       let finalContacto: Contacto = updated;
 
-      // Subir nueva foto si se seleccionó
+      // ── Subir foto en background ──────────────────────────────────────────────
       if (fotoAsset && updated.id) {
-        finalContacto = await uploadFotoContacto(updated.id, {
-          uri:  fotoAsset.uri,
-          name: fotoAsset.fileName ?? 'foto.jpg',
-          type: fotoAsset.mimeType ?? 'image/jpeg',
-        });
+        const foto = await comprimirFoto(fotoAsset.uri, 'foto_contacto');
+        uploadFotoContacto(updated.id, foto)
+          .then(c => { finalContacto = c; })
+          .catch(() => {
+            encolarFotos({ entidad: 'contacto_foto', entidad_id: updated.id, fotos: [foto] });
+          });
       }
 
-      // Subir captura del simulador si se seleccionó
+      // ── Subir screenshot en background ────────────────────────────────────────
       if (screenshotAsset && updated.id) {
-        finalContacto = await uploadSimuladorScreenshot(updated.id, {
-          uri:  screenshotAsset.uri,
+        const uri = await persistirDocumento(
+          screenshotAsset.uri,
+          screenshotAsset.fileName ?? 'simulador.jpg',
+        );
+        const screenshotFoto = {
+          uri,
           name: screenshotAsset.fileName ?? 'simulador.jpg',
           type: screenshotAsset.mimeType ?? 'image/jpeg',
-        });
+        };
+        uploadSimuladorScreenshot(updated.id, screenshotFoto)
+          .then(c => { finalContacto = c; })
+          .catch(() => {
+            encolarFotos({ entidad: 'contacto_screenshot', entidad_id: updated.id, fotos: [screenshotFoto] });
+          });
       }
 
       setContacto(finalContacto);

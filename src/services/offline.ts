@@ -17,18 +17,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { v4 as uuidv4 } from 'uuid';
 
-import { syncBatch, uploadDocumento } from './api';
+import { syncBatch, uploadDocumento, registrarAnuncio, subirFotosAnuncio, registrarUbicacion, subirFotosVisita, uploadFotoContacto, uploadSimuladorScreenshot, subirFotoPerfil } from './api';
+import { subirFotoAcreditado, subirDocumentoAcreditado } from './acreditadoApi';
+import { limpiarArchivoLocal } from '../utils/comprimirFoto';
 import type { Contacto, Expediente, Ubicacion, OperacionSync } from '../types';
 
 // ── Claves de AsyncStorage ───────────────────────────────────────────────────
 
 const KEYS = {
-  CONTACTOS:       'cache:contactos',
-  EXPEDIENTES:     'cache:expedientes',
-  UBICACIONES:     'cache:ubicaciones',
-  SYNC_QUEUE:      'sync:queue',          // operaciones JSON
-  DOCS_QUEUE:      'sync:docs_queue',     // uploads de documentos
-  LAST_SYNC:       'sync:last_at',
+  CONTACTOS:              'cache:contactos',
+  EXPEDIENTES:            'cache:expedientes',
+  UBICACIONES:            'cache:ubicaciones',
+  SYNC_QUEUE:             'sync:queue',
+  DOCS_QUEUE:             'sync:docs_queue',
+  ANUNCIOS_QUEUE:         'sync:anuncios_queue',
+  UBICACIONES_QUEUE:      'sync:ubicaciones_queue',
+  FOTOS_QUEUE:            'sync:fotos_queue',
+  DOCS_ACREDITADO_QUEUE:  'sync:docs_acreditado_queue',
+  LAST_SYNC:              'sync:last_at',
 } as const;
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
@@ -51,6 +57,60 @@ export interface DocumentoPendiente {
   notas?:       string;
   timestamp:    string;
   intentos:     number;
+}
+
+/** Un anuncio publicitario registrado offline (con fotos opcionales en URIs locales) */
+export interface AnuncioPendiente {
+  id_local:    string;
+  latitud:     number;
+  longitud:    number;
+  tipo:        string;
+  descripcion?: string;
+  colocado_en: string;
+  fotos:       { uri: string; name: string; type: string }[];
+  timestamp:   string;
+  intentos:    number;
+}
+
+/** Una ubicación (visita/propiedad/escuela) registrada offline con fotos opcionales */
+export interface UbicacionPendiente {
+  id_local:     string;
+  latitud:      number;
+  longitud:     number;
+  tipo:         'visita_cliente' | 'propiedad' | 'escuela';
+  contacto_id?: number;
+  nombre_lugar?: string;
+  direccion?:   string;
+  notas?:       string;
+  municipio?:   string;
+  estado?:      string;
+  visitado_en:  string;
+  fotos:        { uri: string; name: string; type: string }[];
+  timestamp:    string;
+  intentos:     number;
+}
+
+/**
+ * Fotos huérfanas: el registro (ubicación o anuncio) ya fue guardado en el servidor
+ * con su id real, pero el upload de las fotos falló. Se reintenta en background.
+ */
+export interface FotosPendientes {
+  id_local:   string;
+  entidad:    'ubicacion' | 'anuncio' | 'contacto_foto' | 'contacto_screenshot' | 'perfil_asesor' | 'perfil_acreditado';
+  entidad_id: number;                   // id real del servidor (contacto.id / user.id / acreditado.id)
+  fotos:      { uri: string; name: string; type: string }[];
+  timestamp:  string;
+  intentos:   number;
+}
+
+/** Documento del acreditado pendiente de subir (endpoint distinto al del asesor) */
+export interface DocAcreditadoPendiente {
+  id_local:  string;
+  uri:       string;
+  tipo:      string;
+  mimeType:  string;
+  timestamp: string;
+  intentos:  number;
 }
 
 // ── Cache: Contactos ─────────────────────────────────────────────────────────
@@ -319,10 +379,12 @@ export async function getDocsQueue(): Promise<DocumentoPendiente[]> {
 
 // ── Conteo total de pendientes ────────────────────────────────────────────────
 
-/** Suma de operaciones JSON + documentos pendientes */
+/** Suma de todas las colas pendientes */
 export async function contarPendientes(): Promise<number> {
-  const [ops, docs] = await Promise.all([getQueue(), getDocsQueue()]);
-  return ops.length + docs.length;
+  const [ops, docs, anuncios, ubicaciones, fotos, docsAcreditado] = await Promise.all([
+    getQueue(), getDocsQueue(), getAnunciosQueue(), getUbicacionesQueue(), getFotosQueue(), getDocsAcreditadoQueue(),
+  ]);
+  return ops.length + docs.length + anuncios.length + ubicaciones.length + fotos.length + docsAcreditado.length;
 }
 
 // ── Contactos pendientes de sync visibles en la lista ────────────────────────
@@ -378,6 +440,175 @@ export async function getExpedientesPendientesSync(): Promise<Expediente[]> {
           updated_at:       op.timestamp,
         } as Expediente;
       });
+  } catch {
+    return [];
+  }
+}
+
+// ── Cola de ubicaciones (con fotos) ──────────────────────────────────────────
+
+/**
+ * Encola una ubicación con sus fotos para registrar cuando haya conexión.
+ * Reemplaza el uso de encolarOperacion('registrar_ubicacion') cuando hay fotos,
+ * y también cuando hay red pero falla (fallback de error de red).
+ */
+export async function encolarUbicacion(params: {
+  latitud:      number;
+  longitud:     number;
+  tipo:         'visita_cliente' | 'propiedad' | 'escuela';
+  contacto_id?: number;
+  nombre_lugar?: string;
+  direccion?:   string;
+  notas?:       string;
+  municipio?:   string;
+  estado?:      string;
+  visitado_en:  string;
+  fotos:        { uri: string; name: string; type: string }[];
+}): Promise<string> {
+  const item: UbicacionPendiente = {
+    id_local:    uuidv4(),
+    ...params,
+    timestamp:   new Date().toISOString(),
+    intentos:    0,
+  };
+  const queue = await getUbicacionesQueue();
+  queue.push(item);
+  await AsyncStorage.setItem(KEYS.UBICACIONES_QUEUE, JSON.stringify(queue));
+  return item.id_local;
+}
+
+export async function getUbicacionesQueue(): Promise<UbicacionPendiente[]> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.UBICACIONES_QUEUE);
+    return raw ? (JSON.parse(raw) as UbicacionPendiente[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+// ── Cola de anuncios ─────────────────────────────────────────────────────────
+
+/**
+ * Encola un anuncio para registrar cuando haya conexión.
+ * Las fotos se guardan como URIs locales y se suben al sincronizar.
+ */
+export async function encolarAnuncio(params: {
+  latitud:     number;
+  longitud:    number;
+  tipo:        string;
+  descripcion?: string;
+  colocado_en: string;
+  fotos:       { uri: string; name: string; type: string }[];
+}): Promise<string> {
+  const anuncio: AnuncioPendiente = {
+    id_local:    uuidv4(),
+    latitud:     params.latitud,
+    longitud:    params.longitud,
+    tipo:        params.tipo,
+    descripcion: params.descripcion,
+    colocado_en: params.colocado_en,
+    fotos:       params.fotos,
+    timestamp:   new Date().toISOString(),
+    intentos:    0,
+  };
+  const queue = await getAnunciosQueue();
+  queue.push(anuncio);
+  await AsyncStorage.setItem(KEYS.ANUNCIOS_QUEUE, JSON.stringify(queue));
+  return anuncio.id_local;
+}
+
+export async function getAnunciosQueue(): Promise<AnuncioPendiente[]> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.ANUNCIOS_QUEUE);
+    return raw ? (JSON.parse(raw) as AnuncioPendiente[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Devuelve los anuncios de la cola para mostrarlos en el mapa
+ * mientras esperan ser sincronizados (con bandera _pendiente_sync).
+ */
+export async function getAnunciosPendientesSync() {
+  try {
+    const queue = await getAnunciosQueue();
+    return queue.map(a => ({
+      id:              0,
+      _local_id:       a.id_local,
+      _pendiente_sync: true as const,
+      latitud:         a.latitud,
+      longitud:        a.longitud,
+      tipo:            a.tipo,
+      descripcion:     a.descripcion,
+      colocado_en:     a.colocado_en,
+      estado:          'activo' as const,
+      fotos:           [] as { id: number; url: string }[],
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// ── Cola de fotos huérfanas ───────────────────────────────────────────────────
+
+/**
+ * Encola fotos cuyo registro ya existe en el servidor pero el upload falló.
+ * Se llama desde el background cuando subirFotosVisita/subirFotosAnuncio lanza error.
+ */
+export async function encolarFotos(params: {
+  entidad:    'ubicacion' | 'anuncio' | 'contacto_foto' | 'contacto_screenshot' | 'perfil_asesor' | 'perfil_acreditado';
+  entidad_id: number;
+  fotos:      { uri: string; name: string; type: string }[];
+}): Promise<string> {
+  const item: FotosPendientes = {
+    id_local:   uuidv4(),
+    entidad:    params.entidad,
+    entidad_id: params.entidad_id,
+    fotos:      params.fotos,
+    timestamp:  new Date().toISOString(),
+    intentos:   0,
+  };
+  const queue = await getFotosQueue();
+  queue.push(item);
+  await AsyncStorage.setItem(KEYS.FOTOS_QUEUE, JSON.stringify(queue));
+  return item.id_local;
+}
+
+export async function getFotosQueue(): Promise<FotosPendientes[]> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.FOTOS_QUEUE);
+    return raw ? (JSON.parse(raw) as FotosPendientes[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+// ── Cola de documentos del acreditado ────────────────────────────────────────
+
+export async function encolarDocAcreditado(params: {
+  uri:      string;
+  tipo:     string;
+  mimeType: string;
+}): Promise<string> {
+  const item: DocAcreditadoPendiente = {
+    id_local:  uuidv4(),
+    uri:       params.uri,
+    tipo:      params.tipo,
+    mimeType:  params.mimeType,
+    timestamp: new Date().toISOString(),
+    intentos:  0,
+  };
+  const queue = await getDocsAcreditadoQueue();
+  queue.push(item);
+  await AsyncStorage.setItem(KEYS.DOCS_ACREDITADO_QUEUE, JSON.stringify(queue));
+  return item.id_local;
+}
+
+export async function getDocsAcreditadoQueue(): Promise<DocAcreditadoPendiente[]> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.DOCS_ACREDITADO_QUEUE);
+    return raw ? (JSON.parse(raw) as DocAcreditadoPendiente[]) : [];
   } catch {
     return [];
   }
@@ -488,13 +719,17 @@ export async function sincronizar(): Promise<{ ok: number; errores: number }> {
             doc.mimeType,
             doc.seccion,
           );
+          // Limpiar archivo local tras upload exitoso
+          await limpiarArchivoLocal(doc.uri);
           ok++;
         } catch {
           errores++;
           if (doc.intentos < 3) {
             fallidas.push({ ...doc, intentos: doc.intentos + 1 });
+          } else {
+            // Tras 3 intentos fallidos limpiar igual
+            await limpiarArchivoLocal(doc.uri);
           }
-          // Si ya intentó 3 veces (p.ej. archivo borrado), se descarta
         }
       }
       await AsyncStorage.setItem(KEYS.DOCS_QUEUE, JSON.stringify(fallidas));
@@ -502,6 +737,159 @@ export async function sincronizar(): Promise<{ ok: number; errores: number }> {
 
     if (ok > 0 || errores > 0) {
       await AsyncStorage.setItem(KEYS.LAST_SYNC, new Date().toISOString());
+    }
+
+    // ── 3. Cola de anuncios ───────────────────────────────────────────────
+    const anunciosQueue = await getAnunciosQueue();
+    if (anunciosQueue.length > 0) {
+      const fallidas: AnuncioPendiente[] = [];
+
+      for (const a of anunciosQueue) {
+        try {
+          // Registrar el anuncio en el servidor
+          const anuncio = await registrarAnuncio({
+            latitud:     a.latitud,
+            longitud:    a.longitud,
+            tipo:        a.tipo as any,
+            descripcion: a.descripcion,
+            colocado_en: a.colocado_en,
+          });
+
+          // Subir fotos si las hay
+          if (a.fotos.length > 0 && anuncio.id) {
+            try {
+              await subirFotosAnuncio(anuncio.id, a.fotos);
+              // Limpiar archivos locales tras upload exitoso
+              await Promise.all(a.fotos.map(f => limpiarArchivoLocal(f.uri)));
+            } catch {
+              // El anuncio quedó guardado; encolar las fotos para reintento
+              await encolarFotos({ entidad: 'anuncio', entidad_id: anuncio.id!, fotos: a.fotos });
+            }
+          }
+
+          ok++;
+        } catch {
+          errores++;
+          if (a.intentos < 3) {
+            fallidas.push({ ...a, intentos: a.intentos + 1 });
+          }
+        }
+      }
+      await AsyncStorage.setItem(KEYS.ANUNCIOS_QUEUE, JSON.stringify(fallidas));
+    }
+
+    // ── 4. Cola de ubicaciones con fotos ──────────────────────────────────
+    const ubicacionesQueue = await getUbicacionesQueue();
+    if (ubicacionesQueue.length > 0) {
+      const fallidas: UbicacionPendiente[] = [];
+
+      for (const u of ubicacionesQueue) {
+        try {
+          const ubicacion = await registrarUbicacion({
+            latitud:      u.latitud,
+            longitud:     u.longitud,
+            tipo:         u.tipo,
+            contacto_id:  u.contacto_id,
+            nombre_lugar: u.nombre_lugar,
+            direccion:    u.direccion,
+            notas:        u.notas,
+            municipio:    u.municipio,
+            estado:       u.estado,
+            visitado_en:  u.visitado_en,
+          } as any);
+
+          // Actualizar cache con el id real del servidor
+          await upsertCacheUbicacion({
+            ...ubicacion,
+            _local_id:       u.id_local,
+            _pendiente_sync: false,
+          });
+
+          // Subir fotos si las hay
+          if (u.fotos.length > 0 && ubicacion.id) {
+            try {
+              await subirFotosVisita(ubicacion.id, u.fotos);
+              // Limpiar archivos locales tras upload exitoso
+              await Promise.all(u.fotos.map(f => limpiarArchivoLocal(f.uri)));
+            } catch {
+              // Ubicación guardada; encolar las fotos para reintento
+              await encolarFotos({ entidad: 'ubicacion', entidad_id: ubicacion.id!, fotos: u.fotos });
+            }
+          }
+
+          ok++;
+        } catch {
+          errores++;
+          if (u.intentos < 3) {
+            fallidas.push({ ...u, intentos: u.intentos + 1 });
+          }
+        }
+      }
+      await AsyncStorage.setItem(KEYS.UBICACIONES_QUEUE, JSON.stringify(fallidas));
+    }
+
+    // ── 5. Cola de fotos huérfanas ─────────────────────────────────────────
+    // Fotos cuyo registro ya existe en el servidor pero el upload falló antes.
+    const fotosQueue = await getFotosQueue();
+    if (fotosQueue.length > 0) {
+      const fallidas: FotosPendientes[] = [];
+
+      for (const item of fotosQueue) {
+        try {
+          const foto = item.fotos[0];
+          switch (item.entidad) {
+            case 'ubicacion':
+              await subirFotosVisita(item.entidad_id, item.fotos);
+              break;
+            case 'anuncio':
+              await subirFotosAnuncio(item.entidad_id, item.fotos);
+              break;
+            case 'contacto_foto':
+              if (foto) await uploadFotoContacto(item.entidad_id, foto);
+              break;
+            case 'contacto_screenshot':
+              if (foto) await uploadSimuladorScreenshot(item.entidad_id, foto);
+              break;
+            case 'perfil_asesor':
+              if (foto) await subirFotoPerfil(foto.uri);
+              break;
+            case 'perfil_acreditado':
+              if (foto) await subirFotoAcreditado(foto.uri);
+              break;
+          }
+          await Promise.all(item.fotos.map(f => limpiarArchivoLocal(f.uri)));
+          ok++;
+        } catch {
+          errores++;
+          if (item.intentos < 3) {
+            fallidas.push({ ...item, intentos: item.intentos + 1 });
+          } else {
+            await Promise.all(item.fotos.map(f => limpiarArchivoLocal(f.uri)));
+          }
+        }
+      }
+      await AsyncStorage.setItem(KEYS.FOTOS_QUEUE, JSON.stringify(fallidas));
+    }
+
+    // ── 6. Cola de documentos del acreditado ──────────────────────────────
+    const docsAcreditadoQueue = await getDocsAcreditadoQueue();
+    if (docsAcreditadoQueue.length > 0) {
+      const fallidas: DocAcreditadoPendiente[] = [];
+      for (const doc of docsAcreditadoQueue) {
+        try {
+          await subirDocumentoAcreditado(doc.uri, doc.tipo, doc.mimeType);
+          await limpiarArchivoLocal(doc.uri);
+          ok++;
+        } catch {
+          errores++;
+          if (doc.intentos < 3) {
+            fallidas.push({ ...doc, intentos: doc.intentos + 1 });
+          } else {
+            await limpiarArchivoLocal(doc.uri);
+          }
+        }
+      }
+      await AsyncStorage.setItem(KEYS.DOCS_ACREDITADO_QUEUE, JSON.stringify(fallidas));
     }
   } finally {
     syncEnProceso = false;

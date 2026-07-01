@@ -5,7 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 import { SyncProvider } from '../src/contexts/SyncContext';
 import { AuthProvider } from '../src/contexts/AuthContext';
 import { registrarPushToken, registrarListeners, limpiarBadge } from '../src/services/notifications';
-import { getAcreditadoToken } from '../src/services/acreditadoApi';
+import { getAcreditadoToken, removeAcreditadoToken } from '../src/services/acreditadoApi';
 
 export default function RootLayout() {
   const router   = useRouter();
@@ -17,27 +17,33 @@ export default function RootLayout() {
       const acreditadoToken = await getAcreditadoToken();
       const inAuth          = segments[0] === '(auth)';
 
-      // ── Flujo original del asesor (sin cambios) ───────────────────────────
-      // Sin sesión → login
+      // ── Caso especial: ambos tokens presentes ─────────────────────────────
+      // El asesor tiene prioridad. Limpiamos el token de acreditado huérfano
+      // para evitar estado inconsistente.
+      if (asesorToken && acreditadoToken) {
+        await removeAcreditadoToken();
+        if (inAuth) router.replace('/(tabs)');
+        return;
+      }
+
+      // ── Sin sesión → login ────────────────────────────────────────────────
       if (!asesorToken && !acreditadoToken && !inAuth) {
         router.replace('/(auth)/login');
         return;
       }
 
-      // Asesor con token y está en auth → ir a tabs
+      // ── Asesor con token ──────────────────────────────────────────────────
       if (asesorToken && inAuth) {
         router.replace('/(tabs)');
         return;
       }
 
-      // ── Flujo adicional del acreditado ────────────────────────────────────
-      // Acreditado con token y está en auth → ir a su sección
+      // ── Acreditado con token ──────────────────────────────────────────────
       if (acreditadoToken && !asesorToken && inAuth) {
         router.replace('/(acreditado)');
         return;
       }
 
-      // Acreditado con token, sin token de asesor, y no está en su sección
       if (acreditadoToken && !asesorToken && segments[0] !== '(acreditado)' && !inAuth) {
         router.replace('/(acreditado)');
         return;

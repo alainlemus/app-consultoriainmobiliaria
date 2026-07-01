@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, RefreshControl, Linking,
+  TouchableOpacity, RefreshControl, Linking, Alert,
+  ActivityIndicator, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,26 +36,66 @@ export default function MiTramiteScreen() {
   const [servicios, setServicios]     = useState<ServicioTramite[]>([]);
   const [loading,  setLoading]        = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
+  const [errorServicios, setErrorServicios] = useState(false);
+
+  // Estado para el flujo de solicitar asesoría
+  const [solicitandoId, setSolicitandoId] = useState<number | null>(null);
+  const [solicitudEnviada, setSolicitudEnviada] = useState(false);
+  const [mensajeAdicional, setMensajeAdicional] = useState('');
+  const [mostrarMensaje, setMostrarMensaje] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
+      // Optimización: si sabemos desde el perfil del usuario que no hay expediente,
+      // evitamos la llamada extra y vamos directo a cargar los servicios disponibles.
+      const yaTenemosQueNoHayExpediente = acreditado !== null && acreditado.tiene_expediente === false;
+
       const [exp, svcs] = await Promise.all([
-        getExpedienteAcreditado(),
-        getServiciosDisponibles(),
+        yaTenemosQueNoHayExpediente ? Promise.resolve(null) : getExpedienteAcreditado(),
+        getServiciosDisponibles().catch(() => null),
       ]);
       setExpediente(exp);
-      setServicios(svcs);
-    } catch {}
-    finally { setLoading(false); setRefreshing(false); }
-  }, []);
+      if (svcs === null) {
+        setErrorServicios(true);
+        setServicios([]);
+      } else {
+        setErrorServicios(false);
+        setServicios(svcs);
+      }
+    } catch {
+      setErrorServicios(true);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [acreditado]);
 
   useEffect(() => { cargar(); }, []);
 
-  async function handleSolicitarAsesoria(tipoId: number) {
+  async function handleSolicitarAsesoria(servicio: ServicioTramite) {
+    setSolicitandoId(servicio.id);
     try {
-      await solicitarAsesoria({ tipo_tramite_id: tipoId });
-      await cargar();
-    } catch {}
+      await solicitarAsesoria({
+        tipo_tramite_id: servicio.id,
+        mensaje: mensajeAdicional.trim() || undefined,
+      });
+      setSolicitudEnviada(true);
+      setMensajeAdicional('');
+      setMostrarMensaje(false);
+      Alert.alert(
+        '¡Solicitud enviada! ✅',
+        `Tu solicitud de asesoría para "${servicio.nombre}" fue registrada. Un asesor se pondrá en contacto contigo a la brevedad.`,
+        [{ text: 'Entendido' }],
+      );
+    } catch (e: unknown) {
+      Alert.alert(
+        'Error al enviar',
+        e instanceof Error ? e.message : 'No se pudo enviar la solicitud. Intenta de nuevo.',
+        [{ text: 'OK' }],
+      );
+    } finally {
+      setSolicitandoId(null);
+    }
   }
 
   // ── Sin expediente ──────────────────────────────────────────────────────────
@@ -70,20 +111,87 @@ export default function MiTramiteScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Ionicons name="home-outline" size={64} color={Colors.dark[600]} />
-          <Text style={styles.emptyTitle}>Aún no tienes un trámite activo</Text>
-          <Text style={styles.emptySubtitle}>
-            Solicita una asesoría para iniciar tu proceso de crédito. Un asesor te contactará pronto.
-          </Text>
-          {servicios.map(s => (
-            <TouchableOpacity
-              key={s.id}
-              style={styles.servicioBtn}
-              onPress={() => handleSolicitarAsesoria(s.id)}
-            >
-              <Text style={styles.servicioBtnText}>{s.nombre}</Text>
-            </TouchableOpacity>
-          ))}
+          {solicitudEnviada ? (
+            // ── Estado post-solicitud ──────────────────────────────────────
+            <>
+              <Ionicons name="checkmark-circle" size={64} color={Colors.success} />
+              <Text style={styles.emptyTitle}>Solicitud enviada</Text>
+              <Text style={styles.emptySubtitle}>
+                Un asesor revisará tu solicitud y se pondrá en contacto contigo pronto. Puedes enviar otra solicitud si necesitas un servicio diferente.
+              </Text>
+              <TouchableOpacity style={styles.linkBtn} onPress={() => setSolicitudEnviada(false)}>
+                <Text style={styles.linkBtnText}>Solicitar otro servicio</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            // ── Selección de servicio ──────────────────────────────────────
+            <>
+              <Ionicons name="home-outline" size={64} color={Colors.dark[600]} />
+              <Text style={styles.emptyTitle}>Aún no tienes un trámite activo</Text>
+              <Text style={styles.emptySubtitle}>
+                Solicita una asesoría para iniciar tu proceso de crédito. Un asesor te contactará pronto.
+              </Text>
+
+              {errorServicios ? (
+                <View style={styles.errorCard}>
+                  <Ionicons name="wifi-outline" size={24} color={Colors.dark[400]} />
+                  <Text style={styles.errorCardText}>No se pudieron cargar los servicios disponibles.</Text>
+                  <TouchableOpacity style={styles.retryBtn} onPress={cargar}>
+                    <Text style={styles.retryBtnText}>Reintentar</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : servicios.length === 0 ? (
+                <View style={styles.errorCard}>
+                  <ActivityIndicator color={Colors.gold[400]} />
+                  <Text style={styles.errorCardText}>Cargando servicios disponibles…</Text>
+                </View>
+              ) : (
+                <>
+                  {servicios.map(s => (
+                    <TouchableOpacity
+                      key={s.id}
+                      style={[styles.servicioBtn, solicitandoId === s.id && styles.servicioBtnDisabled]}
+                      onPress={() => handleSolicitarAsesoria(s)}
+                      disabled={solicitandoId !== null}
+                    >
+                      {solicitandoId === s.id
+                        ? <ActivityIndicator color={Colors.gold[400]} />
+                        : <Text style={styles.servicioBtnText}>{s.nombre}</Text>
+                      }
+                    </TouchableOpacity>
+                  ))}
+
+                  {/* Mensaje adicional opcional */}
+                  <TouchableOpacity
+                    style={styles.linkBtn}
+                    onPress={() => setMostrarMensaje(v => !v)}
+                  >
+                    <Ionicons
+                      name={mostrarMensaje ? 'chevron-up-outline' : 'chatbubble-ellipses-outline'}
+                      size={16}
+                      color={Colors.gold[400]}
+                    />
+                    <Text style={styles.linkBtnText}>
+                      {mostrarMensaje ? 'Ocultar mensaje' : 'Agregar un mensaje (opcional)'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {mostrarMensaje && (
+                    <TextInput
+                      style={styles.mensajeInput}
+                      placeholder="Cuéntanos más sobre tu situación, municipio, tipo de crédito…"
+                      placeholderTextColor={Colors.dark[500]}
+                      value={mensajeAdicional}
+                      onChangeText={setMensajeAdicional}
+                      multiline
+                      numberOfLines={4}
+                      maxLength={500}
+                    />
+                  )}
+                </>
+              )}
+            </>
+          )}
         </ScrollView>
       </View>
     );
@@ -285,6 +393,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle:    { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.cream[50], textAlign: 'center' },
   emptySubtitle: { fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center', lineHeight: Typography.fontSize.sm * 1.6 },
-  servicioBtn:   { width: '100%', backgroundColor: Colors.dark[800], borderRadius: Radius.md, padding: Spacing.lg, alignItems: 'center', borderWidth: 1, borderColor: Colors.gold[400] },
-  servicioBtnText:{ fontSize: Typography.fontSize.base, color: Colors.gold[400], fontWeight: Typography.fontWeight.semibold },
+  servicioBtn:         { width: '100%', backgroundColor: Colors.dark[800], borderRadius: Radius.md, padding: Spacing.lg, alignItems: 'center', borderWidth: 1, borderColor: Colors.gold[400], minHeight: 52, justifyContent: 'center' },
+  servicioBtnDisabled: { opacity: 0.5 },
+  servicioBtnText:     { fontSize: Typography.fontSize.base, color: Colors.gold[400], fontWeight: Typography.fontWeight.semibold },
+  errorCard:     { width: '100%', backgroundColor: Colors.dark[800], borderRadius: Radius.md, padding: Spacing.lg, alignItems: 'center', gap: Spacing.sm },
+  errorCardText: { fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center' },
+  retryBtn:      { marginTop: Spacing.xs, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: Colors.dark[700], borderRadius: Radius.md },
+  retryBtnText:  { fontSize: Typography.fontSize.sm, color: Colors.gold[400], fontWeight: Typography.fontWeight.semibold },
+  linkBtn:       { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
+  linkBtnText:   { fontSize: Typography.fontSize.sm, color: Colors.gold[400] },
+  mensajeInput:  { width: '100%', backgroundColor: Colors.dark[800], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.dark[600], padding: Spacing.base, color: Colors.cream[100], fontSize: Typography.fontSize.sm, minHeight: 100, textAlignVertical: 'top' },
 });

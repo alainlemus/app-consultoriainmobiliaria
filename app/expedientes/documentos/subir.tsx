@@ -53,6 +53,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { uploadDocumento } from '../../../src/services/api';
+import { persistirDocumento } from '../../../src/utils/comprimirFoto';
 import { Colors, Radius, Spacing, Typography } from '../../../src/theme';
 import { useSyncContext } from '../../../src/contexts/SyncContext';
 
@@ -156,30 +157,61 @@ export default function SubirDocumentoScreen() {
     if (!resultUri || !expedienteId) return;
     setUploading(true);
     try {
-      if (!online) {
-        // Sin internet: encolar el documento para subir después
+      // Determinar nombre de archivo con extensión correcta
+      const ext       = mimeType === 'application/pdf' ? 'pdf' : 'jpg';
+      const nombre    = `doc_${tipo}_${Date.now()}.${ext}`;
+
+      // Persistir en documentDirectory ANTES de encolar o subir
+      // Esto garantiza que la URI sobrevive reinicios de app en Android e iOS
+      const uriPersistida = await persistirDocumento(resultUri, nombre);
+
+      const encolarYVolver = async () => {
         await encolarDoc({
           expedienteId: Number(expedienteId),
-          uri:          resultUri,
+          uri:          uriPersistida,
           tipo,
           seccion:      seccionParam || undefined,
           mimeType,
           notas:        notas || undefined,
         });
         Alert.alert(
-          'Guardado sin conexión',
-          'El documento se subirá al expediente automáticamente cuando recuperes internet.',
+          '📋 Guardado sin conexión',
+          'El documento se enviará al expediente automáticamente cuando recuperes internet.',
           [{ text: 'Entendido', onPress: () => router.back() }],
         );
+      };
+
+      if (!online) {
+        await encolarYVolver();
         return;
       }
 
-      await uploadDocumento(Number(expedienteId), resultUri, tipo, notas || undefined, mimeType, seccionParam || undefined);
-      Alert.alert('Listo', 'Documento subido correctamente.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      // Con red: intentar subir directo
+      try {
+        await uploadDocumento(
+          Number(expedienteId),
+          uriPersistida,
+          tipo,
+          notas || undefined,
+          mimeType,
+          seccionParam || undefined,
+        );
+        Alert.alert('✓ Listo', 'Documento subido correctamente.', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+      } catch (e: unknown) {
+        const msg = (e instanceof Error ? e.message : '').toLowerCase();
+        const esErrorDeRed = msg.includes('network') || msg.includes('failed') || msg.includes('timeout');
+        if (esErrorDeRed) {
+          // Red disponible pero débil/caída → encolar silenciosamente
+          await encolarYVolver();
+        } else {
+          // Error del servidor (401, 422, etc.) → mostrar al usuario
+          Alert.alert('Error al subir', e instanceof Error ? e.message : 'Error desconocido');
+        }
+      }
     } catch (e: unknown) {
-      Alert.alert('Error al subir', e instanceof Error ? e.message : 'Error desconocido');
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo procesar el documento.');
     } finally {
       setUploading(false);
     }

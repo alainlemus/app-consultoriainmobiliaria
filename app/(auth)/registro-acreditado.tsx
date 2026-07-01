@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  KeyboardAvoidingView, Platform, TouchableOpacity, Linking,
+  KeyboardAvoidingView, Platform, TouchableOpacity, Linking, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -52,7 +52,22 @@ export default function RegistroAcreditadoScreen() {
       });
 
       registrarPushToken().catch(() => {});
-      router.replace('/(acreditado)');
+
+      if (result.expediente_vinculado) {
+        Alert.alert(
+          '¡Expediente encontrado! 🎉',
+          `Tu cuenta fue vinculada automáticamente al expediente ${result.expediente_vinculado.folio}. Puedes consultar el estado de tu trámite desde la app.`,
+          [{ text: 'Ver mi trámite', onPress: () => router.replace('/(acreditado)') }],
+        );
+      } else if (curp.trim()) {
+        Alert.alert(
+          'Cuenta creada',
+          'Tu cuenta fue creada exitosamente. No encontramos un expediente asociado a tu CURP. Si tienes un trámite activo, contacta a tu asesor para vincularlo.',
+          [{ text: 'Continuar', onPress: () => router.replace('/(acreditado)') }],
+        );
+      } else {
+        router.replace('/(acreditado)');
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al crear la cuenta.');
     } finally {
