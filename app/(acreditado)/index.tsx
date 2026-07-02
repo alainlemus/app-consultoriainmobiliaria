@@ -4,10 +4,11 @@ import {
   TouchableOpacity, RefreshControl, Linking, Alert,
   ActivityIndicator, TextInput,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
-import { getExpedienteAcreditado, solicitarAsesoria, getServiciosDisponibles } from '@/src/services/acreditadoApi';
+import { getExpedienteAcreditado, solicitarAsesoria, getServiciosDisponibles, logoutAcreditado } from '@/src/services/acreditadoApi';
 import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
 import type { ExpedienteAcreditado, ServicioTramite } from '@/src/types';
 
@@ -31,7 +32,8 @@ const ESTADO_LABEL: Record<string, string> = {
 
 export default function MiTramiteScreen() {
   const insets               = useSafeAreaInsets();
-  const { acreditado }       = useAcreditadoAuth();
+  const router               = useRouter();
+  const { acreditado, clearAcreditado } = useAcreditadoAuth();
   const [expediente, setExpediente]   = useState<ExpedienteAcreditado | null>(null);
   const [servicios, setServicios]     = useState<ServicioTramite[]>([]);
   const [loading,  setLoading]        = useState(true);
@@ -98,13 +100,35 @@ export default function MiTramiteScreen() {
     }
   }
 
+  function handleLogout() {
+    Alert.alert('Cerrar sesión', '¿Seguro que quieres salir?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Salir', style: 'destructive',
+        onPress: async () => {
+          await logoutAcreditado();
+          clearAcreditado();
+          router.replace('/(auth)/login');
+        },
+      },
+    ]);
+  }
+
   // ── Sin expediente ──────────────────────────────────────────────────────────
   if (!loading && !expediente) {
     return (
       <View style={[styles.flex, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? 'bienvenido'} 👋</Text>
-          <Text style={styles.headerSub}>Consultoría Inmobiliaria</Text>
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? 'bienvenido'} 👋</Text>
+              <Text style={styles.headerSub}>Consultoría Inmobiliaria</Text>
+            </View>
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={16} color={Colors.dark[400]} />
+              <Text style={styles.logoutText}>Salir</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <ScrollView
           contentContainerStyle={styles.emptyContainer}
@@ -204,8 +228,16 @@ export default function MiTramiteScreen() {
     <View style={[styles.flex, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? ''} 👋</Text>
-        <Text style={styles.headerSub}>Consultoría Inmobiliaria</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? ''} 👋</Text>
+            <Text style={styles.headerSub}>Consultoría Inmobiliaria</Text>
+          </View>
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={16} color={Colors.dark[400]} />
+            <Text style={styles.logoutText}>Salir</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -342,9 +374,12 @@ export default function MiTramiteScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: Colors.dark[900] },
-  header: { paddingHorizontal: Spacing['2xl'], paddingVertical: Spacing.lg, backgroundColor: Colors.dark[900] },
+  header:      { paddingHorizontal: Spacing['2xl'], paddingVertical: Spacing.lg, backgroundColor: Colors.dark[900] },
+  headerRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerTitle: { fontSize: Typography.fontSize['2xl'], fontWeight: Typography.fontWeight.bold, color: Colors.cream[50] },
   headerSub:   { fontSize: Typography.fontSize.sm, color: Colors.gold[400], marginTop: 2 },
+  logoutBtn:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs, borderRadius: Radius.md, backgroundColor: Colors.dark[800] },
+  logoutText:  { fontSize: Typography.fontSize.xs, color: Colors.dark[400], fontWeight: Typography.fontWeight.medium },
   content: { padding: Spacing.base, gap: Spacing.base, paddingBottom: Spacing['3xl'] },
 
   card: { backgroundColor: Colors.dark[800], borderRadius: Radius.lg, padding: Spacing.xl },
