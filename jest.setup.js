@@ -74,9 +74,34 @@ jest.mock('expo-location', () => ({
     Promise.resolve({ status: 'granted' })
   ),
   getCurrentPositionAsync: jest.fn(() =>
-    Promise.resolve({ coords: { latitude: 19.4326, longitude: -99.1332 } })
+    Promise.resolve({
+      coords: {
+        latitude:  19.4326,
+        longitude: -99.1332,
+        accuracy:  10,
+        speed:     0,
+        altitude:  null,
+        altitudeAccuracy: null,
+        heading:   null,
+      },
+      timestamp: Date.now(),
+    })
   ),
-  Accuracy: { High: 5 },
+  getLastKnownPositionAsync: jest.fn(() =>
+    Promise.resolve({
+      coords: {
+        latitude:  19.4326,
+        longitude: -99.1332,
+        accuracy:  20,
+        speed:     0,
+        altitude:  null,
+        altitudeAccuracy: null,
+        heading:   null,
+      },
+      timestamp: Date.now(),
+    })
+  ),
+  Accuracy: { High: 5, Balanced: 3, Low: 1, Lowest: 0, BestForNavigation: 6 },
 }));
 
 // ── expo-notifications ────────────────────────────────────────────────────────

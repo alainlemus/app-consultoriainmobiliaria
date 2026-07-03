@@ -76,7 +76,10 @@ export async function syncRoutePoints(): Promise<{ ok: number; errores: number }
   if (syncEnProceso) return { ok: 0, errores: 0 };
 
   const state = await NetInfo.fetch();
-  if (!state.isConnected || !state.isInternetReachable) {
+  // isInternetReachable puede ser null en Android (estado desconocido).
+  // Solo bloqueamos si sabemos con certeza que NO hay internet (false).
+  // null = desconocido → intentar de todas formas.
+  if (state.isConnected === false) {
     return { ok: 0, errores: 0 };
   }
 
@@ -92,22 +95,35 @@ export async function syncRoutePoints(): Promise<{ ok: number; errores: number }
       return { ok: 0, errores: 0 };
     }
 
-    for (const item of pendientes) {
-      try {
-        await guardarPuntosRuta(item.puntos);
+    // Intentar enviar todos los items pendientes en un solo batch para reducir requests
+    const todosPuntos = pendientes.flatMap(item => item.puntos);
+    try {
+      await guardarPuntosRuta(todosPuntos);
+      // Marcar todos como enviados
+      for (const item of pendientes) {
         item.sync = true;
         item.synced_at = new Date().toISOString();
-        ok++;
-      } catch {
-        errores++;
+      }
+      ok = pendientes.length;
+    } catch {
+      // Si el batch falla, intentar uno por uno para salvar los que se pueda
+      for (const item of pendientes) {
+        try {
+          await guardarPuntosRuta(item.puntos);
+          item.sync = true;
+          item.synced_at = new Date().toISOString();
+          ok++;
+        } catch {
+          errores++;
+        }
       }
     }
 
-    // Mantener solo los últimos 50 items syncados para referencia
-    const todos = queue.filter(item => !item.sync).concat(
+    // Persistir: conservar pendientes + últimos 50 syncados como historial
+    const actualizados = queue.filter(item => !item.sync).concat(
       queue.filter(item => item.sync).slice(-50)
     );
-    await AsyncStorage.setItem(KEY_ROUTE_QUEUE, JSON.stringify(todos));
+    await AsyncStorage.setItem(KEY_ROUTE_QUEUE, JSON.stringify(actualizados));
   } finally {
     syncEnProceso = false;
   }
@@ -119,7 +135,10 @@ export async function syncRoutePoints(): Promise<{ ok: number; errores: number }
 
 export async function contarPendientesRoute(): Promise<number> {
   const queue = await getQueue();
-  return queue.filter(item => !item.sync).length;
+  // Contar puntos individuales (no items de cola) para que el número sea preciso
+  return queue
+    .filter(item => !item.sync)
+    .reduce((acc, item) => acc + item.puntos.length, 0);
 }
 
 // ── Listener de conectividad ─────────────────────────────────────────────────
@@ -129,7 +148,8 @@ let unsubscribeNetInfo: (() => void) | null = null;
 export function iniciarRouteSyncAutomatico(): void {
   if (unsubscribeNetInfo) return;
   unsubscribeNetInfo = NetInfo.addEventListener(state => {
-    if (state.isConnected && state.isInternetReachable) {
+    // isInternetReachable puede ser null en Android; solo bloquear si es false explícito
+    if (state.isConnected !== false) {
       syncRoutePoints();
     }
   });

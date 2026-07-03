@@ -81,24 +81,37 @@ export function useRouteTracking(
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+      // Intentar con alta precisión primero; si falla o tarda, bajar a Balanced
+      let loc: Location.LocationObject;
+      try {
+        loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 10_000,   // máximo 10 s de espera
+        });
+      } catch {
+        // Fallback: última ubicación conocida (nunca lanza error)
+        const last = await Location.getLastKnownPositionAsync();
+        if (!last) {
+          // Sin ubicación disponible — silencioso, no mostrar error al usuario
+          return;
+        }
+        loc = last;
+      }
 
       const punto: RoutePoint = {
         lat:       loc.coords.latitude,
         lng:       loc.coords.longitude,
         precision: loc.coords.accuracy ?? 0,
-        velocidad: loc.coords.speed ?? 0,
+        velocidad: (loc.coords.speed ?? 0) * 3.6, // m/s → km/h
         timestamp: new Date(loc.timestamp).toISOString(),
       };
 
       // Siempre guardar offline primero (cola persistente)
       await guardarPuntoOffline(punto);
 
-      // Luego intentar sync si hay red
+      // Luego intentar sync (isConnected === false solo cuando sabemos que no hay red)
       const state = await NetInfo.fetch();
-      if (state.isConnected && state.isInternetReachable) {
+      if (state.isConnected !== false) {
         try {
           await syncRoutePoints();
         } catch {
@@ -111,8 +124,13 @@ export function useRouteTracking(
         await actualizarPendientes();
       }
     } catch (e: unknown) {
+      // Solo mostrar error si sigue montado — no mostrar errores de GPS menores
       if (isMountedRef.current) {
-        setError(e instanceof Error ? e.message : 'Error al obtener ubicación');
+        const msg = e instanceof Error ? e.message : 'Error al obtener ubicación';
+        // Ignorar errores de timeout de GPS — son normales en interiores
+        if (!msg.toLowerCase().includes('timeout') && !msg.toLowerCase().includes('timed out')) {
+          setError(msg);
+        }
       }
     }
   }, [actualizarPendientes]);
@@ -142,7 +160,7 @@ export function useRouteTracking(
       // Sync periódico cada 30 segundos cuando hay red
       syncIntervalRef.current = setInterval(async () => {
         const state = await NetInfo.fetch();
-        if (state.isConnected && state.isInternetReachable) {
+        if (state.isConnected !== false) {
           await syncRoutePoints();
           await actualizarPendientes();
         }
@@ -182,8 +200,9 @@ export function useRouteTracking(
 
     // Intentar sync final antes de detener
     const state = await NetInfo.fetch();
-    if (state.isConnected && state.isInternetReachable) {
+    if (state.isConnected !== false) {
       await syncRoutePoints();
+      await actualizarPendientes();
     }
 
     await AsyncStorage.setItem(KEY_TRACKING_ENABLED, '0');
@@ -198,7 +217,7 @@ export function useRouteTracking(
 
   const forzarSync = useCallback(async () => {
     const state = await NetInfo.fetch();
-    if (!state.isConnected || !state.isInternetReachable) return;
+    if (state.isConnected === false) return;
     await syncRoutePoints();
     await actualizarPendientes();
   }, [actualizarPendientes]);
