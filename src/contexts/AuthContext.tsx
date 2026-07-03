@@ -42,6 +42,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const u = await getMe();
+      // Normalizar roles: la API puede devolver un objeto {0:"super_admin"}
+      // en lugar de un array si getRoleNames() no fue casteado correctamente.
+      if (u && !Array.isArray(u.roles)) {
+        u.roles = Object.values(u.roles as unknown as Record<string, string>);
+      }
       setUser(u);
       // Persistir en SecureStore para acceso inmediato en reinicios
       await SecureStore.setItemAsync(USER_CACHE_KEY, JSON.stringify(u));
@@ -61,7 +66,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const cached = await SecureStore.getItemAsync(USER_CACHE_KEY);
         if (cached) {
-          setUser(JSON.parse(cached) as User);
+          const u = JSON.parse(cached) as User;
+          // Normalizar roles por si el caché fue guardado con formato objeto {0:"rol"}
+          if (u && !Array.isArray(u.roles)) {
+            u.roles = Object.values(u.roles as unknown as Record<string, string>);
+          }
+          setUser(u);
         }
       } catch {}
 

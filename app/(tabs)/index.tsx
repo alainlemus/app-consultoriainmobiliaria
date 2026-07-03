@@ -24,7 +24,7 @@ interface Stats {
 export default function DashboardScreen() {
   const router   = useRouter();
   const insets   = useSafeAreaInsets();
-  const { user: authUser, isSuperAdmin, refresh: refreshAuth, clearUser } = useAuth();
+  const { user: authUser, isSuperAdmin, loading: authLoading, refresh: refreshAuth, clearUser } = useAuth();
 
   const [user,       setUser]       = useState<User | null>(null);
   const [stats,      setStats]      = useState<Stats | null>(null);
@@ -35,7 +35,13 @@ export default function DashboardScreen() {
   const { online, pendientes, sincronizar } = useOfflineSync();
 
   // Solo asesores (no super_admin, no acreditado)
-  const isAsesor = (!isSuperAdmin && user?.roles?.includes('asesor')) ?? false;
+  // Usar authUser del context (disponible antes que el user local) para no
+  // depender del resultado de getMe() al calcular roles en el primer render.
+  const rolesActuales = authUser?.roles ?? user?.roles ?? [];
+  const isAsesor = !isSuperAdmin && rolesActuales.includes('asesor');
+  // El botón de rutas se muestra para super_admin y asesores.
+  // Usamos authLoading para no mostrar el botón hasta saber el rol real.
+  const mostrarRutas = !authLoading && (isSuperAdmin || isAsesor);
   const { estaActivo, pendientes: routePendientes, iniciando, error: routeError, activar, desactivar } = useRouteTracking(isAsesor);
 
   // Usar el user del AuthContext si está disponible (evita llamar getMe() de nuevo)
@@ -167,8 +173,8 @@ export default function DashboardScreen() {
             <ActionTile icon="👥" label="Prospectos"      onPress={() => router.push('/(tabs)/prospectos')} />
             <ActionTile icon="📁" label="Expedientes"     onPress={() => router.push('/(tabs)/expedientes')} />
             <ActionTile icon="🗺️" label="Mapa"            onPress={() => router.push('/mapa')} />
-            {(isSuperAdmin || isAsesor) && (
-              <ActionTile icon="📍" label="Rutas"        onPress={() => router.push('/rutas')} />
+            {mostrarRutas && (
+              <ActionTile icon="📍" label="Rutas" onPress={() => router.push('/rutas')} />
             )}
           </View>
 
