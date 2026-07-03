@@ -371,6 +371,8 @@ export interface RutaDia {
 }
 
 export interface RutaAsesor {
-  id:   number;
-  name: string;
+  id:           number;
+  name:         string;
+  puntos_hoy:   number;   // puntos registrados hoy (0 si no registró)
+  total_puntos: number;   // total histórico de puntos
 }

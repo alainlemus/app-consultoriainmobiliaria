@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
-import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Comision, ResumenComisiones, Escuela, SemaforoEscuela, Anuncio, EstadoAnuncio } from '../types';
+import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Comision, ResumenComisiones, Escuela, SemaforoEscuela, Anuncio, EstadoAnuncio, RutaAsesor, RutaDia, RutaPunto } from '../types';
 
 // Selecciona la URL según plataforma en desarrollo
 // iOS simulador  → 127.0.0.1:8080
