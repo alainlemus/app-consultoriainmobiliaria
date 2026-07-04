@@ -73,7 +73,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name:    'Consultoría Inmobiliaria',
     slug:    'app-consultoriainmobiliaria',
-    version: '2.0.4',
+    version: '2.0.5',
     orientation: 'portrait',
     icon:    './assets/icon.png',
     userInterfaceStyle: 'light',
@@ -141,7 +141,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ],
       [
         'expo-location',
-        { locationAlwaysAndWhenInUsePermission: 'La app usa tu ubicación para registrar visitas a clientes.' },
+        {
+          locationAlwaysAndWhenInUsePermission: 'Consultoría Inmobiliaria necesita acceso a tu ubicación en todo momento para registrar tu ruta de trabajo, incluso cuando la app está en segundo plano.',
+          locationWhenInUsePermission: 'Consultoría Inmobiliaria usa tu ubicación para registrar visitas a clientes y tu ruta de trabajo.',
+          isIosBackgroundLocationEnabled: true,
+          isAndroidBackgroundLocationEnabled: true,
+        },
       ],
       [
         'react-native-document-scanner-plugin',

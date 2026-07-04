@@ -73,6 +73,15 @@ jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(() =>
     Promise.resolve({ status: 'granted' })
   ),
+  getForegroundPermissionsAsync: jest.fn(() =>
+    Promise.resolve({ status: 'granted' })
+  ),
+  getBackgroundPermissionsAsync: jest.fn(() =>
+    Promise.resolve({ status: 'granted' })
+  ),
+  requestBackgroundPermissionsAsync: jest.fn(() =>
+    Promise.resolve({ status: 'granted' })
+  ),
   getCurrentPositionAsync: jest.fn(() =>
     Promise.resolve({
       coords: {
@@ -101,6 +110,8 @@ jest.mock('expo-location', () => ({
       timestamp: Date.now(),
     })
   ),
+  startLocationUpdatesAsync: jest.fn(() => Promise.resolve()),
+  stopLocationUpdatesAsync:  jest.fn(() => Promise.resolve()),
   Accuracy: { High: 5, Balanced: 3, Low: 1, Lowest: 0, BestForNavigation: 6 },
 }));
 
@@ -154,6 +165,21 @@ jest.mock('uuid', () => ({
 
 // ── react-native-get-random-values ────────────────────────────────────────────
 jest.mock('react-native-get-random-values', () => {});
+
+// ── expo-task-manager ─────────────────────────────────────────────────────────
+jest.mock('expo-task-manager', () => ({
+  defineTask:           jest.fn(),
+  isTaskRegisteredAsync: jest.fn(() => Promise.resolve(false)),
+  unregisterAllTasksAsync: jest.fn(() => Promise.resolve()),
+}));
+
+// ── src/services/backgroundTracking ──────────────────────────────────────────
+jest.mock('./src/services/backgroundTracking', () => ({
+  BACKGROUND_LOCATION_TASK:   'background-location-task',
+  startBackgroundTracking:    jest.fn(() => Promise.resolve()),
+  stopBackgroundTracking:     jest.fn(() => Promise.resolve()),
+  isBackgroundTrackingActive: jest.fn(() => Promise.resolve(false)),
+}));
 
 // ── fetch global ─────────────────────────────────────────────────────────────
 global.fetch = jest.fn();
