@@ -3,11 +3,11 @@
  *
  * Un solo listener de red para toda la app. Provee:
  *   online      — true si hay internet disponible
- *   pendientes  — número de ops + docs pendientes de sync
+ *   pendientes  — número de ops + docs + puntos GPS pendientes de sync
  *   isSyncing   — true mientras está procesando la cola
  *   encolar()   — encola una operación JSON (crear/actualizar)
  *   encolarDoc()— encola un documento para subir
- *   sync()      — dispara sincronización manual
+ *   sync()      — dispara sincronización manual (ops, docs Y puntos GPS)
  *
  * Uso:
  *   const { online, pendientes } = useSyncContext();
@@ -29,6 +29,7 @@ import {
   encolarOperacion,
   sincronizar,
 } from '../services/offline';
+import { contarPendientesRoute, syncRoutePoints } from '../services/routeTracking';
 import type { OperacionSync } from '../types';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
@@ -69,8 +70,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const syncingRef = useRef(false);
 
   const refrescar = useCallback(async () => {
-    const n = await contarPendientes();
-    setPendientes(n);
+    const [nOps, nPuntos] = await Promise.all([
+      contarPendientes(),
+      contarPendientesRoute(),
+    ]);
+    setPendientes(nOps + nPuntos);
   }, []);
 
   const sync = useCallback(async () => {
@@ -78,9 +82,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     syncingRef.current = true;
     setIsSyncing(true);
     try {
-      const result = await sincronizar();
+      // Sincronizar operaciones (contactos, expedientes, documentos) y puntos GPS en paralelo
+      const [resultOps, resultPuntos] = await Promise.all([
+        sincronizar(),
+        syncRoutePoints(),
+      ]);
       await refrescar();
-      return result;
+      return {
+        ok: resultOps.ok + resultPuntos.ok,
+        errores: resultOps.errores + resultPuntos.errores,
+      };
     } finally {
       syncingRef.current = false;
       setIsSyncing(false);

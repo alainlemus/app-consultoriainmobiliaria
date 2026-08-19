@@ -10,15 +10,18 @@
  *  - refrescar actualiza pendientes
  */
 
+import React from 'react';
 import { renderHook, act } from '@testing-library/react-native';
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useOfflineSync } from '../../src/hooks/useOfflineSync';
+import { SyncProvider } from '../../src/contexts/SyncContext';
 
 // mock de offline service
 jest.mock('../../src/services/offline', () => ({
   contarPendientes:  jest.fn(() => Promise.resolve(0)),
   encolarOperacion:  jest.fn(() => Promise.resolve('mock-uuid')),
+  encolarDocumento:  jest.fn(() => Promise.resolve('mock-doc-uuid')),
   sincronizar:       jest.fn(() => Promise.resolve({ ok: 1, errores: 0 })),
 }));
 import { contarPendientes, encolarOperacion, sincronizar as doSync } from '../../src/services/offline';
@@ -26,12 +29,26 @@ const mockContar   = contarPendientes as jest.Mock;
 const mockEncolar  = encolarOperacion as jest.Mock;
 const mockDoSync   = doSync as jest.Mock;
 
+// mock de routeTracking service (puntos GPS pendientes, incluidos en el mismo sync)
+jest.mock('../../src/services/routeTracking', () => ({
+  contarPendientesRoute: jest.fn(() => Promise.resolve(0)),
+  syncRoutePoints:       jest.fn(() => Promise.resolve({ ok: 0, errores: 0 })),
+}));
+import { contarPendientesRoute, syncRoutePoints } from '../../src/services/routeTracking';
+const mockContarRoute = contarPendientesRoute as jest.Mock;
+const mockSyncRoute   = syncRoutePoints as jest.Mock;
+
+const wrapper = ({ children }: { children: React.ReactNode }) =>
+  React.createElement(SyncProvider, null, children);
+
 let netInfoCallback: ((state: { isConnected: boolean; isInternetReachable: boolean }) => void) | null = null;
 
 beforeEach(() => {
   jest.clearAllMocks();
   netInfoCallback = null;
   mockContar.mockResolvedValue(0);
+  mockContarRoute.mockResolvedValue(0);
+  mockSyncRoute.mockResolvedValue({ ok: 0, errores: 0 });
 
   (NetInfo.addEventListener as jest.Mock).mockImplementation((cb) => {
     netInfoCallback = cb;
@@ -44,7 +61,7 @@ beforeEach(() => {
 
 describe('useOfflineSync — estado inicial', () => {
   it('online=true y pendientes=0 por defecto', async () => {
-    const { result } = renderHook(() => useOfflineSync());
+    const { result } = renderHook(() => useOfflineSync(), { wrapper });
     // estado antes del efecto asíncrono
     expect(result.current.online).toBe(true);
     expect(result.current.pendientes).toBe(0);
@@ -52,7 +69,7 @@ describe('useOfflineSync — estado inicial', () => {
 
   it('llama contarPendientes al montar', async () => {
     mockContar.mockResolvedValueOnce(3);
-    const { result } = renderHook(() => useOfflineSync());
+    const { result } = renderHook(() => useOfflineSync(), { wrapper });
     await act(async () => {});
     expect(mockContar).toHaveBeenCalled();
     expect(result.current.pendientes).toBe(3);
@@ -64,7 +81,7 @@ describe('useOfflineSync — estado inicial', () => {
 describe('useOfflineSync — conectividad', () => {
   it('online=false cuando NetInfo reporta sin conexión', async () => {
     (NetInfo.fetch as jest.Mock).mockResolvedValue({ isConnected: false, isInternetReachable: false });
-    const { result } = renderHook(() => useOfflineSync());
+    const { result } = renderHook(() => useOfflineSync(), { wrapper });
     await act(async () => {
       netInfoCallback?.({ isConnected: false, isInternetReachable: false });
     });
@@ -73,7 +90,7 @@ describe('useOfflineSync — conectividad', () => {
 
   it('dispara sincronizar cuando se recupera conexión', async () => {
     mockDoSync.mockResolvedValue({ ok: 2, errores: 0 });
-    renderHook(() => useOfflineSync());
+    renderHook(() => useOfflineSync(), { wrapper });
     await act(async () => {
       netInfoCallback?.({ isConnected: true, isInternetReachable: true });
     });
@@ -86,7 +103,7 @@ describe('useOfflineSync — conectividad', () => {
 describe('useOfflineSync — encolar', () => {
   it('encolar llama encolarOperacion y actualiza pendientes', async () => {
     mockContar.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
-    const { result } = renderHook(() => useOfflineSync());
+    const { result } = renderHook(() => useOfflineSync(), { wrapper });
     await act(async () => {});
 
     let id: string;
@@ -107,7 +124,7 @@ describe('useOfflineSync — sincronizar', () => {
     mockDoSync.mockResolvedValue({ ok: 2, errores: 0 });
     mockContar.mockResolvedValueOnce(2).mockResolvedValueOnce(0);
 
-    const { result } = renderHook(() => useOfflineSync());
+    const { result } = renderHook(() => useOfflineSync(), { wrapper });
     await act(async () => {});
 
     let res: { ok: number; errores: number };
@@ -126,7 +143,7 @@ describe('useOfflineSync — sincronizar', () => {
 describe('useOfflineSync — refrescar', () => {
   it('refrescar actualiza el contador de pendientes', async () => {
     mockContar.mockResolvedValueOnce(0).mockResolvedValueOnce(5);
-    const { result } = renderHook(() => useOfflineSync());
+    const { result } = renderHook(() => useOfflineSync(), { wrapper });
     await act(async () => {});
 
     await act(async () => {

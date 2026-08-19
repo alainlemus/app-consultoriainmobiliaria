@@ -36,6 +36,30 @@ jest.mock('../../src/hooks/useOfflineSync', () => ({
 import { useOfflineSync } from '../../src/hooks/useOfflineSync';
 const mockUseOfflineSync = useOfflineSync as jest.Mock;
 
+jest.mock('../../src/contexts/AuthContext', () => ({
+  useAuth: jest.fn(() => ({
+    user: null, isSuperAdmin: false, loading: false, refresh: jest.fn(), clearUser: jest.fn(),
+  })),
+}));
+import { useAuth } from '../../src/contexts/AuthContext';
+const mockUseAuth = useAuth as jest.Mock;
+
+jest.mock('../../src/contexts/SyncContext', () => ({
+  useSyncContext: jest.fn(() => ({
+    online: true, pendientes: 0, isSyncing: false,
+    encolar: jest.fn(), encolarDoc: jest.fn(), sync: jest.fn(), sincronizar: jest.fn(), refrescar: jest.fn(),
+  })),
+}));
+import { useSyncContext } from '../../src/contexts/SyncContext';
+const mockUseSyncContext = useSyncContext as jest.Mock;
+
+jest.mock('../../src/hooks/useRouteTracking', () => ({
+  useRouteTracking: jest.fn(() => ({
+    estaActivo: false, pendientes: 0, iniciando: false, error: null,
+    activar: jest.fn(), desactivar: jest.fn(),
+  })),
+}));
+
 // ── datos mock ─────────────────────────────────────────────────────────────
 
 const MOCK_USER = { id: 1, name: 'Ana López', email: 'ana@test.com', role: 'asesor' as const };
@@ -72,6 +96,13 @@ beforeEach(() => {
   mockUseOfflineSync.mockReturnValue({
     online: true, pendientes: 0, sincronizar: jest.fn(), encolar: jest.fn(), refrescar: jest.fn(),
   });
+  mockUseAuth.mockReturnValue({
+    user: MOCK_USER, isSuperAdmin: false, loading: false, refresh: jest.fn(), clearUser: jest.fn(),
+  });
+  mockUseSyncContext.mockReturnValue({
+    online: true, pendientes: 0, isSyncing: false,
+    encolar: jest.fn(), encolarDoc: jest.fn(), sync: jest.fn(), sincronizar: jest.fn(), refrescar: jest.fn(),
+  });
   mockGetMe.mockResolvedValue(MOCK_USER);
   mockGetContactos.mockResolvedValue(PAGINATED_CONTACTOS);
   mockGetExpedientes.mockResolvedValue(PAGINATED_EXPEDIENTES);
@@ -94,13 +125,18 @@ describe('LoginScreen', () => {
     expect(getByText('FOVISSSTE · INFONAVIT')).toBeTruthy();
   });
 
-  it('renderiza botón INICIAR SESIÓN', () => {
+  it('renderiza botón INICIAR SESIÓN', async () => {
     const { getByText } = render(<LoginScreen />);
-    expect(getByText('INICIAR SESIÓN')).toBeTruthy();
+    fireEvent.press(getByText('Soy Asesor'));
+    await waitFor(() => {
+      expect(getByText('INICIAR SESIÓN')).toBeTruthy();
+    });
   });
 
   it('muestra error si se envía con campos vacíos', async () => {
     const { getByText } = render(<LoginScreen />);
+    fireEvent.press(getByText('Soy Asesor'));
+    await waitFor(() => getByText('INICIAR SESIÓN'));
     fireEvent.press(getByText('INICIAR SESIÓN'));
     await waitFor(() => {
       expect(getByText('Ingresa correo y contraseña.')).toBeTruthy();
@@ -111,6 +147,8 @@ describe('LoginScreen', () => {
   it('llama login y navega a /(tabs) cuando las credenciales son válidas', async () => {
     mockLogin.mockResolvedValueOnce({ user: MOCK_USER, token: 'tok', isAuthenticated: true });
     const { getByText, UNSAFE_getAllByType } = render(<LoginScreen />);
+    fireEvent.press(getByText('Soy Asesor'));
+    await waitFor(() => getByText('INICIAR SESIÓN'));
     const { TextInput } = require('react-native');
     const inputs = UNSAFE_getAllByType(TextInput);
     fireEvent.changeText(inputs[0], 'ana@test.com');
@@ -125,6 +163,8 @@ describe('LoginScreen', () => {
   it('muestra mensaje de error de la API cuando falla el login', async () => {
     mockLogin.mockRejectedValueOnce(new Error('Credenciales inválidas'));
     const { getByText, UNSAFE_getAllByType } = render(<LoginScreen />);
+    fireEvent.press(getByText('Soy Asesor'));
+    await waitFor(() => getByText('INICIAR SESIÓN'));
     const { TextInput } = require('react-native');
     const inputs = UNSAFE_getAllByType(TextInput);
     fireEvent.changeText(inputs[0], 'x@x.com');

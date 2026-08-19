@@ -378,10 +378,9 @@ describe('iniciarRouteSyncAutomatico / detenerRouteSyncAutomatico', () => {
 
     // Con isConnected=false, el listener verifica `state.isConnected !== false`
     // que es false, así que NO llama syncRoutePoints
-    if (capturedCallback) {
-      capturedCallback({ isConnected: false, isInternetReachable: false });
-      await new Promise(resolve => setImmediate(resolve));
-    }
+    expect(capturedCallback).not.toBeNull();
+    capturedCallback!({ isConnected: false, isInternetReachable: false });
+    await new Promise(resolve => setImmediate(resolve));
     expect(mockGuardarPuntosRuta).not.toHaveBeenCalled();
 
     detenerRouteSyncAutomatico();
@@ -403,10 +402,9 @@ describe('iniciarRouteSyncAutomatico / detenerRouteSyncAutomatico', () => {
     mockNetInfoFetch.mockResolvedValue({ isConnected: null, isInternetReachable: null });
     mockGuardarPuntosRuta.mockResolvedValue({ saved: 1, ids: [1] });
 
-    if (capturedCallback) {
-      capturedCallback({ isConnected: null, isInternetReachable: null });
-      await new Promise(resolve => setImmediate(resolve));
-    }
+    expect(capturedCallback).not.toBeNull();
+    capturedCallback!({ isConnected: null, isInternetReachable: null });
+    await new Promise(resolve => setImmediate(resolve));
     expect(mockGuardarPuntosRuta).toHaveBeenCalled();
 
     detenerRouteSyncAutomatico();
