@@ -221,6 +221,19 @@ describe('syncRoutePoints — batch y persistencia', () => {
     expect(result.errores).toBe(0);
   });
 
+  it('redondea precision a entero antes de enviar (el backend rechaza floats con validate:integer)', async () => {
+    // loc.coords.accuracy de GPS casi nunca es un entero exacto (ej. iOS: 65.32).
+    await guardarPuntoOffline({ ...PUNTO_A, precision: 65.32 });
+
+    mockGuardarPuntosRuta.mockResolvedValueOnce({ saved: 1, ids: [1] });
+
+    await syncRoutePoints();
+
+    const llamada = mockGuardarPuntosRuta.mock.calls[0][0];
+    expect(llamada[0].precision).toBe(65);
+    expect(Number.isInteger(llamada[0].precision)).toBe(true);
+  });
+
   it('tras sync exitoso la cola no tiene pendientes', async () => {
     await guardarPuntoOffline(PUNTO_A);
     await guardarPuntoOffline(PUNTO_B);

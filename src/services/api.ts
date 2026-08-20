@@ -70,7 +70,12 @@ export async function apiFetch<T>(
   const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (!response.ok) {
-    if (response.status === 401 && !path.includes('/auth/')) {
+    // Solo forzamos el logout global si SÍ había un token de asesor que el
+    // servidor rechazó (sesión realmente expirada). Si `token` es null, esta
+    // llamada nunca debió ir autenticada como asesor (p. ej. una función
+    // compartida invocada durante una sesión de acreditado) — redirigir aquí
+    // cerraría una sesión de OTRO tipo de usuario que sigue siendo válida.
+    if (response.status === 401 && token && !path.includes('/auth/')) {
       // Token expirado — limpiar y redirigir al login
       await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
       router.replace('/(auth)/login');

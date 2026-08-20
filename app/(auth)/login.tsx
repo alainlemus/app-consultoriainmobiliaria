@@ -96,7 +96,11 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await loginAcreditado(email.trim().toLowerCase(), password);
-      registrarPushToken().catch(() => {});
+      // No llamamos registrarPushToken() aquí: internamente usa el endpoint
+      // /dispositivos del asesor (requiere auth_token), que el acreditado no
+      // tiene. Eso generaba un 401 que forzaba un logout global (ver apiFetch).
+      // TODO: implementar POST /v1/acreditado/dispositivos en el backend y
+      // una variante de registrarPushToken() que use acreditadoFetch.
       router.replace('/(acreditado)');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Credenciales incorrectas.');

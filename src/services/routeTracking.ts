@@ -29,6 +29,14 @@ interface QueueItem {
   synced_at?: string;
 }
 
+// El backend valida `precision` con la regla `integer` de Laravel, que rechaza
+// floats (p. ej. 65.32 falla FILTER_VALIDATE_INT). `loc.coords.accuracy` casi
+// nunca es un entero exacto, así que sin este redondeo CADA punto fallaba la
+// validación (422) y la cola nunca bajaba de tamaño aunque "pareciera" sincronizar.
+function normalizarPunto(p: RoutePoint): RoutePoint {
+  return { ...p, precision: Math.round(p.precision) };
+}
+
 // ── Cola offline ────────────────────────────────────────────────────────────────
 
 export async function guardarPuntoOffline(punto: RoutePoint): Promise<void> {
@@ -98,7 +106,7 @@ export async function syncRoutePoints(): Promise<{ ok: number; errores: number }
     // Intentar enviar todos los items pendientes en un solo batch para reducir requests
     const todosPuntos = pendientes.flatMap(item => item.puntos);
     try {
-      await guardarPuntosRuta(todosPuntos);
+      await guardarPuntosRuta(todosPuntos.map(normalizarPunto));
       // Marcar todos como enviados
       for (const item of pendientes) {
         item.sync = true;
@@ -109,7 +117,7 @@ export async function syncRoutePoints(): Promise<{ ok: number; errores: number }
       // Si el batch falla, intentar uno por uno para salvar los que se pueda
       for (const item of pendientes) {
         try {
-          await guardarPuntosRuta(item.puntos);
+          await guardarPuntosRuta(item.puntos.map(normalizarPunto));
           item.sync = true;
           item.synced_at = new Date().toISOString();
           ok++;

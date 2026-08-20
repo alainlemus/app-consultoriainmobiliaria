@@ -82,11 +82,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     syncingRef.current = true;
     setIsSyncing(true);
     try {
-      // Sincronizar operaciones (contactos, expedientes, documentos) y puntos GPS en paralelo
-      const [resultOps, resultPuntos] = await Promise.all([
+      // Sincronizar operaciones (contactos, expedientes, documentos) y puntos GPS en paralelo.
+      // Usamos allSettled (no all): si una de las dos colas revienta con una excepción no
+      // controlada, la otra puede haber sincronizado igual — con Promise.all esa falla
+      // parcial tumbaba TODO el Promise.all y saltaba el refrescar() de abajo, dejando el
+      // contador de pendientes (y por tanto el header) atorado con el número viejo aunque
+      // ya se hubiera enviado todo.
+      const [resultOpsSettled, resultPuntosSettled] = await Promise.allSettled([
         sincronizar(),
         syncRoutePoints(),
       ]);
+      const resultOps    = resultOpsSettled.status    === 'fulfilled' ? resultOpsSettled.value    : { ok: 0, errores: 1 };
+      const resultPuntos = resultPuntosSettled.status === 'fulfilled' ? resultPuntosSettled.value : { ok: 0, errores: 1 };
       await refrescar();
       return {
         ok: resultOps.ok + resultPuntos.ok,

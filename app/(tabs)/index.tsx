@@ -9,7 +9,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
 import { getContactos, getExpedientes, getMe, logout } from '../../src/services/api';
-import { useOfflineSync } from '../../src/hooks/useOfflineSync';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useRouteTracking } from '../../src/hooks/useRouteTracking';
 import type { User, Contacto } from '../../src/types';
@@ -31,8 +30,6 @@ export default function DashboardScreen() {
   const [recientes,  setRecientes]  = useState<Contacto[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  const { online, pendientes, sincronizar } = useOfflineSync();
 
   // Solo asesores (no super_admin, no acreditado)
   // Usar authUser del context (disponible antes que el user local) para no
@@ -76,30 +73,14 @@ export default function DashboardScreen() {
 
   useEffect(() => { load(); }, []);
 
-  const showBanner = !online || pendientes > 0;
-
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" />
 
-      {/* Banner offline — se pinta sobre el header, respeta el notch */}
-      {showBanner && (
-        <TouchableOpacity
-          style={[
-            styles.banner,
-            !online ? styles.bannerOffline : styles.bannerPendiente,
-            { paddingTop: insets.top },   // ← debajo del status bar
-          ]}
-          onPress={online ? () => sincronizar() : undefined}
-          activeOpacity={online ? 0.85 : 1}
-        >
-          <Text style={styles.bannerText}>
-            {!online
-              ? '⚠️  Sin conexión — los cambios se guardarán localmente'
-              : `🔄  ${pendientes} pendiente${pendientes !== 1 ? 's' : ''} — Toca para sincronizar`}
-          </Text>
-        </TouchableOpacity>
-      )}
+      {/* El estado de conexión/pendientes se muestra una sola vez, en el
+          SyncStatusBar global de (tabs)/_layout.tsx — mostrarlo también aquí
+          duplicaba el header (uno dorado, uno del layout) y ambos podían
+          quedar con contadores desincronizados entre sí. */}
 
       <ScrollView
         style={styles.scroll}
@@ -116,7 +97,7 @@ export default function DashboardScreen() {
         {/* ── Header ── */}
         <View style={[
           styles.headerBg,
-          { paddingTop: showBanner ? Spacing.base : insets.top + Spacing.base },
+          { paddingTop: insets.top + Spacing.base },
         ]}>
           {/* Fila superior: logo+nombre | botón salir */}
           <View style={styles.headerRow}>
@@ -297,22 +278,6 @@ function ActionTile({ icon, label, onPress, primary }: { icon: string; label: st
 const styles = StyleSheet.create({
   root:   { flex: 1, backgroundColor: Colors.cream[50] },
   scroll: { flex: 1 },
-
-  // Banner offline — más visible y más grande
-  banner: {
-    paddingHorizontal: Spacing.base,
-    paddingBottom:     Spacing.md,
-  },
-  bannerOffline:   { backgroundColor: Colors.crimson[500] },
-  bannerPendiente: { backgroundColor: Colors.gold[500] },
-  bannerText: {
-    color:      Colors.white,
-    fontSize:   Typography.fontSize.sm,   // antes xs — más legible
-    fontWeight: Typography.fontWeight.semibold,
-    textAlign:  'center',
-    paddingTop: Spacing.sm,
-    lineHeight: Typography.fontSize.sm * 1.4,
-  },
 
   // Header — layout mejorado para evitar encimamiento
   headerBg: {

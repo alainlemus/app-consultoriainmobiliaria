@@ -207,25 +207,10 @@ describe('DashboardScreen', () => {
     });
   });
 
-  it('muestra banner offline cuando online=false', async () => {
-    mockUseOfflineSync.mockReturnValue({
-      online: false, pendientes: 0, sincronizar: jest.fn(), encolar: jest.fn(), refrescar: jest.fn(),
-    });
-    const { getByText } = render(<DashboardScreen />);
-    await waitFor(() => {
-      expect(getByText(/Sin conexión/i)).toBeTruthy();
-    });
-  });
-
-  it('muestra banner de pendientes cuando hay operaciones en cola', async () => {
-    mockUseOfflineSync.mockReturnValue({
-      online: true, pendientes: 3, sincronizar: jest.fn(), encolar: jest.fn(), refrescar: jest.fn(),
-    });
-    const { getByText } = render(<DashboardScreen />);
-    await waitFor(() => {
-      expect(getByText(/Toca para sincronizar/i)).toBeTruthy();
-    });
-  });
+  // El banner de offline/pendientes vivía duplicado aquí Y en el SyncStatusBar
+  // global de (tabs)/_layout.tsx (dos headers apilados, a veces con contadores
+  // desincronizados). Se removió de DashboardScreen — el SyncStatusBar global
+  // es la única fuente de este indicador ahora.
 
   it('navega a /prospectos/nuevo al tocar "Nuevo prospecto"', async () => {
     const { getByText } = render(<DashboardScreen />);

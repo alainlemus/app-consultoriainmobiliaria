@@ -136,6 +136,26 @@ describe('useOfflineSync — sincronizar', () => {
     expect(res!).toEqual({ ok: 2, errores: 0 });
     expect(result.current.pendientes).toBe(0);
   });
+
+  it('si sincronizar (ops) revienta, igual refresca los pendientes de rutas GPS ya sincronizados', async () => {
+    // Bug real: con Promise.all, un throw en una cola tumbaba el Promise.all
+    // completo y saltaba el refrescar() final, dejando el contador (y el
+    // header) atorado con el número viejo aunque la otra cola sí se sincronizó.
+    mockDoSync.mockRejectedValue(new Error('fallo de red en cola de operaciones'));
+    mockSyncRoute.mockResolvedValue({ ok: 5, errores: 0 });
+    mockContar.mockResolvedValue(0);
+    mockContarRoute.mockResolvedValueOnce(5).mockResolvedValueOnce(0);
+
+    const { result } = renderHook(() => useOfflineSync(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      await result.current.sincronizar();
+    });
+
+    expect(mockSyncRoute).toHaveBeenCalled();
+    expect(result.current.pendientes).toBe(0);
+  });
 });
 
 // ── refrescar ──────────────────────────────────────────────────────────────
