@@ -153,6 +153,7 @@ export default function DashboardScreen() {
             <ActionTile icon="➕" label="Nuevo prospecto" onPress={() => router.push('/prospectos/nuevo')} primary />
             <ActionTile icon="👥" label="Prospectos"      onPress={() => router.push('/(tabs)/prospectos')} />
             <ActionTile icon="📁" label="Expedientes"     onPress={() => router.push('/(tabs)/expedientes')} />
+            <ActionTile icon="🖋️" label="Contratos"       onPress={() => router.push('/contratos')} />
             <ActionTile icon="🗺️" label="Mapa"            onPress={() => router.push('/mapa')} />
             {mostrarRutas && (
               <ActionTile icon="📍" label="Rutas" onPress={() => router.push('/rutas')} />

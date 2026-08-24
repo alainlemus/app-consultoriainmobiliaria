@@ -29,12 +29,25 @@ interface QueueItem {
   synced_at?: string;
 }
 
-// El backend valida `precision` con la regla `integer` de Laravel, que rechaza
-// floats (p. ej. 65.32 falla FILTER_VALIDATE_INT). `loc.coords.accuracy` casi
-// nunca es un entero exacto, así que sin este redondeo CADA punto fallaba la
-// validación (422) y la cola nunca bajaba de tamaño aunque "pareciera" sincronizar.
+// Normaliza un punto antes de enviarlo — el backend valida con reglas más
+// estrictas de lo que el GPS del dispositivo realmente entrega:
+//
+//  - `precision` usa la regla `integer` de Laravel, que rechaza floats
+//    (p. ej. 65.32 falla FILTER_VALIDATE_INT). `loc.coords.accuracy` casi
+//    nunca es un entero exacto.
+//  - `velocidad` usa `min:0`, pero iOS/Android devuelven `speed: -1` como
+//    valor estándar de "velocidad desconocida" (no es un error, es el
+//    convenio de CLLocation/Android Location cuando el GPS no puede
+//    calcularla aún) — eso se traducía en velocidad negativa.
+//
+// Sin esto, prácticamente CADA punto fallaba la validación (422) y la cola
+// nunca bajaba de tamaño aunque el header "pareciera" sincronizar.
 function normalizarPunto(p: RoutePoint): RoutePoint {
-  return { ...p, precision: Math.round(p.precision) };
+  return {
+    ...p,
+    precision: Math.round(p.precision),
+    velocidad: Math.max(0, p.velocidad),
+  };
 }
 
 // ── Cola offline ────────────────────────────────────────────────────────────────

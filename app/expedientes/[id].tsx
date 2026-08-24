@@ -351,6 +351,15 @@ export default function DetalleExpedienteScreen() {
           <Text style={styles.addDocText}>＋ Agregar documento adicional</Text>
         </TouchableOpacity>
 
+        {/* Botón generar contrato */}
+        <TouchableOpacity
+          style={[styles.addDocBtn, { marginTop: Spacing.sm }]}
+          onPress={() => router.push(`/contratos/registrar?expedienteId=${exp.id}`)}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.addDocText}>🖋 Generar contrato</Text>
+        </TouchableOpacity>
+
         {/* ── Prospecto relacionado ── */}
         {exp.contacto && (
           <>

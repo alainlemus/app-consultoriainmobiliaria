@@ -22,6 +22,17 @@ const REGION_CDMX: Region = {
   longitudeDelta: 0.5,
 };
 
+/** Sentinel para "ver todos los asesores a la vez" (solo super_admin) */
+const TODOS = 'todos' as const;
+type AsesorSel = number | typeof TODOS;
+
+// Paleta para distinguir asesores en el mapa cuando se ve "Todos"
+const PALETA_ASESORES = ['#cd9d36', '#dc2626', '#2563eb', '#16a34a', '#9333ea', '#ea580c', '#0891b2', '#db2777'];
+function colorPorAsesor(asesorId: number, ordenAsesores: number[]): string {
+  const idx = ordenAsesores.indexOf(asesorId);
+  return PALETA_ASESORES[idx % PALETA_ASESORES.length];
+}
+
 function hoy(): string {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD local
 }
@@ -51,7 +62,7 @@ export default function RutasScreen() {
   const [asesores,     setAsesores]     = useState<RutaAsesor[]>([]);
   const [dias,         setDias]         = useState<RutaDia[]>([]);
   const [puntos,       setPuntos]       = useState<RutaPunto[]>([]);
-  const [asesorId,     setAsesorId]     = useState<number | null>(null);
+  const [asesorId,     setAsesorId]     = useState<AsesorSel | null>(null);
   const [fecha,        setFecha]        = useState<string | null>(null);
 
   // Loading
@@ -67,9 +78,11 @@ export default function RutasScreen() {
   // ── Asesor seleccionado ────────────────────────────────────────────────────
 
   const asesorSeleccionado = useMemo(
-    () => asesores.find(a => a.id === asesorId) ?? null,
+    () => (asesorId && asesorId !== TODOS ? asesores.find(a => a.id === asesorId) ?? null : null),
     [asesores, asesorId],
   );
+
+  const nombreAsesorChip = asesorId === TODOS ? 'Todos los asesores' : asesorSeleccionado?.name ?? null;
 
   // ── Cargar asesores (super_admin) ─────────────────────────────────────────
 
@@ -147,7 +160,7 @@ export default function RutasScreen() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const seleccionarAsesor = useCallback((id: number) => {
+  const seleccionarAsesor = useCallback((id: AsesorSel) => {
     setAsesorId(id);
     setModalAsesor(false);
   }, []);
@@ -157,10 +170,34 @@ export default function RutasScreen() {
     setModalFecha(false);
   }, []);
 
-  // ── Info de distancia aproximada ─────────────────────────────────────────
+  const verTodos = asesorId === TODOS;
+
+  // ── Agrupar puntos por asesor (solo relevante en modo "Todos") ───────────
+
+  const ordenAsesores = useMemo(() => asesores.map(a => a.id), [asesores]);
+
+  const gruposPorAsesor = useMemo(() => {
+    if (!verTodos) return [];
+    const mapa = new Map<number, { asesorId: number; nombre: string; puntos: RutaPunto[]; color: string }>();
+    for (const p of puntos) {
+      if (p.asesor_id == null) continue;
+      if (!mapa.has(p.asesor_id)) {
+        mapa.set(p.asesor_id, {
+          asesorId: p.asesor_id,
+          nombre:   p.asesor_nombre ?? `Asesor #${p.asesor_id}`,
+          puntos:   [],
+          color:    colorPorAsesor(p.asesor_id, ordenAsesores),
+        });
+      }
+      mapa.get(p.asesor_id)!.puntos.push(p);
+    }
+    return Array.from(mapa.values());
+  }, [verTodos, puntos, ordenAsesores]);
+
+  // ── Info de distancia aproximada (no aplica al ver varios asesores juntos) ─
 
   const distanciaKm = useMemo(() => {
-    if (puntos.length < 2) return null;
+    if (verTodos || puntos.length < 2) return null;
     let total = 0;
     for (let i = 1; i < puntos.length; i++) {
       const dx = (puntos[i].lng - puntos[i-1].lng) * Math.cos((puntos[i].lat * Math.PI) / 180) * 111;
@@ -168,7 +205,7 @@ export default function RutasScreen() {
       total += Math.sqrt(dx * dx + dy * dy);
     }
     return total.toFixed(1);
-  }, [puntos]);
+  }, [verTodos, puntos]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -192,16 +229,16 @@ export default function RutasScreen() {
         {/* Selector Asesor — solo super_admin */}
         {isSuperAdmin && (
           <TouchableOpacity
-            style={[s.chip, asesorSeleccionado && s.chipActive]}
+            style={[s.chip, nombreAsesorChip && s.chipActive]}
             onPress={() => setModalAsesor(true)}
             activeOpacity={0.75}
           >
             {loadingAsesores
               ? <ActivityIndicator size={12} color={Colors.gold[400]} style={{ marginRight: 4 }} />
-              : <Text style={s.chipIcon}>👤</Text>
+              : <Text style={s.chipIcon}>{verTodos ? '👥' : '👤'}</Text>
             }
-            <Text style={[s.chipLabel, asesorSeleccionado && s.chipLabelActive]} numberOfLines={1}>
-              {asesorSeleccionado ? asesorSeleccionado.name : 'Seleccionar asesor'}
+            <Text style={[s.chipLabel, nombreAsesorChip && s.chipLabelActive]} numberOfLines={1}>
+              {nombreAsesorChip ?? 'Seleccionar asesor'}
             </Text>
             <Text style={s.chipArrow}>▾</Text>
           </TouchableOpacity>
@@ -243,7 +280,12 @@ export default function RutasScreen() {
             <Text style={s.resumenValor}>{puntos.length}</Text>
             <Text style={s.resumenLabel}>puntos</Text>
           </View>
-          {distanciaKm && (
+          {verTodos ? (
+            <View style={s.resumenItem}>
+              <Text style={s.resumenValor}>{gruposPorAsesor.length}</Text>
+              <Text style={s.resumenLabel}>asesores</Text>
+            </View>
+          ) : distanciaKm && (
             <View style={s.resumenItem}>
               <Text style={s.resumenValor}>{distanciaKm} km</Text>
               <Text style={s.resumenLabel}>dist. aprox.</Text>
@@ -258,6 +300,18 @@ export default function RutasScreen() {
             <Text style={s.resumenLabel}>último</Text>
           </View>
         </View>
+      )}
+
+      {/* ── Leyenda de asesores (solo modo "Todos") ── */}
+      {verTodos && gruposPorAsesor.length > 0 && !loadingPuntos && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.leyenda} contentContainerStyle={s.leyendaContent}>
+          {gruposPorAsesor.map(g => (
+            <View key={g.asesorId} style={s.leyendaItem}>
+              <View style={[s.leyendaDot, { backgroundColor: g.color }]} />
+              <Text style={s.leyendaText} numberOfLines={1}>{g.nombre} ({g.puntos.length})</Text>
+            </View>
+          ))}
+        </ScrollView>
       )}
 
       {/* ── Error ── */}
@@ -285,7 +339,7 @@ export default function RutasScreen() {
             </Text>
             <Text style={s.emptySubtitle}>
               {isSuperAdmin
-                ? 'Elige un asesor para ver su historial de rutas'
+                ? 'Elige un asesor (o "Todos") para ver su historial de rutas'
                 : 'Activa el rastreo en el inicio para registrar tu ruta'}
             </Text>
           </View>
@@ -296,7 +350,7 @@ export default function RutasScreen() {
             <Text style={s.emptySubtitle}>
               {dias.length > 0
                 ? `Hay ${dias.length} día${dias.length !== 1 ? 's' : ''} con registros`
-                : 'No hay rutas registradas para este asesor'}
+                : `No hay rutas registradas para ${verTodos ? 'ningún asesor' : 'este asesor'}`}
             </Text>
           </View>
         ) : puntos.length === 0 ? (
@@ -314,27 +368,56 @@ export default function RutasScreen() {
             showsCompass
             showsScale
           >
-            <Polyline
-              coordinates={puntos.map(p => ({ latitude: p.lat, longitude: p.lng }))}
-              strokeColor={ROUTE_COLOR}
-              strokeWidth={4}
-              lineDashPattern={undefined}
-            />
-            {/* Marcador de inicio */}
-            <Marker
-              coordinate={{ latitude: puntos[0].lat, longitude: puntos[0].lng }}
-              title="Inicio"
-              description={puntos[0].hora}
-              pinColor="#22c55e"
-            />
-            {/* Marcador de fin */}
-            {puntos.length > 1 && (
-              <Marker
-                coordinate={{ latitude: puntos[puntos.length - 1].lat, longitude: puntos[puntos.length - 1].lng }}
-                title="Último punto"
-                description={puntos[puntos.length - 1].hora}
-                pinColor={Colors.crimson[500]}
-              />
+            {verTodos ? (
+              // ── Modo "Todos": una polilínea + marcadores de inicio/fin por asesor, con color propio ──
+              gruposPorAsesor.map(g => (
+                <React.Fragment key={g.asesorId}>
+                  <Polyline
+                    coordinates={g.puntos.map(p => ({ latitude: p.lat, longitude: p.lng }))}
+                    strokeColor={g.color}
+                    strokeWidth={4}
+                  />
+                  <Marker
+                    coordinate={{ latitude: g.puntos[0].lat, longitude: g.puntos[0].lng }}
+                    title={g.nombre}
+                    description={`Inicio · ${g.puntos[0].hora}`}
+                    pinColor={g.color}
+                  />
+                  {g.puntos.length > 1 && (
+                    <Marker
+                      coordinate={{ latitude: g.puntos[g.puntos.length - 1].lat, longitude: g.puntos[g.puntos.length - 1].lng }}
+                      title={g.nombre}
+                      description={`Último · ${g.puntos[g.puntos.length - 1].hora}`}
+                      pinColor={g.color}
+                    />
+                  )}
+                </React.Fragment>
+              ))
+            ) : (
+              <>
+                <Polyline
+                  coordinates={puntos.map(p => ({ latitude: p.lat, longitude: p.lng }))}
+                  strokeColor={ROUTE_COLOR}
+                  strokeWidth={4}
+                  lineDashPattern={undefined}
+                />
+                {/* Marcador de inicio */}
+                <Marker
+                  coordinate={{ latitude: puntos[0].lat, longitude: puntos[0].lng }}
+                  title="Inicio"
+                  description={puntos[0].hora}
+                  pinColor="#22c55e"
+                />
+                {/* Marcador de fin */}
+                {puntos.length > 1 && (
+                  <Marker
+                    coordinate={{ latitude: puntos[puntos.length - 1].lat, longitude: puntos[puntos.length - 1].lng }}
+                    title="Último punto"
+                    description={puntos[puntos.length - 1].hora}
+                    pinColor={Colors.crimson[500]}
+                  />
+                )}
+              </>
             )}
           </MapView>
         )}
@@ -354,9 +437,15 @@ export default function RutasScreen() {
             contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.sm }}
             renderItem={({ item: p, index }) => (
               <View style={[s.puntoRow, index > 0 && s.puntoRowBorder]}>
-                <View style={[s.puntoDot, index === 0 && s.puntoDotStart, index === puntos.length - 1 && s.puntoDotEnd]} />
+                {verTodos && p.asesor_id != null ? (
+                  <View style={[s.puntoDot, { backgroundColor: colorPorAsesor(p.asesor_id, ordenAsesores) }]} />
+                ) : (
+                  <View style={[s.puntoDot, index === 0 && s.puntoDotStart, index === puntos.length - 1 && s.puntoDotEnd]} />
+                )}
                 <View style={s.puntoInfo}>
-                  <Text style={s.puntoHora}>{p.hora}</Text>
+                  <Text style={s.puntoHora}>
+                    {p.hora}{verTodos && p.asesor_nombre ? ` · ${p.asesor_nombre}` : ''}
+                  </Text>
                   <Text style={s.puntoCoords}>{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</Text>
                 </View>
                 <View style={s.puntoBadges}>
@@ -381,6 +470,21 @@ export default function RutasScreen() {
           <View style={s.sheetHandle} />
           <Text style={s.sheetTitle}>Seleccionar asesor</Text>
           <ScrollView showsVerticalScrollIndicator={false}>
+            {asesores.length > 0 && (
+              <TouchableOpacity
+                style={[s.sheetItem, asesorId === TODOS && s.sheetItemActive]}
+                onPress={() => seleccionarAsesor(TODOS)}
+                activeOpacity={0.75}
+              >
+                <View style={s.sheetItemLeft}>
+                  <Text style={[s.sheetItemName, asesorId === TODOS && s.sheetItemNameActive]}>
+                    👥 Todos los asesores
+                  </Text>
+                  <Text style={s.sheetItemSub}>Ver las rutas de todos juntas, con un color por asesor</Text>
+                </View>
+                {asesorId === TODOS && <Text style={s.sheetItemCheck}>✓</Text>}
+              </TouchableOpacity>
+            )}
             {asesores.length === 0 ? (
               <Text style={s.sheetEmpty}>No hay asesores disponibles</Text>
             ) : (
@@ -524,6 +628,17 @@ const s = StyleSheet.create({
   resumenItem:  { alignItems: 'center', flex: 1 },
   resumenValor: { color: Colors.gold[400], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
   resumenLabel: { color: Colors.dark[400], fontSize: Typography.fontSize.xs, textTransform: 'uppercase', letterSpacing: 0.5 },
+
+  // Leyenda (modo "Todos")
+  leyenda: {
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cream[200],
+  },
+  leyendaContent: { paddingHorizontal: Spacing.base, paddingVertical: Spacing.xs, gap: Spacing.md },
+  leyendaItem:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  leyendaDot:     { width: 10, height: 10, borderRadius: 5 },
+  leyendaText:    { fontSize: Typography.fontSize.xs, color: Colors.dark[600], fontWeight: Typography.fontWeight.medium },
 
   // Error
   errorBanner: {

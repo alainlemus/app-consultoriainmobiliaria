@@ -102,11 +102,23 @@ export interface Expediente {
   etapa?:            { id: number; nombre: string };
   monto_credito?:    number;
   honorarios_monto?: number;
+  honorarios_porcentaje?: number;
   notas?:            string;
   notas_internas?:   string;
   created_at:        string;
   updated_at:        string;
   documentos?:       Documento[];
+  // Datos del acreditado — usados para llenar el Contrato de Prestación de
+  // Servicios generado en la app (ver src/contratos/prestacionServicios.ts)
+  acreditado_nombre?:    string;
+  acreditado_curp?:      string | null;
+  acreditado_rfc?:       string | null;
+  acreditado_domicilio?: string | null;
+  acreditado_colonia?:   string | null;
+  acreditado_municipio?: string | null;
+  acreditado_estado?:    string | null;
+  acreditado_cp?:        string | null;
+  obligado_solidario_nombre?: string | null;
   documentos_requeridos_total?:  number;
   documentos_subidos_total?:     number;
   documentos_pendientes_total?:  number;
@@ -363,6 +375,9 @@ export interface RutaPunto {
   velocidad: number;
   hora:      string;
   timestamp: string;
+  // Solo vienen cuando se consulta con asesor_id="todos" (super_admin)
+  asesor_id?:     number;
+  asesor_nombre?: string | null;
 }
 
 export interface RutaDia {

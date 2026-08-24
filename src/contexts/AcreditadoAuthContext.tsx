@@ -11,10 +11,8 @@ import React, {
   useState,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { getMeAcreditado, getAcreditadoToken, removeAcreditadoToken } from '../services/acreditadoApi';
+import { getMeAcreditado, getAcreditadoToken, removeAcreditadoToken, ACREDITADO_CACHE_KEY as CACHE_KEY } from '../services/acreditadoApi';
 import type { Acreditado } from '../types';
-
-const CACHE_KEY = 'cached_acreditado';
 
 interface AcreditadoAuthContextType {
   acreditado: Acreditado | null;

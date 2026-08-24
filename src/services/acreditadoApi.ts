@@ -7,6 +7,7 @@
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { router } from 'expo-router';
 import {
   Acreditado,
   AcreditadoAuthState,
@@ -24,6 +25,9 @@ const API_BASE: string =
 
 const ACREDITADO_BASE = API_BASE.replace('/v1', '/v1/acreditado');
 const TOKEN_KEY       = 'acreditado_token';
+
+/** Key de SecureStore donde AcreditadoAuthContext cachea el perfil — se limpia junto con el token al expirar la sesión */
+export const ACREDITADO_CACHE_KEY = 'cached_acreditado';
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
 
@@ -57,6 +61,16 @@ async function acreditadoFetch<T>(
   const res = await fetch(`${ACREDITADO_BASE}${path}`, { ...options, headers });
 
   if (res.status === 204) return undefined as T;
+
+  // Token expirado/revocado (cuenta desactivada, etc.) — igual que apiFetch
+  // del asesor: limpiar sesión y mandar al login en vez de dejar la app
+  // mostrando datos viejos indefinidamente con cada pantalla fallando en silencio.
+  if (res.status === 401 && token && !path.includes('/auth/')) {
+    await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+    await SecureStore.deleteItemAsync(ACREDITADO_CACHE_KEY).catch(() => {});
+    router.replace('/(auth)/login');
+    throw new Error('Sesión expirada. Inicia sesión de nuevo.');
+  }
 
   const data = await res.json().catch(() => ({}));
 

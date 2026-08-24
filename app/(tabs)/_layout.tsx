@@ -47,8 +47,11 @@ function SyncStatusBar() {
       ? `Sincronizando ${pendientes} elemento${pendientes !== 1 ? 's' : ''}…`
       : 'Sincronizando…';
   } else {
+    // Estado idle: hay pendientes pero no se está sincronizando activamente
+    // (nadie ha tocado la barra todavía). "Enviando…" aquí era engañoso —
+    // parecía que se había quedado pegada mandando algo para siempre.
     bg = '#1a5c2a'; icono = 'cloud-upload-outline';
-    msg = `Enviando ${pendientes} elemento${pendientes !== 1 ? 's' : ''}…`;
+    msg = `${pendientes} pendiente${pendientes !== 1 ? 's' : ''} por sincronizar`;
   }
 
   return (

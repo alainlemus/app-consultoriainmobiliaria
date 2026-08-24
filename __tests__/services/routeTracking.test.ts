@@ -234,6 +234,21 @@ describe('syncRoutePoints — batch y persistencia', () => {
     expect(Number.isInteger(llamada[0].precision)).toBe(true);
   });
 
+  it('convierte velocidad negativa (speed=-1 de GPS = "desconocida") a 0 antes de enviar', async () => {
+    // iOS/Android devuelven speed: -1 cuando el GPS aún no puede calcular la
+    // velocidad — no es un error, es el valor estándar de "desconocida".
+    // (loc.coords.speed ?? 0) * 3.6 con speed=-1 da velocidad: -3.6, y el
+    // backend valida velocidad con min:0, así que rechazaba el punto.
+    await guardarPuntoOffline({ ...PUNTO_A, velocidad: -3.6 });
+
+    mockGuardarPuntosRuta.mockResolvedValueOnce({ saved: 1, ids: [1] });
+
+    await syncRoutePoints();
+
+    const llamada = mockGuardarPuntosRuta.mock.calls[0][0];
+    expect(llamada[0].velocidad).toBe(0);
+  });
+
   it('tras sync exitoso la cola no tiene pendientes', async () => {
     await guardarPuntoOffline(PUNTO_A);
     await guardarPuntoOffline(PUNTO_B);

@@ -73,7 +73,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name:    'Consultoría Inmobiliaria',
     slug:    'app-consultoriainmobiliaria',
-    version: '2.0.6',
+    version: '2.0.7',
     orientation: 'portrait',
     icon:    './assets/icon.png',
     userInterfaceStyle: 'light',
@@ -151,6 +151,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'react-native-document-scanner-plugin',
         { cameraPermission: 'La app necesita acceso a la cámara para escanear documentos.' },
+      ],
+      [
+        'expo-build-properties',
+        {
+          // @react-native-ml-kit/text-recognition (GoogleMLKit) exige iOS 15.5 mínimo —
+          // por defecto Expo/RN usan 15.1, lo que tumba el build de EAS con
+          // "Some pods require a higher minimum deployment target".
+          ios: { deploymentTarget: '15.5' },
+        },
       ],
     ],
     // ── Variables accesibles en la app via expo-constants ──────────────────

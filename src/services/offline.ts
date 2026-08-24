@@ -17,14 +17,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { v4 as uuidv4 } from 'uuid';
 
-import { syncBatch, uploadDocumento, registrarAnuncio, subirFotosAnuncio, registrarUbicacion, subirFotosVisita, uploadFotoContacto, uploadSimuladorScreenshot, subirFotoPerfil } from './api';
+import { syncBatch, uploadDocumento, registrarAnuncio, subirFotosAnuncio, registrarUbicacion, subirFotosVisita, uploadFotoContacto, uploadSimuladorScreenshot, subirFotoPerfil, getContratoPrestacionServiciosConfig } from './api';
 import { subirFotoAcreditado, subirDocumentoAcreditado } from './acreditadoApi';
 import { limpiarArchivoLocal } from '../utils/comprimirFoto';
 import type { Contacto, Expediente, Ubicacion, OperacionSync } from '../types';
 
 // ── Claves de AsyncStorage ───────────────────────────────────────────────────
 
-const KEYS = {
+export const KEYS = {
   CONTACTOS:              'cache:contactos',
   EXPEDIENTES:            'cache:expedientes',
   UBICACIONES:            'cache:ubicaciones',
@@ -35,6 +35,7 @@ const KEYS = {
   FOTOS_QUEUE:            'sync:fotos_queue',
   DOCS_ACREDITADO_QUEUE:  'sync:docs_acreditado_queue',
   LAST_SYNC:              'sync:last_at',
+  CONTRATO_PRESTACION_SERVICIOS: 'cache:contrato_prestacion_servicios',
 } as const;
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
@@ -890,6 +891,17 @@ export async function sincronizar(): Promise<{ ok: number; errores: number }> {
         }
       }
       await AsyncStorage.setItem(KEYS.DOCS_ACREDITADO_QUEUE, JSON.stringify(fallidas));
+    }
+
+    // ── 7. Texto del contrato de Prestación de Servicios ──────────────────
+    // Best-effort: si falla (sin red, servidor caído) no cuenta como error de
+    // sync ni tumba el resto — el contrato sigue usando la última versión
+    // cacheada (o el snapshot por defecto si nunca sincronizó).
+    try {
+      const config = await getContratoPrestacionServiciosConfig();
+      await AsyncStorage.setItem(KEYS.CONTRATO_PRESTACION_SERVICIOS, JSON.stringify(config));
+    } catch {
+      // Sin red o endpoint no disponible — se mantiene la caché anterior
     }
   } finally {
     syncEnProceso = false;

@@ -291,6 +291,25 @@ export async function createExpediente(data: Partial<Expediente>): Promise<Exped
   return res.data;
 }
 
+// ── Contratos ──────────────────────────────────────────────────────────────
+
+export interface ContratoPrestacionServiciosConfig {
+  site_name:                          string;
+  firma_prestador:                    string;
+  firma_juridico:                     string;
+  contrato_intro:                     string;
+  contrato_declaraciones_prestador:   string;
+  contrato_declaraciones_interesado:  string;
+  contrato_clausulas:                 string;
+  domicilio_prestador:                string;
+}
+
+/** Texto configurable del contrato — se llama solo durante sincronizar() (offline.ts) */
+export async function getContratoPrestacionServiciosConfig(): Promise<ContratoPrestacionServiciosConfig> {
+  const res = await apiFetch<ApiResponse<ContratoPrestacionServiciosConfig>>('/contratos/prestacion-servicios/config');
+  return res.data;
+}
+
 // ── Documentos ─────────────────────────────────────────────────────────────
 
 export async function uploadDocumento(expedienteId: number, uri: string, tipo: string, notas?: string, mimeType?: string, seccion?: string): Promise<Documento> {
@@ -539,12 +558,14 @@ export async function getRutasAsesores(): Promise<RutaAsesor[]> {
   return res.data;
 }
 
-export async function getRutasDias(asesorId: number): Promise<RutaDia[]> {
+/** asesorId="todos" (solo super_admin) trae la unión de fechas de todos los asesores */
+export async function getRutasDias(asesorId: number | 'todos'): Promise<RutaDia[]> {
   const res = await apiFetch<ApiResponse<RutaDia[]>>(`/routes/dias?asesor_id=${asesorId}`);
   return res.data;
 }
 
-export async function getRutasPuntos(asesorId: number, fecha: string): Promise<RutaPunto[]> {
+/** asesorId="todos" (solo super_admin) trae los puntos de todos los asesores, cada uno con asesor_id/asesor_nombre */
+export async function getRutasPuntos(asesorId: number | 'todos', fecha: string): Promise<RutaPunto[]> {
   const res = await apiFetch<ApiResponse<RutaPunto[]>>(`/routes/points?asesor_id=${asesorId}&fecha=${fecha}`);
   return res.data;
 }

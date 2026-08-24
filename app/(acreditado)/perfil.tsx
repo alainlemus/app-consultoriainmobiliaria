@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, TextInput, Alert,
@@ -11,7 +11,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import {
-  getMeAcreditado,
   updatePerfilAcreditado,
   cambiarPasswordAcreditado,
   solicitarCancelacionAcreditado,
@@ -21,17 +20,18 @@ import {
 import { encolarFotos } from '@/src/services/offline';
 import { comprimirFoto } from '@/src/utils/comprimirFoto';
 import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
-import type { Acreditado } from '@/src/types';
 
 export default function PerfilAcreditadoScreen() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
-  const { clearAcreditado } = useAcreditadoAuth();
+  // Fuente única de verdad: el mismo acreditado que usa el resto de la app
+  // (saludo en "Mi Trámite", etc.). Antes esta pantalla mantenía su propia
+  // copia local y nunca avisaba al contexto tras guardar/subir foto, así que
+  // el resto de la app seguía mostrando datos viejos hasta reiniciar la app.
+  const { acreditado, loading, refresh, clearAcreditado } = useAcreditadoAuth();
 
-  const [acreditado, setAcreditado] = useState<Acreditado | null>(null);
   const [editando,   setEditando]   = useState(false);
   const [guardando,  setGuardando]  = useState(false);
-  const [loading,    setLoading]    = useState(true);
 
   // Campos editables
   const [name,     setName]     = useState('');
@@ -46,26 +46,22 @@ export default function PerfilAcreditadoScreen() {
   const [pwConfirmacion,  setPwConfirmacion]  = useState('');
   const [cambiandoPw,     setCambiandoPw]     = useState(false);
 
-  const cargar = useCallback(async () => {
-    try {
-      const a = await getMeAcreditado();
-      setAcreditado(a);
-      setName(a.name ?? '');
-      setTelefono(a.telefono ?? '');
-      setCurp(a.curp ?? '');
-      setNss(a.nss ?? '');
-    } catch {}
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { cargar(); }, []);
+  // Sincronizar los campos del formulario con el acreditado del contexto —
+  // pero no mientras el usuario está editando, para no pisarle lo que escribe.
+  useEffect(() => {
+    if (!acreditado || editando) return;
+    setName(acreditado.name ?? '');
+    setTelefono(acreditado.telefono ?? '');
+    setCurp(acreditado.curp ?? '');
+    setNss(acreditado.nss ?? '');
+  }, [acreditado, editando]);
 
   async function handleGuardar() {
     if (!name.trim()) { Alert.alert('Error', 'El nombre no puede estar vacío.'); return; }
     setGuardando(true);
     try {
-      const updated = await updatePerfilAcreditado({ name: name.trim(), telefono: telefono.trim() || undefined, curp: curp.trim().toUpperCase() || undefined, nss: nss.trim() || undefined });
-      setAcreditado(updated);
+      await updatePerfilAcreditado({ name: name.trim(), telefono: telefono.trim() || undefined, curp: curp.trim().toUpperCase() || undefined, nss: nss.trim() || undefined });
+      await refresh();
       setEditando(false);
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'No se pudo guardar.');
@@ -121,11 +117,8 @@ export default function PerfilAcreditadoScreen() {
       const foto = await comprimirFoto(uri, 'perfil_acreditado');
 
       try {
-        const nuevaUrl = await subirFotoAcreditado(foto.uri);
-        if (nuevaUrl) {
-          setAcreditado(prev => prev ? { ...prev, foto_perfil_url: nuevaUrl } : prev);
-        }
-        await cargar();
+        await subirFotoAcreditado(foto.uri);
+        await refresh();
         Alert.alert('✅ Foto actualizada', 'Tu foto de perfil se actualizó correctamente.');
       } catch (e: unknown) {
         const msg = (e instanceof Error ? e.message : '').toLowerCase();
@@ -213,7 +206,7 @@ export default function PerfilAcreditadoScreen() {
                   style={styles.avatarImg}
                   onError={() => {
                     // Si la URL firmada expiró, recargar para obtener una nueva
-                    cargar();
+                    refresh();
                   }}
                 />
               ) : (
@@ -272,7 +265,7 @@ export default function PerfilAcreditadoScreen() {
                 </View>
               ))}
               <View style={styles.editBtns}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setEditando(false); cargar(); }}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditando(false)}>
                   <Text style={styles.cancelBtnText}>Cancelar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveBtn} onPress={handleGuardar} disabled={guardando}>
