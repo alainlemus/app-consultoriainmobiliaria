@@ -4,7 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { SyncProvider } from '../src/contexts/SyncContext';
 import { AuthProvider } from '../src/contexts/AuthContext';
-import { registrarPushToken, registrarListeners, limpiarBadge } from '../src/services/notifications';
+import { registrarPushToken, registrarPushTokenAcreditado, registrarListeners, limpiarBadge } from '../src/services/notifications';
 import { getAcreditadoToken, removeAcreditadoToken } from '../src/services/acreditadoApi';
 
 // ── IMPORTANTE: importar la definición de la tarea de background en el top-level
@@ -54,6 +54,9 @@ export default function RootLayout() {
   useEffect(() => {
     SecureStore.getItemAsync('auth_token').then(token => {
       if (token) registrarPushToken().catch(() => {});
+    });
+    getAcreditadoToken().then(token => {
+      if (token) registrarPushTokenAcreditado().catch(() => {});
     });
 
     limpiarBadge();

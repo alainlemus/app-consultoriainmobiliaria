@@ -11,14 +11,15 @@ import { Colors, Typography, Spacing } from '../../src/theme';
 import Input  from '../../src/components/ui/Input';
 import Button from '../../src/components/ui/Button';
 import { login, loginWithToken } from '../../src/services/api';
-import { loginAcreditado, saveAcreditadoToken } from '../../src/services/acreditadoApi';
-import { registrarPushToken } from '../../src/services/notifications';
+import { loginAcreditado, loginWithTokenAcreditado } from '../../src/services/acreditadoApi';
+import { registrarPushToken, registrarPushTokenAcreditado } from '../../src/services/notifications';
 import {
   isBiometricAvailable,
-  isBiometricEnabled,
+  getBiometricTipo,
   enableBiometric,
   getBiometricLabel,
   authenticateWithBiometric,
+  type BiometricTipo,
 } from '../../src/services/biometrics';
 import { isSmallScreen, screenHeight } from '../../src/utils/responsive';
 
@@ -35,25 +36,25 @@ export default function LoginScreen() {
   const [error,    setError]    = useState('');
 
   const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [biometricEnabled,   setBiometricEnabled]   = useState(false);
-  const [biometricLabel,     setBiometricLabel]     = useState('Biometría');
+  // Qué tipo de cuenta tiene biometría activa en este dispositivo (o null si ninguna) —
+  // storage de un solo slot, ver comentario en src/services/biometrics.ts
+  const [biometricTipo,  setBiometricTipo]  = useState<BiometricTipo | null>(null);
+  const [biometricLabel, setBiometricLabel] = useState('Biometría');
 
   useEffect(() => {
     (async () => {
-      const available = await isBiometricAvailable();
-      const enabled   = await isBiometricEnabled();
-      const label     = await getBiometricLabel();
-      setBiometricAvailable(available);
-      setBiometricEnabled(enabled);
-      setBiometricLabel(label);
+      setBiometricAvailable(await isBiometricAvailable());
+      setBiometricTipo(await getBiometricTipo());
+      setBiometricLabel(await getBiometricLabel());
     })();
   }, []);
 
+  // Auto-disparar biometría al entrar al modo que coincide con lo guardado
   useEffect(() => {
-    if (modo === 'asesor' && biometricAvailable && biometricEnabled) {
+    if (biometricAvailable && modo !== 'selector' && biometricTipo === modo) {
       handleBiometricLogin();
     }
-  }, [modo, biometricAvailable, biometricEnabled]);
+  }, [modo, biometricAvailable, biometricTipo]);
 
   const handleBiometricLogin = useCallback(async () => {
     setError('');
@@ -61,9 +62,15 @@ export default function LoginScreen() {
     try {
       const result = await authenticateWithBiometric();
       if (!result) { setLoading(false); return; }
-      await loginWithToken(result.token);
-      registrarPushToken().catch(() => {});
-      router.replace('/(tabs)');
+      if (result.tipo === 'acreditado') {
+        await loginWithTokenAcreditado(result.token);
+        registrarPushTokenAcreditado().catch(() => {});
+        router.replace('/(acreditado)');
+      } else {
+        await loginWithToken(result.token);
+        registrarPushToken().catch(() => {});
+        router.replace('/(tabs)');
+      }
     } catch {
       setError('La sesión guardada expiró. Inicia sesión con tu contraseña.');
     } finally {
@@ -77,9 +84,9 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const state = await login(email.trim().toLowerCase(), password);
-      if (biometricAvailable && !biometricEnabled && state.token) {
-        await enableBiometric(email.trim().toLowerCase(), state.token);
-        setBiometricEnabled(true);
+      if (biometricAvailable && biometricTipo !== 'asesor' && state.token) {
+        await enableBiometric(email.trim().toLowerCase(), state.token, 'asesor');
+        setBiometricTipo('asesor');
       }
       registrarPushToken().catch(() => {});
       router.replace('/(tabs)');
@@ -95,12 +102,15 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      await loginAcreditado(email.trim().toLowerCase(), password);
-      // No llamamos registrarPushToken() aquí: internamente usa el endpoint
-      // /dispositivos del asesor (requiere auth_token), que el acreditado no
-      // tiene. Eso generaba un 401 que forzaba un logout global (ver apiFetch).
-      // TODO: implementar POST /v1/acreditado/dispositivos en el backend y
-      // una variante de registrarPushToken() que use acreditadoFetch.
+      const state = await loginAcreditado(email.trim().toLowerCase(), password);
+      if (biometricAvailable && biometricTipo !== 'acreditado' && state.token) {
+        await enableBiometric(email.trim().toLowerCase(), state.token, 'acreditado');
+        setBiometricTipo('acreditado');
+      }
+      // registrarPushTokenAcreditado usa /v1/acreditado/dispositivos (con el
+      // token del acreditado) — no el endpoint del asesor, que causaba un 401
+      // y forzaba un logout global (ver acreditadoFetch/apiFetch).
+      registrarPushTokenAcreditado().catch(() => {});
       router.replace('/(acreditado)');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Credenciales incorrectas.');
@@ -255,7 +265,7 @@ export default function LoginScreen() {
             style={styles.loginBtn}
           />
 
-          {esAsesor && biometricAvailable && biometricEnabled && (
+          {biometricAvailable && biometricTipo === modo && (
             <TouchableOpacity style={styles.biometricBtn} onPress={handleBiometricLogin} disabled={loading}>
               <Ionicons name={biometricIcon as any} size={32} color={Colors.gold[400]} />
               <Text style={styles.biometricText}>Entrar con {biometricLabel}</Text>
@@ -278,7 +288,7 @@ export default function LoginScreen() {
         <TouchableOpacity onPress={() => Linking.openURL('https://consultoriainmobiliaria.com.mx/aviso-de-privacidad')}>
           <Text style={styles.privacyLink}>Aviso de Privacidad</Text>
         </TouchableOpacity>
-        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '2.0.7'}</Text>
+        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '2.0.8'}</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );

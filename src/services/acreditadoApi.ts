@@ -65,7 +65,15 @@ async function acreditadoFetch<T>(
   // Token expirado/revocado (cuenta desactivada, etc.) — igual que apiFetch
   // del asesor: limpiar sesión y mandar al login en vez de dejar la app
   // mostrando datos viejos indefinidamente con cada pantalla fallando en silencio.
-  if (res.status === 401 && token && !path.includes('/auth/')) {
+  //
+  // Excluir SOLO login/registro — ahí un 401 significa "contraseña
+  // incorrecta" (normal, no implica sesión inválida). Antes se excluía
+  // cualquier ruta bajo /auth/, lo que sin querer también tapaba /auth/me:
+  // exactamente el endpoint que AcreditadoAuthContext.refresh() usa para
+  // comprobar si el token sigue siendo válido — un 401 ahí SÍ debe forzar
+  // el logout, y con la exclusión amplia nunca lo hacía.
+  const esIntentoDeAuth = path === '/auth/login' || path === '/auth/registro';
+  if (res.status === 401 && token && !esIntentoDeAuth) {
     await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
     await SecureStore.deleteItemAsync(ACREDITADO_CACHE_KEY).catch(() => {});
     router.replace('/(auth)/login');
@@ -107,6 +115,13 @@ export async function loginAcreditado(email: string, password: string): Promise<
   });
   await saveAcreditadoToken(res.token);
   return { acreditado: res.acreditado, token: res.token };
+}
+
+/** Restaura sesión desde un token guardado (usado por biometría) */
+export async function loginWithTokenAcreditado(token: string): Promise<AcreditadoAuthState> {
+  await saveAcreditadoToken(token);
+  const acreditado = await getMeAcreditado();
+  return { acreditado, token };
 }
 
 export async function logoutAcreditado(): Promise<void> {
@@ -229,6 +244,15 @@ export async function subirDocumentoAcreditado(
 export async function getUrlDocumentoAcreditado(documentoId: number): Promise<string> {
   const res = await acreditadoFetch<{ url: string }>(`/expediente/documentos/${documentoId}/ver`);
   return res.url;
+}
+
+// ── Dispositivo (push notifications) ────────────────────────────────────────
+
+export async function registrarDispositivoAcreditado(fcmToken: string, plataforma: 'ios' | 'android'): Promise<void> {
+  await acreditadoFetch('/dispositivos', {
+    method: 'POST',
+    body:   JSON.stringify({ fcm_token: fcmToken, plataforma }),
+  });
 }
 
 // ── Solicitudes ───────────────────────────────────────────────────────────────

@@ -58,6 +58,15 @@ jest.mock('expo-camera', () => ({
   ]),
 }));
 
+// ── expo-local-authentication (Face ID / huella) ──────────────────────────────
+jest.mock('expo-local-authentication', () => ({
+  hasHardwareAsync: jest.fn(() => Promise.resolve(false)),
+  isEnrolledAsync:  jest.fn(() => Promise.resolve(false)),
+  supportedAuthenticationTypesAsync: jest.fn(() => Promise.resolve([])),
+  authenticateAsync: jest.fn(() => Promise.resolve({ success: false })),
+  AuthenticationType: { FACIAL_RECOGNITION: 1, FINGERPRINT: 2 },
+}));
+
 // ── expo-image-picker ─────────────────────────────────────────────────────────
 jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: jest.fn(() =>

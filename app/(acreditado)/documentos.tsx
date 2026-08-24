@@ -62,12 +62,14 @@ const TIPOS_DOCUMENTO = [
 const ESTADO_COLOR: Record<string, string> = {
   pendiente:  '#b45309',
   recibido:   '#15803d',
+  rechazado:  '#dc2626',
   no_aplica:  '#374151',
 };
 
 const ESTADO_LABEL: Record<string, string> = {
   pendiente:  'Pendiente',
   recibido:   'Recibido',
+  rechazado:  'Rechazado — vuelve a subirlo',
   no_aplica:  'No aplica',
 };
 
@@ -288,6 +290,9 @@ export default function DocumentosScreen() {
               {item.subido_por_acreditado && (
                 <Text style={styles.docSubidoPor}>Subido por ti</Text>
               )}
+              {item.estado === 'rechazado' && item.notas && (
+                <Text style={styles.docMotivoRechazo} numberOfLines={2}>Motivo: {item.notas}</Text>
+              )}
             </View>
             <View style={[styles.docEstado, { backgroundColor: ESTADO_COLOR[item.estado] + '33' }]}>
               <Text style={[styles.docEstadoText, { color: ESTADO_COLOR[item.estado] }]}>
@@ -346,6 +351,7 @@ const styles = StyleSheet.create({
   docNombre:    { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.cream[50] },
   docSeccion:   { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2 },
   docSubidoPor: { fontSize: Typography.fontSize.xs, color: Colors.gold[400], marginTop: 2 },
+  docMotivoRechazo: { fontSize: Typography.fontSize.xs, color: '#dc2626', marginTop: 2, lineHeight: 15 },
   docEstado:    { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
   docEstadoText:{ fontSize: 10, fontWeight: Typography.fontWeight.bold },
   empty:        { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: Spacing.base, paddingHorizontal: Spacing['2xl'] },

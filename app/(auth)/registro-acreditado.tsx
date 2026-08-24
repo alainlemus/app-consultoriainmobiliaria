@@ -10,6 +10,7 @@ import { Colors, Typography, Spacing } from '../../src/theme';
 import Input  from '../../src/components/ui/Input';
 import Button from '../../src/components/ui/Button';
 import { registrarAcreditado } from '../../src/services/acreditadoApi';
+import { registrarPushTokenAcreditado } from '../../src/services/notifications';
 
 export default function RegistroAcreditadoScreen() {
   const router  = useRouter();
@@ -50,14 +51,10 @@ export default function RegistroAcreditadoScreen() {
         telefono:              telefono.trim() || undefined,
       });
 
-      // No llamamos registrarPushToken() aquí: internamente usa el endpoint
-      // /dispositivos del asesor (requiere auth_token), que el acreditado no
-      // tiene. Si el dispositivo tuviera un token de asesor viejo guardado,
-      // eso generaría un 401 que fuerza un logout global (ver acreditadoFetch/
-      // apiFetch) justo después de crear la cuenta. Mismo criterio que
-      // handleLoginAcreditado en (auth)/login.tsx.
-      // TODO: implementar POST /v1/acreditado/dispositivos en el backend y
-      // una variante de registrarPushToken() que use acreditadoFetch.
+      // registrarPushTokenAcreditado usa /v1/acreditado/dispositivos (con el
+      // token del acreditado) — no el endpoint del asesor, que causaba un 401
+      // y forzaba un logout global justo después de crear la cuenta.
+      registrarPushTokenAcreditado().catch(() => {});
 
       if (result.expediente_vinculado) {
         Alert.alert(

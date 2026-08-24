@@ -37,18 +37,25 @@ import Header from '@/src/components/ui/Header';
 import Button from '@/src/components/ui/Button';
 import Input from '@/src/components/ui/Input';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
-import { getExpedientes, getExpediente } from '@/src/services/api';
+import { getExpedientes, getExpediente, uploadDocumento } from '@/src/services/api';
 import { getContratoConfig, renderPrestacionServiciosHtml } from '@/src/contratos/prestacionServicios';
 import { reconocerIne, type DatosIneOcr } from '@/src/utils/ineOcr';
 import { persistirDocumento } from '@/src/utils/comprimirFoto';
 import { guardarContratoGenerado } from '@/src/services/contratosGenerados';
+import { useSyncContext } from '@/src/contexts/SyncContext';
 import type { Expediente } from '@/src/types';
 
 type Mode = 'captura' | 'ocr' | 'expediente' | 'revision' | 'generando' | 'listo';
 
+// "tipo" también es el nombre que se muestra en el checklist de documentos
+// del expediente y en la pestaña "Documentos" del acreditado — igual
+// convención que los tipos libres de documentos.tsx (CURP, INE, etc.)
+const CONTRATO_TIPO_DOCUMENTO = 'Contrato de Prestación de Servicios';
+
 export default function RegistrarContratoScreen() {
   const router = useRouter();
   const { expedienteId: expedienteIdParam } = useLocalSearchParams<{ expedienteId?: string }>();
+  const { online, encolarDoc } = useSyncContext();
 
   // La captura de la INE siempre es el primer paso, sin importar si ya se
   // sabe el expediente (viene por parámetro) o se elegirá después.
@@ -196,6 +203,35 @@ export default function RegistrarContratoScreen() {
         clienteNombre: nombre || expediente.contacto?.nombre || 'Sin nombre',
         fileUri:       uriPersistida,
       });
+
+      // Subir también al expediente para que el acreditado lo vea en su
+      // pestaña Documentos (además de quedar guardado en este dispositivo).
+      // Si no hay red, se encola con el resto de documentos pendientes y se
+      // reintenta solo — no bloquea ni falla la generación.
+      try {
+        if (online) {
+          await uploadDocumento(expediente.id, uriPersistida, CONTRATO_TIPO_DOCUMENTO, 'Generado desde la app', 'application/pdf', 'otros');
+        } else {
+          await encolarDoc({
+            expedienteId: expediente.id,
+            uri:          uriPersistida,
+            tipo:         CONTRATO_TIPO_DOCUMENTO,
+            seccion:      'otros',
+            mimeType:     'application/pdf',
+            notas:        'Generado desde la app',
+          });
+        }
+      } catch {
+        // Sin conexión real pese a "online", o error del servidor — encolar de todos modos
+        await encolarDoc({
+          expedienteId: expediente.id,
+          uri:          uriPersistida,
+          tipo:         CONTRATO_TIPO_DOCUMENTO,
+          seccion:      'otros',
+          mimeType:     'application/pdf',
+          notas:        'Generado desde la app',
+        }).catch(() => {});
+      }
 
       setPdfUri(uriPersistida);
       setMode('listo');

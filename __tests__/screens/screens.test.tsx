@@ -28,6 +28,26 @@ const mockGetMe          = api.getMe as jest.Mock;
 const mockGetContactos   = api.getContactos as jest.Mock;
 const mockGetExpedientes = api.getExpedientes as jest.Mock;
 
+jest.mock('../../src/services/acreditadoApi', () => ({
+  loginAcreditado:       jest.fn(),
+  loginWithTokenAcreditado: jest.fn(),
+}));
+import * as acreditadoApi from '../../src/services/acreditadoApi';
+const mockLoginAcreditado = acreditadoApi.loginAcreditado as jest.Mock;
+
+jest.mock('../../src/services/notifications', () => ({
+  registrarPushToken:           jest.fn(() => Promise.resolve(null)),
+  registrarPushTokenAcreditado: jest.fn(() => Promise.resolve(null)),
+}));
+
+jest.mock('../../src/services/biometrics', () => ({
+  isBiometricAvailable: jest.fn(() => Promise.resolve(false)),
+  getBiometricTipo:     jest.fn(() => Promise.resolve(null)),
+  enableBiometric:      jest.fn(() => Promise.resolve()),
+  getBiometricLabel:    jest.fn(() => Promise.resolve('Biometría')),
+  authenticateWithBiometric: jest.fn(() => Promise.resolve(null)),
+}));
+
 jest.mock('../../src/hooks/useOfflineSync', () => ({
   useOfflineSync: jest.fn(() => ({
     online: true, pendientes: 0, sincronizar: jest.fn(), encolar: jest.fn(), refrescar: jest.fn(),
@@ -173,6 +193,54 @@ describe('LoginScreen', () => {
     await waitFor(() => {
       expect(getByText('Credenciales inválidas')).toBeTruthy();
     });
+  });
+
+  // ── Modo Acreditado ──────────────────────────────────────────────────────
+
+  it('"Soy Acreditado" muestra el formulario de acceso acreditado', async () => {
+    const { getByText } = render(<LoginScreen />);
+    fireEvent.press(getByText('Soy Acreditado'));
+    await waitFor(() => {
+      expect(getByText('ACCESO ACREDITADO')).toBeTruthy();
+      expect(getByText(/Regístrate aquí/)).toBeTruthy();
+    });
+  });
+
+  it('llama loginAcreditado y navega a /(acreditado) cuando las credenciales son válidas', async () => {
+    mockLoginAcreditado.mockResolvedValueOnce({
+      acreditado: { id: 1, name: 'Cliente Test', email: 'cliente@test.com' },
+      token: 'tok-acreditado',
+    });
+    const { getByText, UNSAFE_getAllByType } = render(<LoginScreen />);
+    fireEvent.press(getByText('Soy Acreditado'));
+    await waitFor(() => getByText('ACCESO ACREDITADO'));
+    const { TextInput } = require('react-native');
+    const inputs = UNSAFE_getAllByType(TextInput);
+    fireEvent.changeText(inputs[0], 'cliente@test.com');
+    fireEvent.changeText(inputs[1], 'secret123');
+    fireEvent.press(getByText('INICIAR SESIÓN'));
+    await waitFor(() => {
+      expect(mockLoginAcreditado).toHaveBeenCalledWith('cliente@test.com', 'secret123');
+      expect(mockRouter.replace).toHaveBeenCalledWith('/(acreditado)');
+    });
+    // No debe usar el flujo/endpoint del asesor
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
+  it('muestra el error de la API cuando falla el login del acreditado', async () => {
+    mockLoginAcreditado.mockRejectedValueOnce(new Error('Credenciales incorrectas.'));
+    const { getByText, UNSAFE_getAllByType } = render(<LoginScreen />);
+    fireEvent.press(getByText('Soy Acreditado'));
+    await waitFor(() => getByText('ACCESO ACREDITADO'));
+    const { TextInput } = require('react-native');
+    const inputs = UNSAFE_getAllByType(TextInput);
+    fireEvent.changeText(inputs[0], 'cliente@test.com');
+    fireEvent.changeText(inputs[1], 'mala');
+    fireEvent.press(getByText('INICIAR SESIÓN'));
+    await waitFor(() => {
+      expect(getByText('Credenciales incorrectas.')).toBeTruthy();
+    });
+    expect(mockRouter.replace).not.toHaveBeenCalledWith('/(acreditado)');
   });
 });
 

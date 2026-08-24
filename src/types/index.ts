@@ -140,7 +140,7 @@ export interface Documento {
   tiene_archivo:   boolean;
   url?:            string | null;
   uri_local?:      string;
-  estado:          'pendiente' | 'recibido' | 'no_aplica';
+  estado:          'pendiente' | 'recibido' | 'rechazado' | 'no_aplica';
   notas?:          string;
   created_at?:     string;
   _local_id?:      string;
@@ -348,7 +348,7 @@ export interface DocumentoAcreditado {
   nombre:                 string;
   seccion:                string;
   categoria?:             string;
-  estado:                 'pendiente' | 'recibido' | 'no_aplica';
+  estado:                 'pendiente' | 'recibido' | 'rechazado' | 'no_aplica';
   tiene_archivo:          boolean;
   subido_por_acreditado:  boolean;
   notas?:                 string;

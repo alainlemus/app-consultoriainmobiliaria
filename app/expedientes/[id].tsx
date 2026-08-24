@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
   TouchableOpacity, ActivityIndicator, Alert,
-  Image, Linking,
+  Image, Linking, Modal, TextInput, Pressable,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -10,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Badge, { ESTADO_EXPEDIENTE_BADGE } from '../../src/components/ui/Badge';
-import { getExpediente, deleteDocumento, reemplazarDocumento, getDocumentoUrl } from '../../src/services/api';
+import { getExpediente, deleteDocumento, reemplazarDocumento, rechazarDocumento, getDocumentoUrl } from '../../src/services/api';
 import { getCacheExpediente } from '../../src/services/offline';
 import { useSyncContext } from '../../src/contexts/SyncContext';
 import type { Expediente, Documento } from '../../src/types';
@@ -28,6 +29,7 @@ const DOC_ESTADO_COLOR: Record<string, { bg: string; text: string; label: string
   recibido:  { bg: '#f0fdf4', text: '#15803d', label: 'Recibido ✓' },
   no_aplica: { bg: '#f3f4f6', text: '#6b7280', label: 'No aplica' },
   pendiente: { bg: '#fefce8', text: '#a16207', label: 'Pendiente' },
+  rechazado: { bg: '#fef2f2', text: '#dc2626', label: 'Rechazado ✕' },
 };
 
 const SECCION_LABEL: Record<string, string> = {
@@ -54,6 +56,11 @@ export default function DetalleExpedienteScreen() {
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(false);
   const [desdeCache, setDesdeCache] = useState(false);
+
+  // Modal "Rechazar documento"
+  const [docARechazar,   setDocARechazar]   = useState<Documento | null>(null);
+  const [motivoRechazo,  setMotivoRechazo]  = useState('');
+  const [enviandoRechazo, setEnviandoRechazo] = useState(false);
 
   const cargar = async (numId: number) => {
     if (!online) {
@@ -176,6 +183,26 @@ export default function DetalleExpedienteScreen() {
       setExp(updated);
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo reemplazar');
+    }
+  };
+
+  const handleRechazar = (doc: Documento) => {
+    setDocARechazar(doc);
+    setMotivoRechazo('');
+  };
+
+  const confirmarRechazo = async () => {
+    if (!docARechazar?.id || !motivoRechazo.trim()) return;
+    setEnviandoRechazo(true);
+    try {
+      await rechazarDocumento(exp!.id, docARechazar.id as number, motivoRechazo.trim());
+      const updated = await getExpediente(exp!.id);
+      setExp(updated);
+      setDocARechazar(null);
+    } catch (e: unknown) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo rechazar el documento.');
+    } finally {
+      setEnviandoRechazo(false);
     }
   };
 
@@ -302,6 +329,10 @@ export default function DetalleExpedienteScreen() {
                           <Text style={styles.docSinArchivo}>Sin archivo — pendiente de subir</Text>
                         )}
 
+                        {doc.estado === 'rechazado' && doc.notas && (
+                          <Text style={styles.docMotivoRechazo}>Motivo: {doc.notas}</Text>
+                        )}
+
                         {/* Acciones */}
                         <View style={styles.docActions}>
                           {tieneArchivo && (
@@ -321,6 +352,12 @@ export default function DetalleExpedienteScreen() {
                           {tieneArchivo && (
                             <TouchableOpacity style={styles.docActionBtn} onPress={() => handleReemplazar(doc)}>
                               <Text style={styles.docActionText}>🔄 Reemplazar</Text>
+                            </TouchableOpacity>
+                          )}
+                          {/* Rechazar: el documento está mal / ilegible — el acreditado ve el motivo y debe volver a subirlo */}
+                          {tieneArchivo && (
+                            <TouchableOpacity style={styles.docActionBtn} onPress={() => handleRechazar(doc)}>
+                              <Text style={styles.docActionText}>⚠️ Rechazar</Text>
                             </TouchableOpacity>
                           )}
                           {/* Eliminar: solo mientras el asesor no lo haya enviado a revisión (estado pendiente) */}
@@ -486,6 +523,44 @@ export default function DetalleExpedienteScreen() {
           <InfoRow label="Actualizado" value={new Date(exp.updated_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })} last />
         </View>
       </ScrollView>
+
+      {/* ── Modal: motivo de rechazo ── */}
+      <Modal visible={!!docARechazar} animationType="fade" transparent onRequestClose={() => setDocARechazar(null)}>
+        <KeyboardAvoidingView style={styles.rechazoBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setDocARechazar(null)} />
+          <View style={styles.rechazoCard}>
+            <Text style={styles.rechazoTitle}>Rechazar documento</Text>
+            <Text style={styles.rechazoSubtitle}>
+              {docARechazar?.tipo_documento ?? docARechazar?.tipo} — explica qué debe corregir el acreditado, se le notificará.
+            </Text>
+            <TextInput
+              style={styles.rechazoInput}
+              placeholder="Ej: La foto sale borrosa, no se alcanza a leer la CURP"
+              placeholderTextColor={Colors.dark[400]}
+              value={motivoRechazo}
+              onChangeText={setMotivoRechazo}
+              multiline
+              numberOfLines={3}
+              autoFocus
+            />
+            <View style={styles.rechazoBtns}>
+              <TouchableOpacity style={styles.rechazoCancelBtn} onPress={() => setDocARechazar(null)} disabled={enviandoRechazo}>
+                <Text style={styles.rechazoCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.rechazoConfirmBtn, (!motivoRechazo.trim() || enviandoRechazo) && styles.rechazoConfirmBtnDisabled]}
+                onPress={confirmarRechazo}
+                disabled={!motivoRechazo.trim() || enviandoRechazo}
+              >
+                {enviandoRechazo
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.rechazoConfirmText}>Rechazar</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -586,6 +661,7 @@ const styles = StyleSheet.create({
   docEstadoPill: { borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 3 },
   docEstadoText: { fontSize: Typography.fontSize.xs, fontWeight: '700' },
   docSinArchivo: { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2, fontStyle: 'italic' },
+  docMotivoRechazo: { fontSize: Typography.fontSize.xs, color: '#dc2626', marginTop: 4, lineHeight: 16 },
   docActions:    { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.xs },
   docActionBtn:        { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.sm, backgroundColor: Colors.cream[100], borderWidth: 1, borderColor: Colors.cream[300] },
   docActionText:       { fontSize: 10, color: Colors.dark[600], fontWeight: '600' },
@@ -621,4 +697,21 @@ const styles = StyleSheet.create({
     borderLeftColor:   Colors.gold[400],
   },
   cacheText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, lineHeight: Typography.fontSize.sm * 1.4 },
+
+  // Modal "Rechazar documento"
+  rechazoBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
+  rechazoCard: { width: '100%', backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.xl },
+  rechazoTitle: { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
+  rechazoSubtitle: { fontSize: Typography.fontSize.sm, color: Colors.dark[500], marginTop: Spacing.xs, marginBottom: Spacing.base, lineHeight: 18 },
+  rechazoInput: {
+    borderWidth: 1, borderColor: Colors.cream[300], borderRadius: Radius.md,
+    padding: Spacing.base, fontSize: Typography.fontSize.sm, color: Colors.dark[900],
+    minHeight: 80, textAlignVertical: 'top',
+  },
+  rechazoBtns: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.base },
+  rechazoCancelBtn: { flex: 1, paddingVertical: Spacing.md, alignItems: 'center', borderRadius: Radius.md, backgroundColor: Colors.cream[100] },
+  rechazoCancelText: { fontSize: Typography.fontSize.sm, color: Colors.dark[700], fontWeight: Typography.fontWeight.semibold },
+  rechazoConfirmBtn: { flex: 1, paddingVertical: Spacing.md, alignItems: 'center', borderRadius: Radius.md, backgroundColor: '#dc2626' },
+  rechazoConfirmBtnDisabled: { opacity: 0.5 },
+  rechazoConfirmText: { fontSize: Typography.fontSize.sm, color: '#fff', fontWeight: Typography.fontWeight.bold },
 });

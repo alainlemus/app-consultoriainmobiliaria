@@ -14,6 +14,7 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import { router } from 'expo-router';
 import {
   saveToken, getToken, removeToken,
   login, logout, getMe,
@@ -257,5 +258,36 @@ describe('Cabeceras de autorización', () => {
     await getMe();
     const [, opts] = (global.fetch as jest.Mock).mock.calls.at(-1);
     expect((opts.headers as Record<string, string>)['Authorization']).toBe('Bearer mock-token-123');
+  });
+});
+
+// ── Sesión expirada (401) ────────────────────────────────────────────────────
+
+describe('apiFetch — sesión expirada', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('en un 401 de un endpoint normal, limpia el token y redirige a login', async () => {
+    mockFetch(401, { message: 'Unauthenticated.' });
+
+    await expect(getContacto(1)).rejects.toThrow('Sesión expirada. Inicia sesión de nuevo.');
+
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('auth_token');
+    expect(router.replace).toHaveBeenCalledWith('/(auth)/login');
+  });
+
+  it('un 401 en /auth/me (revisar si el token sigue siendo válido) también fuerza el logout', async () => {
+    // Antes se excluía cualquier ruta bajo /auth/, lo que sin querer tapaba
+    // /auth/me — justo el endpoint que valida la sesión al abrir la app.
+    mockFetch(401, { message: 'Unauthenticated.' });
+
+    await expect(getMe()).rejects.toThrow('Sesión expirada. Inicia sesión de nuevo.');
+    expect(router.replace).toHaveBeenCalledWith('/(auth)/login');
+  });
+
+  it('login con contraseña incorrecta (401) no fuerza el logout global', async () => {
+    mockFetch(401, { message: 'Credenciales incorrectas.' });
+
+    await expect(login('a@test.com', 'mala')).rejects.toThrow('Credenciales incorrectas.');
+    expect(router.replace).not.toHaveBeenCalled();
   });
 });

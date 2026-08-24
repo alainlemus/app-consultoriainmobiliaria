@@ -75,7 +75,11 @@ export async function apiFetch<T>(
     // llamada nunca debió ir autenticada como asesor (p. ej. una función
     // compartida invocada durante una sesión de acreditado) — redirigir aquí
     // cerraría una sesión de OTRO tipo de usuario que sigue siendo válida.
-    if (response.status === 401 && token && !path.includes('/auth/')) {
+    // Excluir SOLO login — ahí un 401 significa "contraseña incorrecta"
+    // (normal), no que la sesión expiró. Antes se excluía cualquier ruta
+    // bajo /auth/, lo que sin querer también tapaba /auth/me: un 401 ahí
+    // SÍ debe forzar el logout (es justo el endpoint que valida el token).
+    if (response.status === 401 && token && path !== '/auth/login') {
       // Token expirado — limpiar y redirigir al login
       await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
       router.replace('/(auth)/login');
@@ -376,6 +380,15 @@ export async function reemplazarDocumento(expedienteId: number, documentoId: num
   const res = await response.json();
   const doc: Documento = res.data;
   return { ...doc, url: resolveStorageUrl(doc.url) };
+}
+
+/** Marca un documento ya subido como no válido — el acreditado ve el motivo y debe volver a subirlo */
+export async function rechazarDocumento(expedienteId: number, documentoId: number, motivo: string): Promise<Documento> {
+  const res = await apiFetch<ApiResponse<Documento>>(`/expedientes/${expedienteId}/documentos/${documentoId}/rechazar`, {
+    method: 'POST',
+    body:   JSON.stringify({ motivo }),
+  });
+  return { ...res.data, url: resolveStorageUrl(res.data.url) };
 }
 
 // ── Ubicaciones ────────────────────────────────────────────────────────────

@@ -73,7 +73,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name:    'Consultoría Inmobiliaria',
     slug:    'app-consultoriainmobiliaria',
-    version: '2.0.7',
+    version: '2.0.8',
     orientation: 'portrait',
     icon:    './assets/icon.png',
     userInterfaceStyle: 'light',
@@ -151,6 +151,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'react-native-document-scanner-plugin',
         { cameraPermission: 'La app necesita acceso a la cámara para escanear documentos.' },
+      ],
+      [
+        'expo-local-authentication',
+        { faceIDPermission: 'Usamos Face ID para que puedas iniciar sesión más rápido.' },
       ],
       [
         'expo-build-properties',

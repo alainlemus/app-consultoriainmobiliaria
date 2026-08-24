@@ -41,8 +41,16 @@ jest.mock('../../src/services/api', () => ({
 import { registrarDispositivo } from '../../src/services/api';
 const mockRegistrarDispositivo = registrarDispositivo as jest.Mock;
 
+// mock de acreditadoApi.registrarDispositivoAcreditado
+jest.mock('../../src/services/acreditadoApi', () => ({
+  registrarDispositivoAcreditado: jest.fn(() => Promise.resolve()),
+}));
+import { registrarDispositivoAcreditado } from '../../src/services/acreditadoApi';
+const mockRegistrarDispositivoAcreditado = registrarDispositivoAcreditado as jest.Mock;
+
 import {
   registrarPushToken,
+  registrarPushTokenAcreditado,
   registrarListeners,
   mostrarNotificacionLocal,
   limpiarBadge,
@@ -118,6 +126,25 @@ describe('registrarPushToken', () => {
     (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ status: 'granted' });
     await registrarPushToken();
     expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+});
+
+// ── registrarPushTokenAcreditado ───────────────────────────────────────────
+
+describe('registrarPushTokenAcreditado', () => {
+  it('obtiene token y lo registra con registrarDispositivoAcreditado, no con el del asesor', async () => {
+    const token = await registrarPushTokenAcreditado();
+    expect(mockRegistrarDispositivoAcreditado).toHaveBeenCalledWith('ExponentPushToken[mock]', 'android');
+    expect(mockRegistrarDispositivo).not.toHaveBeenCalled();
+    expect(token).toBe('ExponentPushToken[mock]');
+  });
+
+  it('retorna null en simulador, igual que registrarPushToken', async () => {
+    Object.defineProperty(Device, 'isDevice', { value: false, configurable: true });
+    const token = await registrarPushTokenAcreditado();
+    expect(token).toBeNull();
+    expect(mockRegistrarDispositivoAcreditado).not.toHaveBeenCalled();
+    Object.defineProperty(Device, 'isDevice', { value: true, configurable: true });
   });
 });
 

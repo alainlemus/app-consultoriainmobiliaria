@@ -17,6 +17,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { registrarDispositivo } from './api';
+import { registrarDispositivoAcreditado } from './acreditadoApi';
 
 // ── Detectar Expo Go ─────────────────────────────────────────────────────────
 
@@ -67,10 +68,13 @@ export interface NotificacionData {
 // ── Registro de dispositivo ──────────────────────────────────────────────────
 
 /**
- * Solicita permisos, obtiene el push token y lo registra en el backend.
- * Llamar una sola vez tras el login exitoso.
+ * Solicita permisos, obtiene el push token y lo registra en el backend con
+ * la función de registro dada (asesor o acreditado — cada uno usa su propio
+ * endpoint/token de auth, ver registrarPushToken / registrarPushTokenAcreditado).
  */
-export async function registrarPushToken(): Promise<string | null> {
+async function registrarPushTokenCon(
+  registrar: (fcmToken: string, plataforma: 'ios' | 'android') => Promise<void>,
+): Promise<string | null> {
   if (esExpoGo) {
     console.log('[FCM] Push notifications no disponibles en Expo Go (SDK 53+). Usa un development build.');
     return null;
@@ -125,7 +129,7 @@ export async function registrarPushToken(): Promise<string | null> {
     const expoPushToken = tokenData.data;
 
     const plataforma = Platform.OS === 'ios' ? 'ios' : 'android';
-    await registrarDispositivo(expoPushToken, plataforma);
+    await registrar(expoPushToken, plataforma);
 
     console.log('[FCM] Token registrado:', expoPushToken);
     return expoPushToken;
@@ -133,6 +137,16 @@ export async function registrarPushToken(): Promise<string | null> {
     console.error('[FCM] Error al obtener/registrar token:', e);
     return null;
   }
+}
+
+/** Llamar una sola vez tras el login exitoso del asesor/admin. */
+export async function registrarPushToken(): Promise<string | null> {
+  return registrarPushTokenCon(registrarDispositivo);
+}
+
+/** Llamar una sola vez tras el login/registro exitoso del acreditado. */
+export async function registrarPushTokenAcreditado(): Promise<string | null> {
+  return registrarPushTokenCon(registrarDispositivoAcreditado);
 }
 
 // ── Listeners ────────────────────────────────────────────────────────────────
