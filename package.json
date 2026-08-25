@@ -1,6 +1,6 @@
 {
   "name": "app-consultoriainmobiliaria",
-  "version": "2.0.8",
+  "version": "2.1.1",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -50,6 +50,7 @@
     "react-native-document-scanner-plugin": "^2.0.4",
     "react-native-get-random-values": "~1.11.0",
     "react-native-image-to-pdf": "^1.2.0",
+    "react-native-keyboard-aware-scroll-view": "^0.9.5",
     "react-native-maps": "^1.20.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",

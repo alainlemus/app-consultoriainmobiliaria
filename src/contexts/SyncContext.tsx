@@ -27,10 +27,12 @@ import {
   contarPendientes,
   encolarDocumento,
   encolarOperacion,
+  encolarContratoGenerado,
   sincronizar,
 } from '../services/offline';
 import { contarPendientesRoute, syncRoutePoints } from '../services/routeTracking';
 import type { OperacionSync } from '../types';
+import type { ContratoGeneradoUploadParams } from '../services/api';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,7 @@ interface SyncContextType {
   isSyncing:    boolean;
   encolar:      (tipo: OperacionSync['tipo'], datos: Record<string, unknown>) => Promise<string>;
   encolarDoc:   (params: DocParams) => Promise<string>;
+  encolarContrato: (params: ContratoGeneradoUploadParams & { id_local: string }) => Promise<void>;
   sync:         () => Promise<{ ok: number; errores: number }>;
   /** Alias de sync — compatibilidad con código existente */
   sincronizar:  () => Promise<{ ok: number; errores: number }>;
@@ -143,8 +146,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     [refrescar],
   );
 
+  const encolarContrato = useCallback(
+    async (params: ContratoGeneradoUploadParams & { id_local: string }) => {
+      await encolarContratoGenerado(params);
+      await refrescar();
+    },
+    [refrescar],
+  );
+
   return (
-    <SyncContext.Provider value={{ online, pendientes, isSyncing, encolar, encolarDoc, sync, sincronizar: sync, refrescar }}>
+    <SyncContext.Provider value={{ online, pendientes, isSyncing, encolar, encolarDoc, encolarContrato, sync, sincronizar: sync, refrescar }}>
       {children}
     </SyncContext.Provider>
   );

@@ -39,10 +39,10 @@ import Header from '@/src/components/ui/Header';
 import Button from '@/src/components/ui/Button';
 import Input from '@/src/components/ui/Input';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
-import { getExpediente, uploadDocumento } from '@/src/services/api';
+import { getExpediente, uploadDocumento, uploadContratoGenerado } from '@/src/services/api';
 import { getContratoConfig, renderPrestacionServiciosHtml } from '@/src/contratos/prestacionServicios';
 import { reconocerIne, ocrDisponible, type DatosIneOcr } from '@/src/utils/ineOcr';
-import { persistirDocumento } from '@/src/utils/comprimirFoto';
+import { persistirDocumento, comprimirFoto } from '@/src/utils/comprimirFoto';
 import { guardarContratoGenerado } from '@/src/services/contratosGenerados';
 import { useSyncContext } from '@/src/contexts/SyncContext';
 import type { Expediente } from '@/src/types';
@@ -61,6 +61,14 @@ interface DatosPersona {
 
 const PERSONA_VACIA: DatosPersona = { nombre: '', curp: '', rfc: '', domicilio: '' };
 
+/** Honorarios = monto del crédito × % de honorarios, con 2 decimales. Vacío si falta algún dato. */
+function calcularHonorarios(montoStr: string, pctStr: string): string {
+  const monto = Number(montoStr);
+  const pct   = Number(pctStr);
+  if (!montoStr || !pctStr || Number.isNaN(monto) || Number.isNaN(pct)) return '';
+  return (monto * pct / 100).toFixed(2);
+}
+
 function folioAuto(): string {
   const hoy = new Date();
   const y = hoy.getFullYear();
@@ -73,7 +81,7 @@ function folioAuto(): string {
 export default function RegistrarContratoScreen() {
   const router = useRouter();
   const { expedienteId: expedienteIdParam } = useLocalSearchParams<{ expedienteId?: string }>();
-  const { online, encolarDoc } = useSyncContext();
+  const { online, encolarDoc, encolarContrato } = useSyncContext();
 
   const [mode, setMode]                 = useState<Mode>('captura');
   const [personaActual, setPersonaActual] = useState<Persona>('acreditado');
@@ -87,8 +95,15 @@ export default function RegistrarContratoScreen() {
 
   // Formularios de acreditado y solidario
   const [acreditado, setAcreditado] = useState<DatosPersona>(PERSONA_VACIA);
-  const [nss,        setNss]        = useState('');
+  const [nss,          setNss]          = useState('');
+  const [claveElector, setClaveElector] = useState('');
   const [solidario,  setSolidario]  = useState<DatosPersona>(PERSONA_VACIA);
+
+  // Fotos de INE persistidas (para historial + subida al backend) — se
+  // llenan solo cuando se escanea/toma foto/elige de galería; en captura
+  // manual quedan vacías.
+  const [acreditadoFotoUri, setAcreditadoFotoUri] = useState<string | null>(null);
+  const [solidarioFotoUri,  setSolidarioFotoUri]  = useState<string | null>(null);
 
   // Datos del trámite
   const [tramitePrefilled, setTramitePrefilled] = useState(false);
@@ -177,6 +192,16 @@ export default function RegistrarContratoScreen() {
     const datos = await reconocerIne(uri);
     setOcrDatos(datos);
     aplicarDatos(datos);
+
+    // Persistir la foto de la INE (para el historial y para subirla al
+    // backend) — no bloquea el flujo si falla, la captura manual sigue
+    // funcionando igual sin foto.
+    try {
+      const foto = await comprimirFoto(uri, `ine_${personaActual}`);
+      if (personaActual === 'acreditado') setAcreditadoFotoUri(foto.uri);
+      else setSolidarioFotoUri(foto.uri);
+    } catch { /* sin foto persistida — no bloquea el registro */ }
+
     setMode('revision');
   }
 
@@ -230,6 +255,7 @@ export default function RegistrarContratoScreen() {
         curp:                  acreditado.curp,
         rfc:                   acreditado.rfc,
         nss,
+        claveElector,
         domAcreditado:         acreditado.domicilio,
         tipoTramite:           tipoTramite || 'Crédito',
         montoCredito:          montoCredito ? Number(montoCredito) : null,
@@ -243,12 +269,50 @@ export default function RegistrarContratoScreen() {
       const nombreArchivo  = `contrato_${folio || Date.now()}.pdf`;
       const uriPersistida  = await persistirDocumento(uri, nombreArchivo);
 
-      await guardarContratoGenerado({
-        expedienteId:  expediente?.id ?? null,
+      const entradaHistorial = await guardarContratoGenerado({
+        expedienteId:      expediente?.id ?? null,
         folio,
-        clienteNombre: acreditado.nombre || 'Sin nombre',
-        fileUri:       uriPersistida,
+        clienteNombre:     acreditado.nombre || 'Sin nombre',
+        fileUri:           uriPersistida,
+        ineAcreditadoUri:  acreditadoFotoUri,
+        ineSolidarioUri:   solidarioFotoUri,
       });
+
+      // Guardar el contrato (PDF + fotos de INE) como historial en el
+      // backend — independiente del expediente. En campo suele haber poca
+      // o nula señal, así que si falla o está offline se encola y se sube
+      // solo apenas haya conexión (ver paso 8 de sincronizar() en offline.ts).
+      const paramsContratoBackend = {
+        localId:                 entradaHistorial.id,
+        folio,
+        tipoTramite,
+        ciudad,
+        acreditadoNombre:        acreditado.nombre,
+        acreditadoCurp:          acreditado.curp,
+        acreditadoRfc:           acreditado.rfc,
+        acreditadoNss:           nss,
+        acreditadoClaveElector:  claveElector,
+        acreditadoDomicilio:     acreditado.domicilio,
+        solidarioNombre:         solidario.nombre,
+        solidarioCurp:           solidario.curp,
+        solidarioRfc:            solidario.rfc,
+        solidarioDomicilio:      solidario.domicilio,
+        montoCredito:            montoCredito ? Number(montoCredito) : null,
+        honorariosPorcentaje:    honorariosPorcentaje ? Number(honorariosPorcentaje) : null,
+        honorariosMonto:         honorariosMonto ? Number(honorariosMonto) : null,
+        pdfUri:                  uriPersistida,
+        ineAcreditadoUri:        acreditadoFotoUri,
+        ineSolidarioUri:         solidarioFotoUri,
+      };
+      try {
+        if (online) {
+          await uploadContratoGenerado(paramsContratoBackend);
+        } else {
+          await encolarContrato({ ...paramsContratoBackend, id_local: entradaHistorial.id });
+        }
+      } catch {
+        await encolarContrato({ ...paramsContratoBackend, id_local: entradaHistorial.id }).catch(() => {});
+      }
 
       // Si el contrato viene vinculado a un expediente, además se sube ahí
       // para que el acreditado lo vea en su pestaña Documentos. Si no hay
@@ -393,7 +457,10 @@ export default function RegistrarContratoScreen() {
             maxLength={13}
           />
           {esAcreditado && (
-            <Input label="NSS (número de seguridad social)" dark value={nss} onChangeText={setNss} keyboardType="number-pad" />
+            <>
+              <Input label="NSS (número de seguridad social)" dark value={nss} onChangeText={setNss} keyboardType="number-pad" />
+              <Input label="Clave de elector" dark value={claveElector} onChangeText={setClaveElector} autoCapitalize="characters" maxLength={18} />
+            </>
           )}
           <Input
             label="Domicilio"
@@ -419,9 +486,28 @@ export default function RegistrarContratoScreen() {
           <Input label="Folio" dark value={folio} onChangeText={setFolio} autoCapitalize="characters" />
           <Input label="Tipo de trámite" dark value={tipoTramite} onChangeText={setTipoTramite} placeholder="Ej. Crédito FOVISSSTE" placeholderTextColor={Colors.dark[400]} />
           <Input label="Ciudad" dark value={ciudad} onChangeText={setCiudad} />
-          <Input label="Monto del crédito" dark value={montoCredito} onChangeText={setMontoCredito} keyboardType="numeric" />
-          <Input label="Honorarios (%)" dark value={honorariosPorcentaje} onChangeText={setHonorariosPorcentaje} keyboardType="numeric" />
-          <Input label="Honorarios (monto)" dark value={honorariosMonto} onChangeText={setHonorariosMonto} keyboardType="numeric" />
+          <Input
+            label="Monto del crédito"
+            dark
+            value={montoCredito}
+            onChangeText={v => { setMontoCredito(v); setHonorariosMonto(calcularHonorarios(v, honorariosPorcentaje)); }}
+            keyboardType="numeric"
+          />
+          <Input
+            label="Honorarios (%)"
+            dark
+            value={honorariosPorcentaje}
+            onChangeText={v => { setHonorariosPorcentaje(v); setHonorariosMonto(calcularHonorarios(montoCredito, v)); }}
+            keyboardType="numeric"
+          />
+          <Input
+            label="Honorarios (monto)"
+            dark
+            value={honorariosMonto}
+            onChangeText={setHonorariosMonto}
+            hint="Se calcula solo con el monto y el %, pero puedes corregirlo a mano."
+            keyboardType="numeric"
+          />
 
           <Button label="Generar contrato" onPress={generar} fullWidth style={{ marginTop: Spacing.xl }} />
         </ScrollView>

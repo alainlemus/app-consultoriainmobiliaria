@@ -20,8 +20,9 @@ import type { ContratoPrestacionServiciosConfig } from '../services/api';
 
 export const DEFAULT_CONTRATO_CONFIG: ContratoPrestacionServiciosConfig = {
   site_name: 'Consultoría Inmobiliaria',
-  firma_prestador: 'LIC. JOSE ANTONIO SOLIS SANTUARIO',
-  firma_juridico: 'LIC. LUZ ANGÉLICA PÉREZ MEJÍA',
+  firma_prestador: 'JOSE ANTONIO SOLIS SANTUARIO',
+  firma_juridico: 'LUZ ANGÉLICA PÉREZ MEJÍA',
+  domicilio_juridico: '',
   domicilio_prestador: 'Huejutla de Reyes, Hidalgo',
   contrato_intro:
     'EN LA CIUDAD DE {ciudad} A LOS {fecha} DÍAS DEL MES DE MAYO DEL AÑO 2026, CELEBRAN EL PRESENTE CONTRATO DE PRESTACIÓN DE SERVICIOS PROFESIONALES Y FINANCIAMIENTO DE GASTOS POR UNA PARTE EL LIC. JOSE ANTONIO SOLIS SANTUARIO, EN ADELANTE "EL PRESTADOR", CON DOMICILIO EN {domicilio}. Y POR LA OTRA EL C. {acreditado}, EN ADELANTE "EL INTERESADO", QUIEN CUENTA CON DOMICILIO EN {dom_acreditado}, QUIENES SE RECONOCEN CON CAPACIDADES LEGALES PARA OBLIGARSE, SUJETÁNDOSE A LAS SIGUIENTES:',
@@ -48,6 +49,7 @@ export interface ContratoVars {
   curp:                    string;
   rfc:                     string;
   nss?:                    string;
+  claveElector?:           string;
   domAcreditado:           string;
   tipoTramite:             string;
   montoCredito?:           number | null;
@@ -92,12 +94,16 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
     '{ciudad}':           ciudad,
     '{fecha}':             fechaLarga(),
     '{domicilio}':         (config.domicilio_prestador || '').toUpperCase(),
+    '{domicilio_juridico}': (config.domicilio_juridico || '').toUpperCase(),
+    '{firma_prestador}':    (config.firma_prestador || '').toUpperCase(),
+    '{firma_juridico}':     (config.firma_juridico || '').toUpperCase(),
     '{acreditado}':        acreditado,
     '{dom_acreditado}':    domAcreditado,
     '{tipo_tramite}':      tipoTramite,
     '{curp}':               curp,
     '{rfc}':                 rfc,
     '{nss}':                 (vars.nss || BLANCO).toUpperCase(),
+    '{clave_elector}':       (vars.claveElector || BLANCO).toUpperCase(),
     '{folio}':               vars.folio,
     '{monto_credito}':       montoCredito,
     '{pct_honorarios}':      pctHon,
@@ -175,14 +181,14 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
             <table class="firmas">
               <tr><td style="height:70px;"></td><td style="height:70px;"></td></tr>
               <tr>
-                <td><div class="linea-firma"><strong>FIRMA DE "EL PRESTADOR"</strong><br>${(config.firma_prestador || '').toUpperCase()}<br><small>${(config.site_name || '').toUpperCase()}</small></div></td>
+                <td><div class="linea-firma"><strong>FIRMA DE "EL PRESTADOR"</strong><br>C. ${(config.firma_prestador || '').toUpperCase()}<br><small>${(config.site_name || '').toUpperCase()}</small></div></td>
                 <td><div class="linea-firma"><strong>FIRMA DEL "INTERESADO"</strong><br>C. ${acreditado}<br><small>RFC: ${rfc} &nbsp; CURP: ${curp}</small></div></td>
               </tr>
             </table>
             <table class="firmas" style="margin-top:40px;">
               <tr><td style="height:70px;"></td><td style="height:70px;"></td></tr>
               <tr>
-                <td><div class="linea-firma"><strong>FIRMA POR PARTE DEL JURÍDICO</strong><br>${(config.firma_juridico || '').toUpperCase()}</div></td>
+                <td><div class="linea-firma"><strong>FIRMA POR PARTE DEL JURÍDICO</strong><br>LIC. ${(config.firma_juridico || '').toUpperCase()}</div></td>
                 <td><div class="linea-firma"><strong>FIRMA DEL "OBLIGADO SOLIDARIO"</strong><br>C. ${obligadoSolidario}</div></td>
               </tr>
             </table>

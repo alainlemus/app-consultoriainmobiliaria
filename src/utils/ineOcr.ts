@@ -75,6 +75,10 @@ export async function reconocerIne(uri: string): Promise<DatosIneOcr> {
     const texto  = resultado.text.toUpperCase();
     const lineas = texto.split('\n').map(l => l.trim()).filter(Boolean);
 
+    // TEMPORAL — para diagnosticar por qué no se están extrayendo datos en
+    // campo real. Revisa la consola de Metro/dev tools después de escanear.
+    if (__DEV__) console.log('[ineOcr] texto reconocido:\n' + lineas.map((l, i) => `${i}: ${l}`).join('\n'));
+
     const curpMatch = texto.match(CURP_REGEX);
 
     return {
@@ -82,9 +86,10 @@ export async function reconocerIne(uri: string): Promise<DatosIneOcr> {
       nombre:    extraerEntreEtiquetas(lineas, ETIQUETAS_NOMBRE, ETIQUETAS_CORTE),
       domicilio: extraerEntreEtiquetas(lineas, ETIQUETAS_DOMICILIO, ETIQUETAS_CORTE.filter(e => e !== 'DOMICILIO')),
     };
-  } catch {
+  } catch (e) {
     // OCR falló (imagen ilegible, etc.) — el formulario de revisión sigue
     // permitiendo captura manual
+    if (__DEV__) console.warn('[ineOcr] error al reconocer:', e);
     return {};
   }
 }

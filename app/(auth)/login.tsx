@@ -288,7 +288,7 @@ export default function LoginScreen() {
         <TouchableOpacity onPress={() => Linking.openURL('https://consultoriainmobiliaria.com.mx/aviso-de-privacidad')}>
           <Text style={styles.privacyLink}>Aviso de Privacidad</Text>
         </TouchableOpacity>
-        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '2.0.8'}</Text>
+        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '2.1.1'}</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );

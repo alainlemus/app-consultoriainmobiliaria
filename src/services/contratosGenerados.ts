@@ -12,12 +12,15 @@ import { v4 as uuidv4 } from 'uuid';
 const KEY = 'cache:contratos_generados';
 
 export interface ContratoGenerado {
-  id:             string;
-  expedienteId?:  number | null;
-  folio?:         string | null;
-  clienteNombre:  string;
-  fileUri:        string;
-  createdAt:      string;
+  id:                  string;
+  expedienteId?:       number | null;
+  folio?:              string | null;
+  clienteNombre:       string;
+  fileUri:             string;
+  ineAcreditadoUri?:   string | null;
+  ineSolidarioUri?:    string | null;
+  sincronizado?:       boolean;
+  createdAt:           string;
 }
 
 export async function getContratosGenerados(): Promise<ContratoGenerado[]> {
@@ -54,4 +57,13 @@ export async function eliminarContratoGenerado(id: string): Promise<void> {
   const lista = await getContratosGenerados();
   const restantes = lista.filter(c => c.id !== id);
   await AsyncStorage.setItem(KEY, JSON.stringify(restantes));
+}
+
+/** Marca un contrato del historial local como ya subido al backend. */
+export async function marcarContratoSincronizado(id: string): Promise<void> {
+  const lista = await getContratosGenerados();
+  const idx = lista.findIndex(c => c.id === id);
+  if (idx === -1) return;
+  lista[idx] = { ...lista[idx], sincronizado: true };
+  await AsyncStorage.setItem(KEY, JSON.stringify(lista));
 }

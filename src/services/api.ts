@@ -301,6 +301,7 @@ export interface ContratoPrestacionServiciosConfig {
   site_name:                          string;
   firma_prestador:                    string;
   firma_juridico:                     string;
+  domicilio_juridico:                 string;
   contrato_intro:                     string;
   contrato_declaraciones_prestador:   string;
   contrato_declaraciones_interesado:  string;
@@ -357,6 +358,79 @@ export async function uploadDocumento(expedienteId: number, uri: string, tipo: s
 
 export async function deleteDocumento(expedienteId: number, documentoId: number): Promise<void> {
   await apiFetch(`/expedientes/${expedienteId}/documentos/${documentoId}`, { method: 'DELETE' });
+}
+
+// ── Contratos generados (historial en backend) ────────────────────────────
+
+export interface ContratoGeneradoUploadParams {
+  localId:               string;
+  folio?:                string | null;
+  tipoTramite?:           string | null;
+  ciudad?:                string | null;
+  acreditadoNombre:       string;
+  acreditadoCurp?:        string | null;
+  acreditadoRfc?:         string | null;
+  acreditadoNss?:         string | null;
+  acreditadoClaveElector?: string | null;
+  acreditadoDomicilio?:   string | null;
+  solidarioNombre:        string;
+  solidarioCurp?:         string | null;
+  solidarioRfc?:          string | null;
+  solidarioDomicilio?:    string | null;
+  montoCredito?:          number | null;
+  honorariosPorcentaje?:  number | null;
+  honorariosMonto?:       number | null;
+  pdfUri:                 string;
+  ineAcreditadoUri?:      string | null;
+  ineSolidarioUri?:       string | null;
+}
+
+/** Sube el PDF de un contrato generado + las fotos de INE capturadas, como historial en el backend. */
+export async function uploadContratoGenerado(params: ContratoGeneradoUploadParams): Promise<{ id: number }> {
+  const token = await getToken();
+  const formData = new FormData();
+
+  formData.append('local_id', params.localId);
+  if (params.folio)                    formData.append('folio', params.folio);
+  if (params.tipoTramite)              formData.append('tipo_tramite', params.tipoTramite);
+  if (params.ciudad)                   formData.append('ciudad', params.ciudad);
+  formData.append('acreditado_nombre', params.acreditadoNombre);
+  if (params.acreditadoCurp)           formData.append('acreditado_curp', params.acreditadoCurp);
+  if (params.acreditadoRfc)            formData.append('acreditado_rfc', params.acreditadoRfc);
+  if (params.acreditadoNss)            formData.append('acreditado_nss', params.acreditadoNss);
+  if (params.acreditadoClaveElector)   formData.append('acreditado_clave_elector', params.acreditadoClaveElector);
+  if (params.acreditadoDomicilio)      formData.append('acreditado_domicilio', params.acreditadoDomicilio);
+  formData.append('solidario_nombre', params.solidarioNombre);
+  if (params.solidarioCurp)            formData.append('solidario_curp', params.solidarioCurp);
+  if (params.solidarioRfc)             formData.append('solidario_rfc', params.solidarioRfc);
+  if (params.solidarioDomicilio)       formData.append('solidario_domicilio', params.solidarioDomicilio);
+  if (params.montoCredito != null)          formData.append('monto_credito', String(params.montoCredito));
+  if (params.honorariosPorcentaje != null)  formData.append('honorarios_porcentaje', String(params.honorariosPorcentaje));
+  if (params.honorariosMonto != null)       formData.append('honorarios_monto', String(params.honorariosMonto));
+
+  formData.append('pdf', { uri: params.pdfUri, type: 'application/pdf', name: `contrato_${Date.now()}.pdf` } as unknown as Blob);
+  if (params.ineAcreditadoUri) {
+    formData.append('ine_acreditado', { uri: params.ineAcreditadoUri, type: 'image/jpeg', name: `ine_acreditado_${Date.now()}.jpg` } as unknown as Blob);
+  }
+  if (params.ineSolidarioUri) {
+    formData.append('ine_solidario', { uri: params.ineSolidarioUri, type: 'image/jpeg', name: `ine_solidario_${Date.now()}.jpg` } as unknown as Blob);
+  }
+
+  const response = await fetch(`${API_BASE}/contratos/generados`, {
+    method:  'POST',
+    headers: {
+      'Accept':        'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.message ?? `Error al subir el contrato: ${response.status}`);
+  }
+  const res = await response.json();
+  return { id: res.data.id };
 }
 
 /**

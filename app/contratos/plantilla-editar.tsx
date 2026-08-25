@@ -13,7 +13,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Header from '@/src/components/ui/Header';
@@ -26,7 +27,7 @@ import { updateContratoPrestacionServiciosConfig, type ContratoPrestacionServici
 import { KEYS } from '@/src/services/offline';
 
 const CONFIG_VACIA: ContratoPrestacionServiciosConfig = {
-  site_name: '', firma_prestador: '', firma_juridico: '', domicilio_prestador: '',
+  site_name: '', firma_prestador: '', firma_juridico: '', domicilio_juridico: '', domicilio_prestador: '',
   contrato_intro: '', contrato_declaraciones_prestador: '', contrato_declaraciones_interesado: '', contrato_clausulas: '',
 };
 
@@ -76,9 +77,15 @@ export default function EditarPlantillaScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={s.flex}>
       <Header title="Editar plantilla" subtitle="Solo administrador" onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollView
+        contentContainerStyle={s.body}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        extraScrollHeight={Spacing.xl}
+        keyboardOpeningTime={0}
+      >
         <Text style={s.hint}>
           Este texto se usa en todos los contratos que se generen de aquí en adelante, de
           cualquier asesor. Revísalo con cuidado antes de guardar.
@@ -86,8 +93,9 @@ export default function EditarPlantillaScreen() {
 
         <Text style={s.seccion}>Datos generales</Text>
         <Input label="Nombre del sitio" dark value={config.site_name} onChangeText={v => set('site_name', v)} />
-        <Input label="Firma del prestador" dark value={config.firma_prestador} onChangeText={v => set('firma_prestador', v)} />
-        <Input label="Firma del jurídico" dark value={config.firma_juridico} onChangeText={v => set('firma_juridico', v)} />
+        <Input label="Nombre del prestador" dark value={config.firma_prestador} onChangeText={v => set('firma_prestador', v)} hint='Solo el nombre, sin título — el "C." o "LIC." se agrega solo donde corresponda.' />
+        <Input label="Nombre del jurídico" dark value={config.firma_juridico} onChangeText={v => set('firma_juridico', v)} hint='Solo el nombre, sin título — el "LIC." se agrega solo.' />
+        <Input label="Domicilio procesal del jurídico" dark value={config.domicilio_juridico} onChangeText={v => set('domicilio_juridico', v)} hint="Para pleitos y cobranzas — distinto del domicilio del prestador." />
         <Input label="Domicilio del prestador" dark value={config.domicilio_prestador} onChangeText={v => set('domicilio_prestador', v)} />
 
         <Text style={s.seccion}>Introducción</Text>
@@ -103,14 +111,15 @@ export default function EditarPlantillaScreen() {
         <Input dark value={config.contrato_clausulas} onChangeText={v => set('contrato_clausulas', v)} multiline numberOfLines={12} containerStyle={s.textarea} />
 
         <Text style={s.placeholdersHint}>
-          Placeholders disponibles: {'{acreditado}'}, {'{curp}'}, {'{rfc}'}, {'{nss}'}, {'{dom_acreditado}'},{' '}
-          {'{tipo_tramite}'}, {'{obligado_solidario}'}, {'{monto_credito}'}, {'{pct_honorarios}'},{' '}
-          {'{monto_honorarios}'}, {'{folio}'}, {'{ciudad}'}, {'{fecha}'}, {'{domicilio}'}, {'{site_name}'}.
+          Placeholders disponibles: {'{acreditado}'}, {'{curp}'}, {'{rfc}'}, {'{nss}'}, {'{clave_elector}'},{' '}
+          {'{dom_acreditado}'}, {'{tipo_tramite}'}, {'{obligado_solidario}'}, {'{monto_credito}'},{' '}
+          {'{pct_honorarios}'}, {'{monto_honorarios}'}, {'{folio}'}, {'{ciudad}'}, {'{fecha}'},{' '}
+          {'{domicilio}'}, {'{domicilio_juridico}'}, {'{firma_prestador}'}, {'{firma_juridico}'}, {'{site_name}'}.
         </Text>
 
         <Button label="Guardar plantilla" onPress={guardar} loading={guardando} fullWidth style={{ marginTop: Spacing.xl }} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 

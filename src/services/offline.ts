@@ -17,9 +17,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { v4 as uuidv4 } from 'uuid';
 
-import { syncBatch, uploadDocumento, registrarAnuncio, subirFotosAnuncio, registrarUbicacion, subirFotosVisita, uploadFotoContacto, uploadSimuladorScreenshot, subirFotoPerfil, getContratoPrestacionServiciosConfig } from './api';
+import { syncBatch, uploadDocumento, registrarAnuncio, subirFotosAnuncio, registrarUbicacion, subirFotosVisita, uploadFotoContacto, uploadSimuladorScreenshot, subirFotoPerfil, getContratoPrestacionServiciosConfig, uploadContratoGenerado, type ContratoGeneradoUploadParams } from './api';
 import { subirFotoAcreditado, subirDocumentoAcreditado } from './acreditadoApi';
 import { limpiarArchivoLocal } from '../utils/comprimirFoto';
+import { marcarContratoSincronizado } from './contratosGenerados';
 import type { Contacto, Expediente, Ubicacion, OperacionSync } from '../types';
 
 // ── Claves de AsyncStorage ───────────────────────────────────────────────────
@@ -34,6 +35,7 @@ export const KEYS = {
   UBICACIONES_QUEUE:      'sync:ubicaciones_queue',
   FOTOS_QUEUE:            'sync:fotos_queue',
   DOCS_ACREDITADO_QUEUE:  'sync:docs_acreditado_queue',
+  CONTRATOS_GENERADOS_QUEUE: 'sync:contratos_generados_queue',
   LAST_SYNC:              'sync:last_at',
   CONTRATO_PRESTACION_SERVICIOS: 'cache:contrato_prestacion_servicios',
 } as const;
@@ -58,6 +60,13 @@ export interface DocumentoPendiente {
   notas?:       string;
   timestamp:    string;
   intentos:     number;
+}
+
+/** Un contrato generado en la app (PDF + fotos de INE) pendiente de subir al backend como historial */
+export interface ContratoGeneradoPendiente extends ContratoGeneradoUploadParams {
+  id_local:  string; // mismo id que el registro en el historial local (contratosGenerados.ts)
+  timestamp: string;
+  intentos:  number;
 }
 
 /** Un anuncio publicitario registrado offline (con fotos opcionales en URIs locales) */
@@ -378,14 +387,43 @@ export async function getDocsQueue(): Promise<DocumentoPendiente[]> {
   }
 }
 
+// ── Cola de contratos generados ─────────────────────────────────────────────
+
+/**
+ * Encola un contrato generado (PDF + fotos de INE) para subir al backend
+ * cuando haya conexión. Úsalo cuando se genera un contrato estando offline
+ * o en lugares con poca señal — se sube solo apenas se recupere la conexión.
+ */
+export async function encolarContratoGenerado(
+  params: ContratoGeneradoUploadParams & { id_local: string },
+): Promise<void> {
+  const pendiente: ContratoGeneradoPendiente = {
+    ...params,
+    timestamp: new Date().toISOString(),
+    intentos:  0,
+  };
+  const queue = await getContratosGeneradosQueue();
+  queue.push(pendiente);
+  await AsyncStorage.setItem(KEYS.CONTRATOS_GENERADOS_QUEUE, JSON.stringify(queue));
+}
+
+export async function getContratosGeneradosQueue(): Promise<ContratoGeneradoPendiente[]> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.CONTRATOS_GENERADOS_QUEUE);
+    return raw ? (JSON.parse(raw) as ContratoGeneradoPendiente[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 // ── Conteo total de pendientes ────────────────────────────────────────────────
 
 /** Suma de todas las colas pendientes */
 export async function contarPendientes(): Promise<number> {
-  const [ops, docs, anuncios, ubicaciones, fotos, docsAcreditado] = await Promise.all([
-    getQueue(), getDocsQueue(), getAnunciosQueue(), getUbicacionesQueue(), getFotosQueue(), getDocsAcreditadoQueue(),
+  const [ops, docs, anuncios, ubicaciones, fotos, docsAcreditado, contratos] = await Promise.all([
+    getQueue(), getDocsQueue(), getAnunciosQueue(), getUbicacionesQueue(), getFotosQueue(), getDocsAcreditadoQueue(), getContratosGeneradosQueue(),
   ]);
-  return ops.length + docs.length + anuncios.length + ubicaciones.length + fotos.length + docsAcreditado.length;
+  return ops.length + docs.length + anuncios.length + ubicaciones.length + fotos.length + docsAcreditado.length + contratos.length;
 }
 
 // ── Contactos pendientes de sync visibles en la lista ────────────────────────
@@ -902,6 +940,34 @@ export async function sincronizar(): Promise<{ ok: number; errores: number }> {
       await AsyncStorage.setItem(KEYS.CONTRATO_PRESTACION_SERVICIOS, JSON.stringify(config));
     } catch {
       // Sin red o endpoint no disponible — se mantiene la caché anterior
+    }
+
+    // ── 8. Cola de contratos generados (PDF + fotos de INE) ────────────────
+    // Se generan sobre todo en campo, con poca o nula señal — quedan en el
+    // historial local de inmediato y se suben solos apenas haya conexión.
+    const contratosQueue = await getContratosGeneradosQueue();
+    if (contratosQueue.length > 0) {
+      const fallidas: ContratoGeneradoPendiente[] = [];
+
+      for (const c of contratosQueue) {
+        try {
+          await uploadContratoGenerado(c);
+          await marcarContratoSincronizado(c.id_local);
+          // A diferencia de los documentos de expediente, NO se borra el
+          // PDF/fotos local — el historial de "Contratos" de la app sigue
+          // usando esos archivos locales para Ver/Compartir, sin depender
+          // del backend.
+          ok++;
+        } catch {
+          errores++;
+          if (c.intentos < 3) {
+            fallidas.push({ ...c, intentos: c.intentos + 1 });
+          }
+          // Tras 3 intentos se deja de reintentar; el contrato sigue
+          // disponible en el historial local aunque nunca llegue al backend.
+        }
+      }
+      await AsyncStorage.setItem(KEYS.CONTRATOS_GENERADOS_QUEUE, JSON.stringify(fallidas));
     }
   } finally {
     syncEnProceso = false;
