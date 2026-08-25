@@ -1,17 +1,19 @@
 /**
  * Pantalla: Registrar contrato
- * Ruta: /contratos/registrar?expedienteId=X (expedienteId opcional)
+ * Ruta: /contratos/registrar?expedienteId=X (expedienteId opcional, solo
+ * para precargar datos si ya existe un expediente — el contrato NO depende
+ * de tener uno).
  *
- * Flujo (la captura de la INE es siempre el primer paso, independiente de
- * elegir expediente — si se llega sin expedienteId, se pide después de
- * escanear/cargar, no antes):
- *  1. Capturar la INE del acreditado (escanear / cámara / galería).
- *  2. OCR on-device (CURP confiable; nombre/domicilio heurísticos).
- *  3. Si no vino expedienteId → elegir a qué expediente pertenece esta INE.
- *  4. Formulario de revisión — todo editable, precargado por OCR con
- *     fallback a los datos ya guardados en el expediente.
- *  5. Generar el PDF (100% local), guardarlo en el dispositivo y en el
- *     historial de "Contratos generados".
+ * El contrato es independiente del expediente: se captura todo en el
+ * momento, con el acreditado presente. Flujo:
+ *  1. Acreditado — escanear su INE o capturar sus datos a mano.
+ *  2. Obligado solidario — siempre se captura (escaneo o manual), todo
+ *     contrato lleva uno.
+ *  3. Datos del trámite — folio, tipo de trámite, monto, honorarios.
+ *  4. Generar el PDF (100% local), guardarlo en el dispositivo y en el
+ *     historial de "Contratos generados". Si el contrato se originó desde
+ *     un expediente (vino con expedienteId), además se sube ahí como
+ *     documento; si no, se queda solo en el historial local.
  */
 
 // ── Import nativo condicional del escáner (igual que documentos/subir.tsx) ──
@@ -25,8 +27,8 @@ try {
 
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
-  ActivityIndicator, KeyboardAvoidingView, Platform, FlatList, TextInput,
+  View, Text, StyleSheet, ScrollView, Alert,
+  ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -37,50 +39,69 @@ import Header from '@/src/components/ui/Header';
 import Button from '@/src/components/ui/Button';
 import Input from '@/src/components/ui/Input';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
-import { getExpedientes, getExpediente, uploadDocumento } from '@/src/services/api';
+import { getExpediente, uploadDocumento } from '@/src/services/api';
 import { getContratoConfig, renderPrestacionServiciosHtml } from '@/src/contratos/prestacionServicios';
-import { reconocerIne, type DatosIneOcr } from '@/src/utils/ineOcr';
+import { reconocerIne, ocrDisponible, type DatosIneOcr } from '@/src/utils/ineOcr';
 import { persistirDocumento } from '@/src/utils/comprimirFoto';
 import { guardarContratoGenerado } from '@/src/services/contratosGenerados';
 import { useSyncContext } from '@/src/contexts/SyncContext';
 import type { Expediente } from '@/src/types';
 
-type Mode = 'captura' | 'ocr' | 'expediente' | 'revision' | 'generando' | 'listo';
+type Persona = 'acreditado' | 'solidario';
+type Mode = 'captura' | 'ocr' | 'revision' | 'datos-tramite' | 'generando' | 'listo';
 
-// "tipo" también es el nombre que se muestra en el checklist de documentos
-// del expediente y en la pestaña "Documentos" del acreditado — igual
-// convención que los tipos libres de documentos.tsx (CURP, INE, etc.)
 const CONTRATO_TIPO_DOCUMENTO = 'Contrato de Prestación de Servicios';
+
+interface DatosPersona {
+  nombre:    string;
+  curp:      string;
+  rfc:       string;
+  domicilio: string;
+}
+
+const PERSONA_VACIA: DatosPersona = { nombre: '', curp: '', rfc: '', domicilio: '' };
+
+function folioAuto(): string {
+  const hoy = new Date();
+  const y = hoy.getFullYear();
+  const m = String(hoy.getMonth() + 1).padStart(2, '0');
+  const d = String(hoy.getDate()).padStart(2, '0');
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `CT-${y}${m}${d}-${rand}`;
+}
 
 export default function RegistrarContratoScreen() {
   const router = useRouter();
   const { expedienteId: expedienteIdParam } = useLocalSearchParams<{ expedienteId?: string }>();
   const { online, encolarDoc } = useSyncContext();
 
-  // La captura de la INE siempre es el primer paso, sin importar si ya se
-  // sabe el expediente (viene por parámetro) o se elegirá después.
-  const [mode, setMode]             = useState<Mode>('captura');
+  const [mode, setMode]                 = useState<Mode>('captura');
+  const [personaActual, setPersonaActual] = useState<Persona>('acreditado');
+
+  // Expediente: opcional, solo para precargar datos si vino por parámetro.
   const [expediente, setExpediente] = useState<Expediente | null>(null);
   const [cargandoExpediente, setCargandoExpediente] = useState(!!expedienteIdParam);
 
-  // Selector de expediente
-  const [busqueda,      setBusqueda]      = useState('');
-  const [lista,         setLista]         = useState<Expediente[]>([]);
-  const [cargandoLista, setCargandoLista] = useState(false);
-
-  // Datos leídos por OCR (se guardan aparte para poder re-aplicarlos con
-  // fallback al expediente en cuanto se elige, si no vino por parámetro)
+  // Datos leídos por OCR del documento que se está capturando en este momento.
   const [ocrDatos, setOcrDatos] = useState<DatosIneOcr>({});
 
-  // Formulario de revisión
-  const [nombre,    setNombre]    = useState('');
-  const [curp,      setCurp]      = useState('');
-  const [rfc,       setRfc]       = useState('');
-  const [domicilio, setDomicilio] = useState('');
+  // Formularios de acreditado y solidario
+  const [acreditado, setAcreditado] = useState<DatosPersona>(PERSONA_VACIA);
+  const [nss,        setNss]        = useState('');
+  const [solidario,  setSolidario]  = useState<DatosPersona>(PERSONA_VACIA);
+
+  // Datos del trámite
+  const [tramitePrefilled, setTramitePrefilled] = useState(false);
+  const [folio,                setFolio]                = useState('');
+  const [tipoTramite,          setTipoTramite]          = useState('');
+  const [ciudad,               setCiudad]               = useState('Huejutla de Reyes');
+  const [montoCredito,         setMontoCredito]         = useState('');
+  const [honorariosPorcentaje, setHonorariosPorcentaje] = useState('10');
+  const [honorariosMonto,      setHonorariosMonto]      = useState('');
 
   const [pdfUri, setPdfUri] = useState<string | null>(null);
 
-  // ── Cargar expediente cuando viene por parámetro ──────────────────────────
+  // ── Cargar expediente cuando viene por parámetro (solo para precargar) ────
   useEffect(() => {
     if (!expedienteIdParam) return;
     (async () => {
@@ -88,48 +109,35 @@ export default function RegistrarContratoScreen() {
         const exp = await getExpediente(Number(expedienteIdParam));
         setExpediente(exp);
       } catch {
-        Alert.alert('Error', 'No se pudo cargar el expediente.', [{ text: 'OK', onPress: () => router.back() }]);
+        // No bloquea el flujo — el contrato no depende del expediente.
       } finally {
         setCargandoExpediente(false);
       }
     })();
   }, [expedienteIdParam]);
 
-  // ── Cargar lista de expedientes para elegir ───────────────────────────────
-  useEffect(() => {
-    if (mode !== 'expediente') return;
-    (async () => {
-      setCargandoLista(true);
-      try {
-        const res = await getExpedientes();
-        setLista(res.data);
-      } catch {
-        // sin conexión — lista vacía, el asesor puede reintentar
-      } finally {
-        setCargandoLista(false);
-      }
-    })();
-  }, [mode]);
+  const datosPersonaActual = personaActual === 'acreditado' ? acreditado : solidario;
+  const setDatosPersonaActual = personaActual === 'acreditado' ? setAcreditado : setSolidario;
 
-  const listaFiltrada = lista.filter(e => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return true;
-    return (e.folio ?? '').toLowerCase().includes(q) || (e.contacto?.nombre ?? '').toLowerCase().includes(q);
-  });
-
-  /** Precarga el formulario: OCR primero, si falta el dato cae al expediente. */
-  function aplicarDatos(datos: DatosIneOcr, exp: Expediente | null) {
-    setNombre(datos.nombre || exp?.acreditado_nombre || '');
-    setCurp(datos.curp || exp?.acreditado_curp || '');
-    // La RFC nunca está impresa en la INE — siempre viene del expediente
-    setRfc(exp?.acreditado_rfc || '');
-    setDomicilio(datos.domicilio || exp?.acreditado_domicilio || '');
-  }
-
-  function seleccionarExpediente(exp: Expediente) {
-    setExpediente(exp);
-    aplicarDatos(ocrDatos, exp);
-    setMode('revision');
+  /** Precarga el formulario de la persona activa: OCR primero, con fallback al expediente (solo acreditado). */
+  function aplicarDatos(datos: DatosIneOcr) {
+    if (personaActual === 'acreditado') {
+      setAcreditado({
+        nombre:    datos.nombre || expediente?.acreditado_nombre || '',
+        curp:      datos.curp || expediente?.acreditado_curp || '',
+        // La RFC nunca está impresa en la INE — siempre viene del expediente o captura manual
+        rfc:       expediente?.acreditado_rfc || '',
+        domicilio: datos.domicilio || expediente?.acreditado_domicilio || '',
+      });
+      setNss(expediente?.contacto?.nss || '');
+    } else {
+      setSolidario({
+        nombre:    datos.nombre || expediente?.obligado_solidario_nombre || '',
+        curp:      datos.curp || '',
+        rfc:       '',
+        domicilio: datos.domicilio || '',
+      });
+    }
   }
 
   // ── Captura de la INE ──────────────────────────────────────────────────────
@@ -168,50 +176,98 @@ export default function RegistrarContratoScreen() {
     setMode('ocr');
     const datos = await reconocerIne(uri);
     setOcrDatos(datos);
-    aplicarDatos(datos, expediente);
-    // Si ya sabemos el expediente (vino por parámetro) vamos directo a revisar;
-    // si no, primero hay que elegir a quién pertenece esta INE.
-    setMode(expediente ? 'revision' : 'expediente');
+    aplicarDatos(datos);
+    setMode('revision');
+  }
+
+  function capturarManual() {
+    setOcrDatos({});
+    aplicarDatos({});
+    setMode('revision');
+  }
+
+  // ── Navegación entre pasos ─────────────────────────────────────────────────
+  function continuarDesdeRevision() {
+    if (personaActual === 'acreditado') {
+      setPersonaActual('solidario');
+      setOcrDatos({});
+      setMode('captura');
+      return;
+    }
+    // Terminó de revisar al solidario → datos del trámite
+    if (!tramitePrefilled) {
+      setFolio(expediente?.folio || folioAuto());
+      setTipoTramite(expediente?.tipo_tramite?.nombre || '');
+      if (expediente?.monto_credito != null) setMontoCredito(String(expediente.monto_credito));
+      if (expediente?.honorarios_porcentaje != null) setHonorariosPorcentaje(String(expediente.honorarios_porcentaje));
+      if (expediente?.honorarios_monto != null) setHonorariosMonto(String(expediente.honorarios_monto));
+      setTramitePrefilled(true);
+    }
+    setMode('datos-tramite');
+  }
+
+  function volverACaptura() {
+    setMode('captura');
+  }
+
+  function volverAPersonaAnterior() {
+    if (personaActual === 'solidario' && mode === 'captura') {
+      setPersonaActual('acreditado');
+      setMode('revision');
+      return;
+    }
+    setMode('revision');
   }
 
   // ── Generar PDF ────────────────────────────────────────────────────────────
   async function generar() {
-    if (!expediente) return;
     setMode('generando');
     try {
       const config = await getContratoConfig();
       const html = renderPrestacionServiciosHtml({
-        folio:                 expediente.folio ?? `EXP-${expediente.id}`,
-        acreditado:            nombre,
-        curp,
-        rfc,
-        domAcreditado:         domicilio,
-        tipoTramite:           expediente.tipo_tramite?.nombre ?? 'Crédito',
-        montoCredito:          expediente.monto_credito,
-        honorariosPorcentaje:  expediente.honorarios_porcentaje,
-        honorariosMonto:       expediente.honorarios_monto,
-        obligadoSolidario:     expediente.obligado_solidario_nombre,
+        folio:                 folio || folioAuto(),
+        acreditado:            acreditado.nombre,
+        curp:                  acreditado.curp,
+        rfc:                   acreditado.rfc,
+        nss,
+        domAcreditado:         acreditado.domicilio,
+        tipoTramite:           tipoTramite || 'Crédito',
+        montoCredito:          montoCredito ? Number(montoCredito) : null,
+        honorariosPorcentaje:  honorariosPorcentaje ? Number(honorariosPorcentaje) : null,
+        honorariosMonto:       honorariosMonto ? Number(honorariosMonto) : null,
+        obligadoSolidario:     solidario.nombre,
+        ciudad,
       }, config);
 
       const { uri } = await Print.printToFileAsync({ html });
-      const nombreArchivo  = `contrato_${expediente.folio ?? expediente.id}_${Date.now()}.pdf`;
+      const nombreArchivo  = `contrato_${folio || Date.now()}.pdf`;
       const uriPersistida  = await persistirDocumento(uri, nombreArchivo);
 
       await guardarContratoGenerado({
-        expedienteId:  expediente.id,
-        folio:         expediente.folio,
-        clienteNombre: nombre || expediente.contacto?.nombre || 'Sin nombre',
+        expedienteId:  expediente?.id ?? null,
+        folio,
+        clienteNombre: acreditado.nombre || 'Sin nombre',
         fileUri:       uriPersistida,
       });
 
-      // Subir también al expediente para que el acreditado lo vea en su
-      // pestaña Documentos (además de quedar guardado en este dispositivo).
-      // Si no hay red, se encola con el resto de documentos pendientes y se
-      // reintenta solo — no bloquea ni falla la generación.
-      try {
-        if (online) {
-          await uploadDocumento(expediente.id, uriPersistida, CONTRATO_TIPO_DOCUMENTO, 'Generado desde la app', 'application/pdf', 'otros');
-        } else {
+      // Si el contrato viene vinculado a un expediente, además se sube ahí
+      // para que el acreditado lo vea en su pestaña Documentos. Si no hay
+      // expediente, el contrato queda solo en el historial del dispositivo.
+      if (expediente) {
+        try {
+          if (online) {
+            await uploadDocumento(expediente.id, uriPersistida, CONTRATO_TIPO_DOCUMENTO, 'Generado desde la app', 'application/pdf', 'otros');
+          } else {
+            await encolarDoc({
+              expedienteId: expediente.id,
+              uri:          uriPersistida,
+              tipo:         CONTRATO_TIPO_DOCUMENTO,
+              seccion:      'otros',
+              mimeType:     'application/pdf',
+              notas:        'Generado desde la app',
+            });
+          }
+        } catch {
           await encolarDoc({
             expedienteId: expediente.id,
             uri:          uriPersistida,
@@ -219,25 +275,15 @@ export default function RegistrarContratoScreen() {
             seccion:      'otros',
             mimeType:     'application/pdf',
             notas:        'Generado desde la app',
-          });
+          }).catch(() => {});
         }
-      } catch {
-        // Sin conexión real pese a "online", o error del servidor — encolar de todos modos
-        await encolarDoc({
-          expedienteId: expediente.id,
-          uri:          uriPersistida,
-          tipo:         CONTRATO_TIPO_DOCUMENTO,
-          seccion:      'otros',
-          mimeType:     'application/pdf',
-          notas:        'Generado desde la app',
-        }).catch(() => {});
       }
 
       setPdfUri(uriPersistida);
       setMode('listo');
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo generar el contrato.');
-      setMode('revision');
+      setMode('datos-tramite');
     }
   }
 
@@ -255,59 +301,29 @@ export default function RegistrarContratoScreen() {
     } catch { /* usuario canceló */ }
   }
 
-  // ── Render: selector de expediente (después de capturar la INE) ──────────
-  if (mode === 'expediente') {
-    return (
-      <View style={s.flex}>
-        <Header title="¿A qué expediente pertenece?" subtitle="Vincula esta INE" onBack={() => setMode('captura')} />
-        <View style={s.searchBox}>
-          <Ionicons name="search" size={16} color={Colors.dark[400]} />
-          <TextInput
-            style={s.searchInput}
-            placeholder="Buscar por folio o cliente…"
-            placeholderTextColor={Colors.dark[400]}
-            value={busqueda}
-            onChangeText={setBusqueda}
-          />
-        </View>
-        {cargandoLista ? (
-          <ActivityIndicator color={Colors.gold[400]} style={{ marginTop: Spacing.xl }} />
-        ) : (
-          <FlatList
-            data={listaFiltrada}
-            keyExtractor={e => String(e.id)}
-            contentContainerStyle={s.list}
-            ListEmptyComponent={<Text style={s.emptyText}>Sin expedientes.</Text>}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={s.expRow} onPress={() => seleccionarExpediente(item)} activeOpacity={0.75}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.expNombre} numberOfLines={1}>{item.contacto?.nombre ?? 'Sin nombre'}</Text>
-                  <Text style={s.expSub}>{item.folio ?? `Exp. #${item.id}`} · {item.tipo_tramite?.nombre ?? '—'}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={Colors.dark[500]} />
-              </TouchableOpacity>
-            )}
-          />
-        )}
-      </View>
-    );
-  }
-
-  // ── Render: captura de INE (siempre el primer paso) ───────────────────────
+  // ── Render: captura de INE (acreditado o solidario) ───────────────────────
   if (mode === 'captura') {
+    const esAcreditado = personaActual === 'acreditado';
     return (
       <View style={s.flex}>
-        <Header title="Registrar contrato" subtitle={expediente?.folio ?? undefined} onBack={() => router.back()} />
+        <Header
+          title={esAcreditado ? 'Registrar contrato' : 'Obligado solidario'}
+          subtitle={expediente?.folio ?? undefined}
+          onBack={esAcreditado ? () => router.back() : volverAPersonaAnterior}
+        />
         <View style={s.body}>
           {cargandoExpediente ? (
             <ActivityIndicator size="large" color={Colors.gold[400]} />
           ) : (
             <>
               <Ionicons name="card-outline" size={48} color={Colors.gold[400]} />
-              <Text style={s.title}>Captura la INE del acreditado</Text>
+              <Text style={s.title}>
+                {esAcreditado ? 'Captura la INE del acreditado' : 'Captura la INE del obligado solidario'}
+              </Text>
               <Text style={s.subtitle}>
-                La app leerá el CURP, nombre y domicilio de la credencial. Podrás revisar y
-                corregir los datos, y elegir el expediente, antes de generar el contrato.
+                {ocrDisponible()
+                  ? 'La app leerá el CURP, nombre y domicilio de la credencial. Podrás revisar y corregir los datos antes de generar el contrato, o capturarlos a mano.'
+                  : 'El reconocimiento automático de datos no está disponible en esta versión de la app (requiere un development build, no funciona en Expo Go). Toma la foto para guardarla como referencia y usa "Capturar datos manualmente" para llenar los campos.'}
               </Text>
 
               <View style={{ gap: Spacing.sm, marginTop: Spacing.xl, alignSelf: 'stretch' }}>
@@ -316,6 +332,7 @@ export default function RegistrarContratoScreen() {
                 )}
                 <Button label="📸 Tomar foto" onPress={tomarFoto} variant={DocumentScanner ? 'outline' : 'gold'} fullWidth />
                 <Button label="🖼 Elegir de galería" onPress={elegirGaleria} variant="outline" fullWidth />
+                <Button label="✍️ Capturar datos manualmente" onPress={capturarManual} variant="ghost" fullWidth />
               </View>
             </>
           )}
@@ -334,28 +351,77 @@ export default function RegistrarContratoScreen() {
     );
   }
 
-  // ── Render: formulario de revisión ────────────────────────────────────────
+  // ── Render: formulario de revisión (acreditado o solidario) ──────────────
   if (mode === 'revision') {
+    const esAcreditado = personaActual === 'acreditado';
     return (
       <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Header title="Revisar datos" subtitle="Confirma antes de generar" onBack={() => setMode('captura')} />
+        <Header
+          title={esAcreditado ? 'Revisar datos del acreditado' : 'Revisar datos del solidario'}
+          subtitle="Confirma antes de continuar"
+          onBack={volverACaptura}
+        />
         <ScrollView contentContainerStyle={s.formBody} keyboardShouldPersistTaps="handled">
           <Text style={s.ocrHint}>
-            Los datos se leyeron de la INE — revisa que sean correctos, especialmente el
-            nombre y domicilio, antes de continuar. La RFC no viene impresa en la INE.
+            {ocrDatos.nombre || ocrDatos.curp || ocrDatos.domicilio
+              ? 'Los datos se leyeron de la INE — revisa que sean correctos antes de continuar.'
+              : 'Captura los datos a mano.'}
+            {esAcreditado ? ' La RFC no viene impresa en la INE.' : ''}
           </Text>
 
-          <Input label="Nombre completo" dark value={nombre} onChangeText={setNombre} autoCapitalize="characters" />
-          <Input label="CURP" dark value={curp} onChangeText={setCurp} autoCapitalize="characters" maxLength={18} />
-          <Input label="RFC" dark value={rfc} onChangeText={setRfc} autoCapitalize="characters" maxLength={13} />
-          <Input label="Domicilio" dark value={domicilio} onChangeText={setDomicilio} multiline numberOfLines={2} />
+          <Input
+            label="Nombre completo"
+            dark
+            value={datosPersonaActual.nombre}
+            onChangeText={v => setDatosPersonaActual(d => ({ ...d, nombre: v }))}
+            autoCapitalize="characters"
+          />
+          <Input
+            label="CURP"
+            dark
+            value={datosPersonaActual.curp}
+            onChangeText={v => setDatosPersonaActual(d => ({ ...d, curp: v }))}
+            autoCapitalize="characters"
+            maxLength={18}
+          />
+          <Input
+            label="RFC"
+            dark
+            value={datosPersonaActual.rfc}
+            onChangeText={v => setDatosPersonaActual(d => ({ ...d, rfc: v }))}
+            autoCapitalize="characters"
+            maxLength={13}
+          />
+          {esAcreditado && (
+            <Input label="NSS (número de seguridad social)" dark value={nss} onChangeText={setNss} keyboardType="number-pad" />
+          )}
+          <Input
+            label="Domicilio"
+            dark
+            value={datosPersonaActual.domicilio}
+            onChangeText={v => setDatosPersonaActual(d => ({ ...d, domicilio: v }))}
+            multiline
+            numberOfLines={2}
+          />
 
-          <View style={s.infoCard}>
-            <Text style={s.infoLabel}>Folio</Text>
-            <Text style={s.infoValue}>{expediente?.folio ?? `Exp. #${expediente?.id}`}</Text>
-            <Text style={s.infoLabel}>Trámite</Text>
-            <Text style={s.infoValue}>{expediente?.tipo_tramite?.nombre ?? '—'}</Text>
-          </View>
+          <Button label="Continuar" onPress={continuarDesdeRevision} fullWidth style={{ marginTop: Spacing.xl }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // ── Render: datos del trámite ──────────────────────────────────────────────
+  if (mode === 'datos-tramite') {
+    return (
+      <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Header title="Datos del trámite" subtitle="Confirma antes de generar" onBack={() => { setPersonaActual('solidario'); setMode('revision'); }} />
+        <ScrollView contentContainerStyle={s.formBody} keyboardShouldPersistTaps="handled">
+          <Input label="Folio" dark value={folio} onChangeText={setFolio} autoCapitalize="characters" />
+          <Input label="Tipo de trámite" dark value={tipoTramite} onChangeText={setTipoTramite} placeholder="Ej. Crédito FOVISSSTE" placeholderTextColor={Colors.dark[400]} />
+          <Input label="Ciudad" dark value={ciudad} onChangeText={setCiudad} />
+          <Input label="Monto del crédito" dark value={montoCredito} onChangeText={setMontoCredito} keyboardType="numeric" />
+          <Input label="Honorarios (%)" dark value={honorariosPorcentaje} onChangeText={setHonorariosPorcentaje} keyboardType="numeric" />
+          <Input label="Honorarios (monto)" dark value={honorariosMonto} onChangeText={setHonorariosMonto} keyboardType="numeric" />
 
           <Button label="Generar contrato" onPress={generar} fullWidth style={{ marginTop: Spacing.xl }} />
         </ScrollView>
@@ -401,24 +467,6 @@ const s = StyleSheet.create({
   subtitle: { fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center', marginTop: Spacing.sm, lineHeight: 20 },
   loadingText: { fontSize: Typography.fontSize.base, color: Colors.cream[200], fontWeight: Typography.fontWeight.semibold },
 
-  searchBox: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    marginHorizontal: Spacing.base, marginTop: Spacing.sm,
-    backgroundColor: Colors.dark[800], borderRadius: Radius.md, paddingHorizontal: Spacing.base,
-  },
-  searchInput: { flex: 1, color: Colors.cream[50], paddingVertical: Spacing.sm, fontSize: Typography.fontSize.sm },
-  list: { padding: Spacing.base, gap: Spacing.sm },
-  emptyText: { color: Colors.dark[400], textAlign: 'center', marginTop: Spacing.xl },
-  expRow: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    backgroundColor: Colors.dark[800], borderRadius: Radius.lg, padding: Spacing.base,
-  },
-  expNombre: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.cream[50] },
-  expSub:    { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2 },
-
   formBody: { padding: Spacing.base, paddingBottom: Spacing['3xl'] },
   ocrHint: { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginBottom: Spacing.base, lineHeight: 18 },
-  infoCard: { backgroundColor: Colors.dark[800], borderRadius: Radius.md, padding: Spacing.base, marginTop: Spacing.sm, gap: 2 },
-  infoLabel: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], textTransform: 'uppercase', marginTop: Spacing.xs },
-  infoValue: { fontSize: Typography.fontSize.sm, color: Colors.cream[100], fontWeight: Typography.fontWeight.semibold },
 });

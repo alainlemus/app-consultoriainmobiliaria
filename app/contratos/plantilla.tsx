@@ -28,12 +28,13 @@ export default function VerPlantillaScreen() {
     try {
       const config = await getContratoConfig();
       const html = renderPrestacionServiciosHtml({
-        folio:          'EJEMPLO',
-        acreditado:     '',
-        curp:           '',
-        rfc:            '',
-        domAcreditado:  '',
-        tipoTramite:    'Crédito',
+        folio:              'EJEMPLO',
+        acreditado:         '',
+        curp:               '',
+        rfc:                '',
+        domAcreditado:      '',
+        tipoTramite:        'Crédito',
+        obligadoSolidario:  '',
       }, config);
 
       const { uri } = await Print.printToFileAsync({ html });
@@ -50,7 +51,7 @@ export default function VerPlantillaScreen() {
     try {
       const config = await getContratoConfig();
       const html = renderPrestacionServiciosHtml({
-        folio: 'EJEMPLO', acreditado: '', curp: '', rfc: '', domAcreditado: '', tipoTramite: 'Crédito',
+        folio: 'EJEMPLO', acreditado: '', curp: '', rfc: '', domAcreditado: '', tipoTramite: 'Crédito', obligadoSolidario: '',
       }, config);
       const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) {

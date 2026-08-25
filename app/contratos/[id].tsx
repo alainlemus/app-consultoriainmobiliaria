@@ -81,7 +81,7 @@ export default function VerContratoGeneradoScreen() {
         <Ionicons name="document-text" size={56} color={Colors.gold[400]} />
         <Text style={s.title}>{contrato.clienteNombre}</Text>
         <Text style={s.subtitle}>
-          {contrato.folio ?? `Exp. #${contrato.expedienteId}`} · Generado el {new Date(contrato.createdAt).toLocaleDateString('es-MX')}
+          {contrato.folio ?? (contrato.expedienteId ? `Exp. #${contrato.expedienteId}` : 'Sin folio')} · Generado el {new Date(contrato.createdAt).toLocaleDateString('es-MX')}
         </Text>
 
         <View style={{ gap: Spacing.sm, marginTop: Spacing.xl, alignSelf: 'stretch' }}>

@@ -47,12 +47,13 @@ export interface ContratoVars {
   acreditado:              string;
   curp:                    string;
   rfc:                     string;
+  nss?:                    string;
   domAcreditado:           string;
   tipoTramite:             string;
   montoCredito?:           number | null;
   honorariosPorcentaje?:   number | null;
   honorariosMonto?:        number | null;
-  obligadoSolidario?:      string | null;
+  obligadoSolidario:       string;
   ciudad?:                 string;
 }
 
@@ -85,6 +86,7 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
   const pctHon   = vars.honorariosPorcentaje != null ? `${vars.honorariosPorcentaje}%` : '10%';
   const montoHon = moneda(vars.honorariosMonto);
   const montoCredito = moneda(vars.montoCredito);
+  const obligadoSolidario = (vars.obligadoSolidario || BLANCO).toUpperCase();
 
   const placeholders: Record<string, string> = {
     '{ciudad}':           ciudad,
@@ -95,11 +97,12 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
     '{tipo_tramite}':      tipoTramite,
     '{curp}':               curp,
     '{rfc}':                 rfc,
-    '{nss}':                 BLANCO,
+    '{nss}':                 (vars.nss || BLANCO).toUpperCase(),
     '{folio}':               vars.folio,
     '{monto_credito}':       montoCredito,
     '{pct_honorarios}':      pctHon,
     '{monto_honorarios}':    montoHon,
+    '{obligado_solidario}':  obligadoSolidario,
     '{site_name}':           (config.site_name || '').toUpperCase(),
   };
 
@@ -180,7 +183,7 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
               <tr><td style="height:70px;"></td><td style="height:70px;"></td></tr>
               <tr>
                 <td><div class="linea-firma"><strong>FIRMA POR PARTE DEL JURÍDICO</strong><br>${(config.firma_juridico || '').toUpperCase()}</div></td>
-                <td><div class="linea-firma"><strong>FIRMA DEL "OBLIGADO SOLIDARIO"</strong><br>C. ${(vars.obligadoSolidario || BLANCO).toUpperCase()}</div></td>
+                <td><div class="linea-firma"><strong>FIRMA DEL "OBLIGADO SOLIDARIO"</strong><br>C. ${obligadoSolidario}</div></td>
               </tr>
             </table>
           </div>

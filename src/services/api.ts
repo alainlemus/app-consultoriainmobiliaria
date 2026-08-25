@@ -314,6 +314,17 @@ export async function getContratoPrestacionServiciosConfig(): Promise<ContratoPr
   return res.data;
 }
 
+/** Guarda el texto de la plantilla — solo super_admin (el backend debe validar el rol también). */
+export async function updateContratoPrestacionServiciosConfig(
+  config: ContratoPrestacionServiciosConfig,
+): Promise<ContratoPrestacionServiciosConfig> {
+  const res = await apiFetch<ApiResponse<ContratoPrestacionServiciosConfig>>('/contratos/prestacion-servicios/config', {
+    method: 'PUT',
+    body:   JSON.stringify(config),
+  });
+  return res.data;
+}
+
 // ── Documentos ─────────────────────────────────────────────────────────────
 
 export async function uploadDocumento(expedienteId: number, uri: string, tipo: string, notas?: string, mimeType?: string, seccion?: string): Promise<Documento> {

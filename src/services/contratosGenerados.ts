@@ -13,7 +13,7 @@ const KEY = 'cache:contratos_generados';
 
 export interface ContratoGenerado {
   id:             string;
-  expedienteId:   number;
+  expedienteId?:  number | null;
   folio?:         string | null;
   clienteNombre:  string;
   fileUri:        string;

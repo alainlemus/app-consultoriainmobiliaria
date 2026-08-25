@@ -19,11 +19,13 @@ import { Ionicons } from '@expo/vector-icons';
 import Header from '@/src/components/ui/Header';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import { useSyncContext } from '@/src/contexts/SyncContext';
+import { useAuth } from '@/src/contexts/AuthContext';
 import { getContratosGenerados, type ContratoGenerado } from '@/src/services/contratosGenerados';
 
 export default function ContratosHubScreen() {
   const router = useRouter();
   const { sync, isSyncing, online } = useSyncContext();
+  const { isSuperAdmin } = useAuth();
   const [contratos, setContratos] = useState<ContratoGenerado[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [syncMsg,   setSyncMsg]   = useState<string | null>(null);
@@ -79,6 +81,13 @@ export default function ContratosHubScreen() {
                 onPress={() => router.push('/contratos/registrar')}
                 primary
               />
+              {isSuperAdmin && (
+                <ActionTile
+                  icon="create-outline"
+                  label="Editar plantilla"
+                  onPress={() => router.push('/contratos/plantilla-editar')}
+                />
+              )}
             </View>
 
             {syncMsg && <Text style={styles.syncMsg}>{syncMsg}</Text>}
@@ -109,7 +118,7 @@ export default function ContratosHubScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.contratoNombre} numberOfLines={1}>{item.clienteNombre}</Text>
               <Text style={styles.contratoSub}>
-                {item.folio ?? `Exp. #${item.expedienteId}`} · {new Date(item.createdAt).toLocaleDateString('es-MX')}
+                {item.folio ?? (item.expedienteId ? `Exp. #${item.expedienteId}` : 'Sin folio')} · {new Date(item.createdAt).toLocaleDateString('es-MX')}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={Colors.dark[500]} />
@@ -151,9 +160,10 @@ const styles = StyleSheet.create({
   offlineBanner: { backgroundColor: Colors.dark[800], borderRadius: Radius.md, padding: Spacing.sm },
   offlineBannerText: { color: Colors.cream[200], fontSize: Typography.fontSize.xs },
 
-  actionsGrid: { flexDirection: 'row', gap: Spacing.sm },
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   actionTile: {
-    flex: 1,
+    flexBasis: '30%',
+    flexGrow: 1,
     backgroundColor: Colors.dark[800],
     borderRadius: Radius.lg,
     paddingVertical: Spacing.base,
