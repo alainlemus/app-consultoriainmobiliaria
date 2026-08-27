@@ -26,9 +26,10 @@ try {
 } catch { /* no disponible en Expo Go */ }
 
 export interface DatosIneOcr {
-  curp?:      string;
-  nombre?:    string;
-  domicilio?: string;
+  curp?:         string;
+  nombre?:       string;
+  domicilio?:    string;
+  claveElector?: string;
 }
 
 /** true si el módulo nativo de OCR está disponible (build EAS, no Expo Go) */
@@ -36,7 +37,12 @@ export function ocrDisponible(): boolean {
   return TextRecognition !== null;
 }
 
-const CURP_REGEX = /\b[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d\b/;
+const CURP_REGEX          = /\b[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d\b/;
+// La clave de elector es un código OCR-B de 18 caracteres alfanuméricos
+// (letras del nombre + fecha de nacimiento + entidad/municipio + año de
+// registro) — sin el patrón fijo de la CURP, así que solo se busca por
+// longitud justo después de la etiqueta impresa.
+const CLAVE_ELECTOR_REGEX = /\b[A-Z0-9]{18}\b/;
 
 // Etiquetas tal como aparecen impresas en la INE (mayúsculas, con o sin acentos
 // según cómo las lea el OCR)
@@ -48,11 +54,13 @@ const ETIQUETAS_CORTE     = [
 ];
 
 /**
- * Extrae el bloque de texto entre una línea que contiene alguna de las
+ * Extrae los renglones entre una línea que contiene alguna de las
  * `etiquetasInicio` y la siguiente línea que contiene alguna etiqueta de
- * `etiquetasCorte` (excluyendo la propia etiqueta de inicio).
+ * `etiquetasCorte` (excluyendo la propia etiqueta de inicio). Se devuelven
+ * los renglones por separado (sin unir) porque el orden importa para el
+ * nombre — ver `ordenarNombre`.
  */
-function extraerEntreEtiquetas(lineas: string[], etiquetasInicio: string[], etiquetasCorte: string[]): string | undefined {
+function extraerLineasEntreEtiquetas(lineas: string[], etiquetasInicio: string[], etiquetasCorte: string[]): string[] | undefined {
   const idxInicio = lineas.findIndex(l => etiquetasInicio.some(et => l.includes(et)));
   if (idxInicio === -1) return undefined;
 
@@ -63,7 +71,41 @@ function extraerEntreEtiquetas(lineas: string[], etiquetasInicio: string[], etiq
     if (etiquetasCorte.some(et => linea.includes(et))) break;
     resultado.push(linea);
   }
-  return resultado.length > 0 ? resultado.join(' ').trim() : undefined;
+  return resultado.length > 0 ? resultado : undefined;
+}
+
+/**
+ * Busca la etiqueta "CLAVE DE ELECTOR" y devuelve el código de 18 caracteres
+ * que aparece en esa misma línea o en una de las 2 siguientes (el layout de
+ * la INE varía: a veces el código va pegado a la etiqueta, a veces en su
+ * propio renglón).
+ */
+function extraerClaveElector(lineas: string[]): string | undefined {
+  const idx = lineas.findIndex(l => l.includes('CLAVE DE ELECTOR'));
+  if (idx === -1) return undefined;
+
+  for (let i = idx; i < Math.min(idx + 3, lineas.length); i++) {
+    const match = lineas[i].match(CLAVE_ELECTOR_REGEX);
+    if (match) return match[0];
+  }
+  return undefined;
+}
+
+/**
+ * La INE imprime el nombre en 3 renglones, en este orden: apellido paterno,
+ * apellido materno, nombre(s). Se reordena a "Nombre(s) Apellido paterno
+ * Apellido materno" para que se vea natural en el contrato. Si no se
+ * capturaron exactamente 3 renglones (foto imperfecta, nombre compuesto
+ * que se parte en más líneas, etc.) no hay forma confiable de saber cuáles
+ * son apellidos y cuál es el nombre — se devuelve tal cual vino, sin
+ * inventar un orden.
+ */
+function ordenarNombre(lineasNombre: string[]): string {
+  if (lineasNombre.length === 3) {
+    const [apellidoPaterno, apellidoMaterno, nombres] = lineasNombre;
+    return `${nombres} ${apellidoPaterno} ${apellidoMaterno}`.trim();
+  }
+  return lineasNombre.join(' ').trim();
 }
 
 /** Reconoce CURP / nombre / domicilio a partir de la foto de la INE */
@@ -79,12 +121,16 @@ export async function reconocerIne(uri: string): Promise<DatosIneOcr> {
     // campo real. Revisa la consola de Metro/dev tools después de escanear.
     if (__DEV__) console.log('[ineOcr] texto reconocido:\n' + lineas.map((l, i) => `${i}: ${l}`).join('\n'));
 
-    const curpMatch = texto.match(CURP_REGEX);
+    const curpMatch       = texto.match(CURP_REGEX);
+    const lineasNombre    = extraerLineasEntreEtiquetas(lineas, ETIQUETAS_NOMBRE, ETIQUETAS_CORTE);
+    const lineasDomicilio = extraerLineasEntreEtiquetas(lineas, ETIQUETAS_DOMICILIO, ETIQUETAS_CORTE.filter(e => e !== 'DOMICILIO'));
+    const claveElector    = extraerClaveElector(lineas);
 
     return {
-      curp:      curpMatch?.[0],
-      nombre:    extraerEntreEtiquetas(lineas, ETIQUETAS_NOMBRE, ETIQUETAS_CORTE),
-      domicilio: extraerEntreEtiquetas(lineas, ETIQUETAS_DOMICILIO, ETIQUETAS_CORTE.filter(e => e !== 'DOMICILIO')),
+      curp:         curpMatch?.[0],
+      nombre:       lineasNombre ? ordenarNombre(lineasNombre) : undefined,
+      domicilio:    lineasDomicilio ? lineasDomicilio.join(' ').trim() : undefined,
+      claveElector,
     };
   } catch (e) {
     // OCR falló (imagen ilegible, etc.) — el formulario de revisión sigue

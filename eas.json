@@ -15,6 +15,17 @@
         "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyAC_cTEOtFqreDqAzDsqtd-MqC38eREKLQ"
       }
     },
+    "development-device": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "APP_ENV": "development",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyAC_cTEOtFqreDqAzDsqtd-MqC38eREKLQ"
+      }
+    },
     "staging-simulator": {
       "distribution": "internal",
       "ios": {
