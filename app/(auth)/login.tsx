@@ -43,9 +43,15 @@ export default function LoginScreen() {
 
   useEffect(() => {
     (async () => {
-      setBiometricAvailable(await isBiometricAvailable());
-      setBiometricTipo(await getBiometricTipo());
+      const disponible = await isBiometricAvailable();
+      const tipo       = await getBiometricTipo();
+      setBiometricAvailable(disponible);
+      setBiometricTipo(tipo);
       setBiometricLabel(await getBiometricLabel());
+      // Si ya hay biometría activada, saltar directo a esa pantalla (asesor
+      // o acreditado) en vez de esperar a que el usuario toque el botón —
+      // así Face ID se dispara solo al abrir la app, sin ese paso extra.
+      if (disponible && tipo) setModo(tipo);
     })();
   }, []);
 
