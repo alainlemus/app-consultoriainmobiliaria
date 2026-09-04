@@ -117,11 +117,18 @@ export async function loginAcreditado(email: string, password: string): Promise<
   return { acreditado: res.acreditado, token: res.token };
 }
 
-/** Restaura sesión desde un token guardado (usado por biometría) */
-export async function loginWithTokenAcreditado(token: string): Promise<AcreditadoAuthState> {
-  await saveAcreditadoToken(token);
-  const acreditado = await getMeAcreditado();
-  return { acreditado, token };
+/**
+ * Restaura sesión desde el token de biometría (Face ID / huella).
+ *
+ * No lo guarda como sesión: lo usa solo para autenticar una vez y canjearlo
+ * por un token de sesión normal aparte — así un logout posterior no revoca
+ * el token que Face ID necesita para la próxima vez.
+ */
+export async function loginWithTokenAcreditado(biometricToken: string): Promise<AcreditadoAuthState> {
+  await saveAcreditadoToken(biometricToken);
+  const res = await acreditadoFetch<any>('/auth/session-from-biometric', { method: 'POST' });
+  await saveAcreditadoToken(res.token);
+  return { acreditado: res.acreditado, token: res.token };
 }
 
 export async function logoutAcreditado(): Promise<void> {
@@ -129,6 +136,22 @@ export async function logoutAcreditado(): Promise<void> {
     await acreditadoFetch('/auth/logout', { method: 'POST' });
   } catch {}
   await removeAcreditadoToken();
+}
+
+/**
+ * Token independiente para Face ID / huella (ver src/services/biometrics.ts).
+ * Nunca reutilizar el token de sesión: logoutAcreditado() solo revoca ese, así
+ * que un token con nombre propio ('acreditado-app-biometric' en el backend)
+ * sigue funcionando después de cerrar sesión normalmente.
+ */
+export async function obtenerTokenBiometricoAcreditado(): Promise<string> {
+  const res = await acreditadoFetch<{ token: string }>('/auth/biometric-token', { method: 'POST' });
+  return res.token;
+}
+
+/** Revoca el token de biometría en el servidor — usado al eliminar Face ID desde el perfil. */
+export async function revocarTokenBiometricoAcreditado(): Promise<void> {
+  await acreditadoFetch('/auth/biometric-token', { method: 'DELETE' });
 }
 
 export async function getMeAcreditado(): Promise<Acreditado> {

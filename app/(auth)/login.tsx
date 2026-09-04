@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  KeyboardAvoidingView, Platform, Image, TouchableOpacity, Linking,
+  KeyboardAvoidingView, Platform, Image, TouchableOpacity, Linking, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
@@ -10,13 +10,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '../../src/theme';
 import Input  from '../../src/components/ui/Input';
 import Button from '../../src/components/ui/Button';
-import { login, loginWithToken } from '../../src/services/api';
-import { loginAcreditado, loginWithTokenAcreditado } from '../../src/services/acreditadoApi';
+import { login, loginWithToken, obtenerTokenBiometrico } from '../../src/services/api';
+import { loginAcreditado, loginWithTokenAcreditado, obtenerTokenBiometricoAcreditado } from '../../src/services/acreditadoApi';
 import { registrarPushToken, registrarPushTokenAcreditado } from '../../src/services/notifications';
 import {
   isBiometricAvailable,
   getBiometricTipo,
   enableBiometric,
+  disableBiometric,
   getBiometricLabel,
   authenticateWithBiometric,
   type BiometricTipo,
@@ -24,6 +25,13 @@ import {
 import { isSmallScreen, screenHeight } from '../../src/utils/responsive';
 
 type Modo = 'selector' | 'asesor' | 'acreditado';
+
+// Módulo (no estado/ref del componente) para que sobreviva a que esta
+// pantalla se desmonte y remonte (p. ej. al cerrar sesión) dentro de la
+// misma sesión de la app — Face ID debe auto-dispararse solo una vez, al
+// abrir la app, no cada vez que se vuelve a este login. Se resetea solo con
+// un reinicio real de la app (recarga del bundle de JS).
+let autoIntentadoGlobal = false;
 
 export default function LoginScreen() {
   const router  = useRouter();
@@ -55,9 +63,16 @@ export default function LoginScreen() {
     })();
   }, []);
 
-  // Auto-disparar biometría al entrar al modo que coincide con lo guardado
+  // Auto-disparar biometría al entrar al modo que coincide con lo guardado —
+  // SOLO una vez por sesión de la app (ver autoIntentadoGlobal arriba), no
+  // una vez por montaje de esta pantalla. Si no fuera así, cada vez que se
+  // vuelve a este login (p. ej. tras cerrar sesión) Face ID se dispararía
+  // solo otra vez; con el guard, cualquier intento después del primero de la
+  // sesión requiere que el usuario toque el botón "Entrar con Face ID".
   useEffect(() => {
+    if (autoIntentadoGlobal) return;
     if (biometricAvailable && modo !== 'selector' && biometricTipo === modo) {
+      autoIntentadoGlobal = true;
       handleBiometricLogin();
     }
   }, [modo, biometricAvailable, biometricTipo]);
@@ -67,7 +82,22 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const result = await authenticateWithBiometric();
-      if (!result) { setLoading(false); return; }
+      if (!result.ok) {
+        if (result.reason === 'missing_credential') {
+          // Biometría autenticada pero sin credencial guardada detrás —
+          // está rota, hay que borrarla o el auto-intento al reabrir esta
+          // pantalla vuelve a fallar en silencio (o en ciclo) una y otra vez.
+          await disableBiometric();
+          setBiometricTipo(null);
+          setError('No se encontró una sesión guardada. Inicia sesión con tu correo y contraseña.');
+        } else {
+          // Cara no reconocida / cancelado — la credencial sigue sirviendo,
+          // no hay que borrar nada, solo dejar que reintente.
+          setError('No se pudo verificar tu identidad. Intenta de nuevo o usa tu correo y contraseña.');
+        }
+        setLoading(false);
+        return;
+      }
       if (result.tipo === 'acreditado') {
         await loginWithTokenAcreditado(result.token);
         registrarPushTokenAcreditado().catch(() => {});
@@ -78,11 +108,57 @@ export default function LoginScreen() {
         router.replace('/(tabs)');
       }
     } catch {
-      setError('La sesión guardada expiró. Inicia sesión con tu contraseña.');
+      // El token guardado ya no sirve (expiró/fue revocado). Si dejamos la
+      // credencial biométrica intacta, cualquier remount de esta pantalla
+      // (p. ej. el redirect a /login que dispara apiFetch en un 401) vuelve
+      // a intentar Face ID solo, con el mismo token muerto — un ciclo
+      // infinito de prompts. Borrarla aquí corta el ciclo de raíz.
+      await disableBiometric();
+      setBiometricTipo(null);
+      setError('La sesión guardada expiró. Inicia sesión con tu correo y contraseña.');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // Pregunta si quiere guardar las credenciales para entrar con biometría —
+  // antes se guardaban solas y en silencio tras cada login manual exitoso.
+  // Se resuelve la promesa hasta que el usuario responde, para no navegar
+  // antes de que el diálogo se cierre.
+  //
+  // Importante: NO reutiliza el token de sesión (state.token) — pide uno
+  // aparte al backend (nombre propio 'app-movil-biometric' /
+  // 'acreditado-app-biometric'). Si guardáramos el mismo token de sesión,
+  // cerrar sesión lo revocaría (logout() borra currentAccessToken()) y Face
+  // ID quedaría roto desde el primer logout.
+  const preguntarGuardarBiometria = useCallback(
+    (tipo: BiometricTipo, emailNorm: string) =>
+      new Promise<void>((resolve) => {
+        Alert.alert(
+          `Usar ${biometricLabel}`,
+          `¿Quieres guardar tus credenciales para entrar con ${biometricLabel} la próxima vez?`,
+          [
+            { text: 'Ahora no', style: 'cancel', onPress: () => resolve() },
+            {
+              text: 'Guardar', onPress: async () => {
+                try {
+                  const biomToken = tipo === 'acreditado'
+                    ? await obtenerTokenBiometricoAcreditado()
+                    : await obtenerTokenBiometrico();
+                  await enableBiometric(emailNorm, biomToken, tipo);
+                  setBiometricTipo(tipo);
+                } catch {
+                  Alert.alert('Error', `No se pudo activar ${biometricLabel}. Intenta de nuevo más tarde.`);
+                } finally {
+                  resolve();
+                }
+              },
+            },
+          ],
+        );
+      }),
+    [biometricLabel],
+  );
 
   async function handleLoginAsesor() {
     if (!email || !password) { setError('Ingresa correo y contraseña.'); return; }
@@ -91,8 +167,7 @@ export default function LoginScreen() {
     try {
       const state = await login(email.trim().toLowerCase(), password);
       if (biometricAvailable && biometricTipo !== 'asesor' && state.token) {
-        await enableBiometric(email.trim().toLowerCase(), state.token, 'asesor');
-        setBiometricTipo('asesor');
+        await preguntarGuardarBiometria('asesor', email.trim().toLowerCase());
       }
       registrarPushToken().catch(() => {});
       router.replace('/(tabs)');
@@ -110,8 +185,7 @@ export default function LoginScreen() {
     try {
       const state = await loginAcreditado(email.trim().toLowerCase(), password);
       if (biometricAvailable && biometricTipo !== 'acreditado' && state.token) {
-        await enableBiometric(email.trim().toLowerCase(), state.token, 'acreditado');
-        setBiometricTipo('acreditado');
+        await preguntarGuardarBiometria('acreditado', email.trim().toLowerCase());
       }
       // registrarPushTokenAcreditado usa /v1/acreditado/dispositivos (con el
       // token del acreditado) — no el endpoint del asesor, que causaba un 401
@@ -294,7 +368,7 @@ export default function LoginScreen() {
         <TouchableOpacity onPress={() => Linking.openURL('https://consultoriainmobiliaria.com.mx/aviso-de-privacidad')}>
           <Text style={styles.privacyLink}>Aviso de Privacidad</Text>
         </TouchableOpacity>
-        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '2.1.4'}</Text>
+        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '2.1.5'}</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );

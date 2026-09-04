@@ -16,10 +16,12 @@ import {
   solicitarCancelacionAcreditado,
   logoutAcreditado,
   subirFotoAcreditado,
+  revocarTokenBiometricoAcreditado,
 } from '@/src/services/acreditadoApi';
 import { encolarFotos } from '@/src/services/offline';
 import { comprimirFoto } from '@/src/utils/comprimirFoto';
 import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
+import { isBiometricEnabled, disableBiometric, getBiometricLabel } from '@/src/services/biometrics';
 
 export default function PerfilAcreditadoScreen() {
   const router  = useRouter();
@@ -45,6 +47,35 @@ export default function PerfilAcreditadoScreen() {
   const [pwNueva,         setPwNueva]         = useState('');
   const [pwConfirmacion,  setPwConfirmacion]  = useState('');
   const [cambiandoPw,     setCambiandoPw]     = useState(false);
+
+  const [biometriaActiva, setBiometriaActiva] = useState(false);
+  const [biometricLabel,  setBiometricLabel]  = useState('Face ID');
+
+  useEffect(() => {
+    (async () => {
+      setBiometriaActiva(await isBiometricEnabled('acreditado'));
+      setBiometricLabel(await getBiometricLabel());
+    })();
+  }, []);
+
+  function handleEliminarBiometria() {
+    Alert.alert(
+      `Eliminar ${biometricLabel}`,
+      `Se borrarán las credenciales guardadas para entrar con ${biometricLabel}. La próxima vez tendrás que iniciar sesión con tu correo y contraseña.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar', style: 'destructive', onPress: async () => {
+            await disableBiometric();
+            setBiometriaActiva(false);
+            // Revoca el token en el servidor también — best-effort, si no
+            // hay conexión igual queda desactivado localmente.
+            revocarTokenBiometricoAcreditado().catch(() => {});
+          },
+        },
+      ]
+    );
+  }
 
   // Sincronizar los campos del formulario con el acreditado del contexto —
   // pero no mientras el usuario está editando, para no pisarle lo que escribe.
@@ -324,6 +355,14 @@ export default function PerfilAcreditadoScreen() {
             <Text style={styles.accionText}>Cerrar sesión</Text>
             <Ionicons name="chevron-forward" size={16} color={Colors.dark[600]} />
           </TouchableOpacity>
+
+          {biometriaActiva && (
+            <TouchableOpacity style={styles.accionRow} onPress={handleEliminarBiometria}>
+              <Ionicons name="finger-print-outline" size={20} color={Colors.dark[400]} />
+              <Text style={styles.accionText}>Eliminar credenciales de {biometricLabel}</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.dark[600]} />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.accionRow}

@@ -9,10 +9,11 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Card from '../../src/components/ui/Card';
-import { getMe, logout, updatePerfil, subirFotoPerfil, solicitarCancelacionCuenta } from '../../src/services/api';
+import { getMe, logout, updatePerfil, subirFotoPerfil, solicitarCancelacionCuenta, revocarTokenBiometrico } from '../../src/services/api';
 import { encolarFotos } from '../../src/services/offline';
 import { comprimirFoto } from '../../src/utils/comprimirFoto';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { isBiometricEnabled, disableBiometric, getBiometricLabel } from '../../src/services/biometrics';
 import type { User } from '../../src/types';
 
 export default function PerfilScreen() {
@@ -24,6 +25,9 @@ export default function PerfilScreen() {
   const [editando,  setEditando]  = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [subiendo,  setSubiendo]  = useState(false);
+
+  const [biometriaActiva, setBiometriaActiva] = useState(false);
+  const [biometricLabel,  setBiometricLabel]  = useState('Face ID');
 
   // Campos editables
   const [nombre,   setNombre]   = useState('');
@@ -43,6 +47,32 @@ export default function PerfilScreen() {
   }, []);
 
   useEffect(() => { cargarUsuario(); }, [cargarUsuario]);
+
+  useEffect(() => {
+    (async () => {
+      setBiometriaActiva(await isBiometricEnabled('asesor'));
+      setBiometricLabel(await getBiometricLabel());
+    })();
+  }, []);
+
+  function handleEliminarBiometria() {
+    Alert.alert(
+      `Eliminar ${biometricLabel}`,
+      `Se borrarán las credenciales guardadas para entrar con ${biometricLabel}. La próxima vez tendrás que iniciar sesión con tu correo y contraseña.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar', style: 'destructive', onPress: async () => {
+            await disableBiometric();
+            setBiometriaActiva(false);
+            // Revoca el token en el servidor también — best-effort, si no
+            // hay conexión igual queda desactivado localmente.
+            revocarTokenBiometrico().catch(() => {});
+          },
+        },
+      ]
+    );
+  }
 
   // ── Guardar cambios de texto ───────────────────────────────────────────────
   async function handleGuardar() {
@@ -264,6 +294,11 @@ export default function PerfilScreen() {
 
           {/* ── Sesión ── */}
           <Card title="Sesión" subtitle="Cuenta" style={s.card}>
+            {biometriaActiva && (
+              <TouchableOpacity style={s.biometriaBtn} onPress={handleEliminarBiometria}>
+                <Text style={s.biometriaBtnText}>Eliminar credenciales de {biometricLabel}</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
               <Text style={s.logoutText}>Cerrar sesión</Text>
             </TouchableOpacity>
@@ -377,6 +412,10 @@ const s = StyleSheet.create({
   // Botón editar
   editBtn:     { marginTop: Spacing.md, borderWidth: 1, borderColor: Colors.gold[500], borderRadius: Radius.sm, paddingVertical: Spacing.sm, alignItems: 'center' },
   editBtnText: { color: Colors.gold[600], fontWeight: Typography.fontWeight.semibold, fontSize: Typography.fontSize.sm },
+
+  // Biometría
+  biometriaBtn:     { borderWidth: 1, borderColor: Colors.cream[300], borderRadius: Radius.sm, padding: Spacing.md, alignItems: 'center', marginBottom: Spacing.sm },
+  biometriaBtnText: { color: Colors.dark[600], fontWeight: Typography.fontWeight.semibold, fontSize: Typography.fontSize.sm },
 
   // Logout
   logoutBtn:  { backgroundColor: Colors.crimson[600], borderRadius: Radius.sm, padding: Spacing.md, alignItems: 'center' },

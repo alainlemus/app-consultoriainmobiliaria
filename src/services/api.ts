@@ -103,11 +103,22 @@ export async function login(email: string, password: string): Promise<AuthState>
   return { user: res.user, token: res.token, isAuthenticated: true };
 }
 
-/** Restaura sesión desde un token guardado (usado por biometría) */
-export async function loginWithToken(token: string): Promise<AuthState> {
-  await saveToken(token);
-  const user = await getMe();
-  return { user, token, isAuthenticated: true };
+/**
+ * Restaura sesión desde el token de biometría (Face ID / huella).
+ *
+ * No guarda ese token como sesión: lo usa solo para autenticar una vez y
+ * canjearlo por un token de sesión normal aparte. Si guardáramos el mismo
+ * token de biometría como sesión, un logout posterior lo revocaría (logout()
+ * borra currentAccessToken()) y Face ID quedaría roto desde el primer cierre
+ * de sesión hecho así.
+ */
+export async function loginWithToken(biometricToken: string): Promise<AuthState> {
+  await saveToken(biometricToken);
+  const res = await apiFetch<{ token: string; user: AuthState['user'] }>('/auth/session-from-biometric', {
+    method: 'POST',
+  });
+  await saveToken(res.token);
+  return { user: res.user, token: res.token, isAuthenticated: true };
 }
 
 export async function logout(): Promise<void> {
@@ -117,6 +128,22 @@ export async function logout(): Promise<void> {
     // Si la API falla offline, igual limpiamos el token local
   }
   await removeToken();
+}
+
+/**
+ * Token independiente para Face ID / huella (ver src/services/biometrics.ts).
+ * Nunca reutilizar el token de sesión: logout() solo revoca ese, así que un
+ * token con nombre propio ('app-movil-biometric' en el backend) sigue
+ * funcionando después de cerrar sesión normalmente.
+ */
+export async function obtenerTokenBiometrico(): Promise<string> {
+  const res = await apiFetch<{ token: string }>('/auth/biometric-token', { method: 'POST' });
+  return res.token;
+}
+
+/** Revoca el token de biometría en el servidor — usado al eliminar Face ID desde el perfil. */
+export async function revocarTokenBiometrico(): Promise<void> {
+  await apiFetch('/auth/biometric-token', { method: 'DELETE' });
 }
 
 /**

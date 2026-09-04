@@ -66,7 +66,15 @@ export async function getBiometricLabel(): Promise<string> {
   return 'Biometría';
 }
 
-export async function authenticateWithBiometric(): Promise<{ email: string; token: string; tipo: BiometricTipo } | null> {
+export type BiometricAuthResult =
+  | { ok: true; email: string; token: string; tipo: BiometricTipo }
+  // 'failed'            → el sistema no reconoció al usuario o canceló (nada que limpiar, puede reintentar).
+  // 'missing_credential' → la biometría se autenticó pero no hay email/token/tipo guardado — la credencial
+  //                        está rota y hay que borrarla, si no cualquier reintento (incluido el automático
+  //                        al reabrir la pantalla) vuelve a fallar en silencio o en ciclo.
+  | { ok: false; reason: 'failed' | 'missing_credential' };
+
+export async function authenticateWithBiometric(): Promise<BiometricAuthResult> {
   const label = await getBiometricLabel();
   const result = await LocalAuthentication.authenticateAsync({
     promptMessage:         `Accede con ${label}`,
@@ -74,10 +82,10 @@ export async function authenticateWithBiometric(): Promise<{ email: string; toke
     fallbackLabel:         'Usar contraseña',
     disableDeviceFallback: false,
   });
-  if (!result.success) return null;
+  if (!result.success) return { ok: false, reason: 'failed' };
   const email = await SecureStore.getItemAsync(BIOMETRIC_EMAIL_KEY);
   const token = await SecureStore.getItemAsync(BIOMETRIC_TOKEN_KEY);
   const tipo  = await getBiometricTipo();
-  if (!email || !token || !tipo) return null;
-  return { email, token, tipo };
+  if (!email || !token || !tipo) return { ok: false, reason: 'missing_credential' };
+  return { ok: true, email, token, tipo };
 }
