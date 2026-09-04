@@ -19,6 +19,9 @@ import Button from '@/src/components/ui/Button';
 import { Colors, Typography, Spacing } from '@/src/theme';
 import { getContratoConfig, renderPrestacionServiciosHtml } from '@/src/contratos/prestacionServicios';
 
+// Igual que en app/contratos/registrar.tsx — deja aire entre el borde de la hoja y el contenido.
+const MARGENES_PAGINA = { top: 24, bottom: 24, left: 18, right: 18 };
+
 export default function VerPlantillaScreen() {
   const router = useRouter();
   const [generando, setGenerando] = useState(false);
@@ -37,7 +40,7 @@ export default function VerPlantillaScreen() {
         obligadoSolidario:  '',
       }, config);
 
-      const { uri } = await Print.printToFileAsync({ html });
+      const { uri } = await Print.printToFileAsync({ html, margins: MARGENES_PAGINA });
       await Print.printAsync({ uri });
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo generar la vista previa.');
@@ -53,7 +56,7 @@ export default function VerPlantillaScreen() {
       const html = renderPrestacionServiciosHtml({
         folio: 'EJEMPLO', acreditado: '', curp: '', rfc: '', domAcreditado: '', tipoTramite: 'Crédito', obligadoSolidario: '',
       }, config);
-      const { uri } = await Print.printToFileAsync({ html });
+      const { uri } = await Print.printToFileAsync({ html, margins: MARGENES_PAGINA });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
       }

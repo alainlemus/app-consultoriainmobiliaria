@@ -135,14 +135,17 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
         .doc-titulo-bar span { font-size: 13px; font-weight: bold; color: #ffffff; text-transform: uppercase; letter-spacing: 1.5px; }
         .folio-area { padding: 10px 28px 0 28px; text-align: right; }
         .folio-box { display: inline-block; background: #fdf9ee; border: 1px solid #d4af37; border-radius: 4px; padding: 4px 12px; font-size: 10px; color: #96760f; }
-        .body-content { padding: 14px 28px 24px 28px; }
+        .body-content { padding: 14px 28px 8px 28px; }
         h2 { font-size: 12px; font-weight: bold; color: #9b2335; border-bottom: 2px solid #d4af37; padding-bottom: 3px; margin-top: 16px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1.5px; }
         p { margin-bottom: 8px; text-align: justify; }
+        /* Agrupa firmas + footer para que, si no caben en la página actual, se
+           empujen juntos a la siguiente — nunca el footer solo en una hoja aparte. */
+        .cierre { padding: 0 28px 24px 28px; page-break-inside: avoid; break-inside: avoid; }
         .firma-bloque { margin-top: 40px; }
         .firmas { width: 100%; border-collapse: collapse; }
         .firmas td { width: 50%; padding: 0 24px; text-align: center; vertical-align: bottom; }
         .linea-firma { border-top: 2px solid #1a1a1a; padding-top: 8px; font-size: 12px; line-height: 1.6; }
-        .footer { margin-top: 24px; padding: 8px 32px 0 32px; border-top: 1px solid #d4af37; }
+        .footer { margin-top: 24px; padding: 8px 0 0 0; border-top: 1px solid #d4af37; }
         .footer-inner { display: flex; justify-content: space-between; font-size: 10px; }
         .footer-left { color: #96760f; }
         .footer-right { color: #9b2335; }
@@ -176,7 +179,9 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
             EN LA CIUDAD DE <strong>${ciudad}</strong>, A LOS <strong>${fechaLarga()}</strong>,
             HABIENDO LEÍDO Y COMPRENDIDO EL CONTENIDO DEL PRESENTE CONTRATO, LAS PARTES LO SUSCRIBEN EN SEÑAL DE CONFORMIDAD.
           </p>
+        </div>
 
+        <div class="cierre">
           <div class="firma-bloque">
             <table class="firmas">
               <tr><td style="height:70px;"></td><td style="height:70px;"></td></tr>
@@ -193,11 +198,11 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
               </tr>
             </table>
           </div>
-        </div>
-        <div class="footer">
-          <div class="footer-inner">
-            <span class="footer-left">${config.site_name || 'Consultoría Inmobiliaria'} &bull; Documento generado el ${new Date().toLocaleDateString('es-MX')}</span>
-            <span class="footer-right">${vars.folio}</span>
+          <div class="footer">
+            <div class="footer-inner">
+              <span class="footer-left">${config.site_name || 'Consultoría Inmobiliaria'} &bull; Documento generado el ${new Date().toLocaleDateString('es-MX')}</span>
+              <span class="footer-right">${vars.folio}</span>
+            </div>
           </div>
         </div>
       </div>

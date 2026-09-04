@@ -52,6 +52,12 @@ const DIMENSIONES_PAPEL: Record<TamanoPapel, { width: number; height: number }> 
   oficio: { width: 612, height: 964 },
 };
 
+// Margen de página en puntos (72pt = 1in) — deja aire entre el borde físico
+// de la hoja y el contenido, igual en Oficio y en Carta (@platform ios; en
+// Android expo-print no soporta márgenes nativos, se compensa con el padding
+// del HTML en prestacionServicios.ts).
+const MARGENES_PAGINA = { top: 24, bottom: 24, left: 18, right: 18 };
+
 interface DatosPersona {
   nombre:    string;
   curp:      string;
@@ -130,6 +136,7 @@ export default function RegistrarContratoScreen() {
   const [tamanoPapel,          setTamanoPapel]          = useState<TamanoPapel>('oficio');
 
   const [pdfUri, setPdfUri] = useState<string | null>(null);
+  const [previsualizando, setPrevisualizando] = useState(false);
 
   // ── Cargar expediente cuando viene por parámetro (solo para precargar) ────
   useEffect(() => {
@@ -262,32 +269,55 @@ export default function RegistrarContratoScreen() {
     setMode('revision');
   }
 
+  // ── HTML del contrato con los datos capturados hasta ahora ─────────────────
+  // Compartido entre la vista previa y la generación final, para que ambas
+  // siempre reflejen exactamente el mismo contenido.
+  async function construirHtml(): Promise<string> {
+    // Si el usuario no tocó "Honorarios (monto)" a mano, se calcula aquí
+    // a partir de monto + % (ver calcularHonorarios).
+    const honorariosMontoFinal = honorariosMonto || calcularHonorarios(montoCredito, honorariosPorcentaje);
+    const config = await getContratoConfig();
+    return renderPrestacionServiciosHtml({
+      folio:                 folio || folioAuto(),
+      acreditado:            acreditado.nombre,
+      curp:                  acreditado.curp,
+      rfc:                   acreditado.rfc,
+      nss,
+      claveElector,
+      domAcreditado:         acreditado.domicilio,
+      tipoTramite:           tipoTramite || 'Crédito',
+      montoCredito:          montoCredito ? Number(montoCredito) : null,
+      honorariosPorcentaje:  honorariosPorcentaje ? Number(honorariosPorcentaje) : null,
+      honorariosMonto:       honorariosMontoFinal ? Number(honorariosMontoFinal) : null,
+      obligadoSolidario:     solidario.nombre,
+      ciudad,
+    }, config);
+  }
+
+  // ── Vista previa — genera el PDF con los datos actuales y lo abre para
+  // revisar, SIN guardarlo en el historial ni subirlo al backend. El usuario
+  // puede volver atrás a corregir datos antes de generar el contrato real.
+  async function previsualizar() {
+    setPrevisualizando(true);
+    try {
+      const html = await construirHtml();
+      const { uri } = await Print.printToFileAsync({ html, ...DIMENSIONES_PAPEL[tamanoPapel], margins: MARGENES_PAGINA });
+      await Print.printAsync({ uri });
+    } catch (e: unknown) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo generar la vista previa.');
+    } finally {
+      setPrevisualizando(false);
+    }
+  }
+
   // ── Generar PDF ────────────────────────────────────────────────────────────
   async function generar() {
     setMode('generando');
     try {
-      // Si el usuario no tocó "Honorarios (monto)" a mano, se calcula aquí
-      // a partir de monto + % (ver calcularHonorarios).
+      const html = await construirHtml();
       const honorariosMontoFinal = honorariosMonto || calcularHonorarios(montoCredito, honorariosPorcentaje);
 
-      const config = await getContratoConfig();
-      const html = renderPrestacionServiciosHtml({
-        folio:                 folio || folioAuto(),
-        acreditado:            acreditado.nombre,
-        curp:                  acreditado.curp,
-        rfc:                   acreditado.rfc,
-        nss,
-        claveElector,
-        domAcreditado:         acreditado.domicilio,
-        tipoTramite:           tipoTramite || 'Crédito',
-        montoCredito:          montoCredito ? Number(montoCredito) : null,
-        honorariosPorcentaje:  honorariosPorcentaje ? Number(honorariosPorcentaje) : null,
-        honorariosMonto:       honorariosMontoFinal ? Number(honorariosMontoFinal) : null,
-        obligadoSolidario:     solidario.nombre,
-        ciudad,
-      }, config);
-
-      const { uri } = await Print.printToFileAsync({ html, ...DIMENSIONES_PAPEL[tamanoPapel] });
+      const { uri } = await Print.printToFileAsync({ html, ...DIMENSIONES_PAPEL[tamanoPapel], margins: MARGENES_PAGINA });
       const nombreArchivo  = `contrato_${folio || Date.now()}.pdf`;
       const uriPersistida  = await persistirDocumento(uri, nombreArchivo);
 
@@ -487,6 +517,8 @@ export default function RegistrarContratoScreen() {
             value={datosPersonaActual.nombre}
             onChangeText={v => setDatosPersonaActual(d => ({ ...d, nombre: v }))}
             autoCapitalize="characters"
+            multiline
+            numberOfLines={4}
           />
           <Input
             label="CURP"
@@ -516,7 +548,7 @@ export default function RegistrarContratoScreen() {
             value={datosPersonaActual.domicilio}
             onChangeText={v => setDatosPersonaActual(d => ({ ...d, domicilio: v }))}
             multiline
-            numberOfLines={2}
+            numberOfLines={6}
           />
 
           <Button label="Continuar" onPress={continuarDesdeRevision} fullWidth style={{ marginTop: Spacing.xl }} />
@@ -538,7 +570,23 @@ export default function RegistrarContratoScreen() {
           automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >
           <Input label="Folio" dark value={folio} onChangeText={setFolio} autoCapitalize="characters" />
-          <Input label="Tipo de trámite" dark value={tipoTramite} onChangeText={setTipoTramite} placeholder="Ej. Crédito FOVISSSTE" placeholderTextColor={Colors.dark[400]} />
+
+          <Text style={s.fieldLabel}>Tipo de trámite</Text>
+          <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.base }}>
+            <Button
+              label="INFONAVIT"
+              onPress={() => setTipoTramite('INFONAVIT')}
+              variant={tipoTramite === 'INFONAVIT' ? 'gold' : 'outline'}
+              style={{ flex: 1 }}
+            />
+            <Button
+              label="FOVISSSTE"
+              onPress={() => setTipoTramite('FOVISSSTE')}
+              variant={tipoTramite === 'FOVISSSTE' ? 'gold' : 'outline'}
+              style={{ flex: 1 }}
+            />
+          </View>
+
           <Input label="Ciudad" dark value={ciudad} onChangeText={setCiudad} />
           <Input
             label="Monto del crédito"
@@ -576,7 +624,15 @@ export default function RegistrarContratoScreen() {
             />
           </View>
 
-          <Button label="Generar contrato" onPress={generar} fullWidth style={{ marginTop: Spacing.xl }} />
+          <Button
+            label="Vista previa"
+            onPress={previsualizar}
+            variant="outline"
+            fullWidth
+            loading={previsualizando}
+            style={{ marginTop: Spacing.xl }}
+          />
+          <Button label="Generar contrato" onPress={generar} fullWidth style={{ marginTop: Spacing.sm }} />
         </ScrollView>
       </KeyboardAvoidingView>
     );
