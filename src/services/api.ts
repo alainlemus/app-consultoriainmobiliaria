@@ -460,6 +460,40 @@ export async function uploadContratoGenerado(params: ContratoGeneradoUploadParam
   return { id: res.data.id };
 }
 
+export interface ContratoGeneradoRemoto {
+  id:                    number;
+  local_id:              string;
+  folio:                 string | null;
+  acreditado_nombre:     string;
+  created_at:            string;
+  tiene_pdf:             boolean;
+  tiene_ine_acreditado:  boolean;
+  tiene_ine_solidario:   boolean;
+}
+
+/**
+ * Historial de contratos generados guardado en el backend (independiente de
+ * la caché local en AsyncStorage). Sirve para reconstruir la pantalla de
+ * historial cuando la caché local está vacía, por ejemplo tras desinstalar
+ * y reinstalar la app.
+ */
+export async function getContratosGeneradosRemoto(): Promise<ContratoGeneradoRemoto[]> {
+  const res = await apiFetch<{ data: ContratoGeneradoRemoto[] }>('/contratos/generados');
+  return res.data;
+}
+
+/** URLs firmadas (5 min) para ver/compartir el PDF y las INEs de un contrato ya subido al backend. */
+export async function getContratoGeneradoUrls(id: number): Promise<{ pdf_url?: string; ine_acreditado_url?: string; ine_solidario_url?: string }> {
+  const res = await apiFetch<{ pdf_url?: string; ine_acreditado_url?: string; ine_solidario_url?: string; expira_en: number }>(
+    `/contratos/generados/${id}/ver`
+  );
+  return {
+    pdf_url:            resolveStorageUrl(res.pdf_url),
+    ine_acreditado_url: resolveStorageUrl(res.ine_acreditado_url),
+    ine_solidario_url:  resolveStorageUrl(res.ine_solidario_url),
+  };
+}
+
 /**
  * Obtiene una URL firmada temporal (5 min) para ver/descargar el documento.
  * La URL apunta al endpoint de descarga de Laravel, no al archivo directamente.

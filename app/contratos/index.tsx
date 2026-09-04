@@ -20,7 +20,8 @@ import Header from '@/src/components/ui/Header';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import { useSyncContext } from '@/src/contexts/SyncContext';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { getContratosGenerados, type ContratoGenerado } from '@/src/services/contratosGenerados';
+import { getContratosGenerados, hidratarDesdeServidor, type ContratoGenerado } from '@/src/services/contratosGenerados';
+import { getContratosGeneradosRemoto } from '@/src/services/api';
 
 export default function ContratosHubScreen() {
   const router = useRouter();
@@ -34,7 +35,19 @@ export default function ContratosHubScreen() {
     const lista = await getContratosGenerados();
     setContratos(lista);
     setLoading(false);
-  }, []);
+
+    // Completa el historial con lo que ya esté en el backend pero no en
+    // este dispositivo (p. ej. tras reinstalar la app).
+    if (online) {
+      try {
+        const remotos = await getContratosGeneradosRemoto();
+        const combinada = await hidratarDesdeServidor(remotos);
+        setContratos(combinada);
+      } catch {
+        // Sin conexión real o error del servidor: nos quedamos con lo local.
+      }
+    }
+  }, [online]);
 
   useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
 
@@ -113,12 +126,13 @@ export default function ContratosHubScreen() {
             activeOpacity={0.75}
           >
             <View style={styles.contratoIcon}>
-              <Ionicons name="document-text" size={20} color={Colors.gold[400]} />
+              <Ionicons name={item.remotoId ? 'cloud-outline' : 'document-text'} size={20} color={Colors.gold[400]} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.contratoNombre} numberOfLines={1}>{item.clienteNombre}</Text>
               <Text style={styles.contratoSub}>
                 {item.folio ?? (item.expedienteId ? `Exp. #${item.expedienteId}` : 'Sin folio')} · {new Date(item.createdAt).toLocaleDateString('es-MX')}
+                {item.remotoId ? ' · Recuperado del servidor' : ''}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={Colors.dark[500]} />

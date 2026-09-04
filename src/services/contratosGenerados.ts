@@ -8,6 +8,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { v4 as uuidv4 } from 'uuid';
+import type { ContratoGeneradoRemoto } from './api';
 
 const KEY = 'cache:contratos_generados';
 
@@ -21,6 +22,8 @@ export interface ContratoGenerado {
   ineSolidarioUri?:    string | null;
   sincronizado?:       boolean;
   createdAt:           string;
+  /** Presente solo si este registro se reconstruyó desde el backend (no hay PDF local en el dispositivo). */
+  remotoId?:           number;
 }
 
 export async function getContratosGenerados(): Promise<ContratoGenerado[]> {
@@ -66,4 +69,33 @@ export async function marcarContratoSincronizado(id: string): Promise<void> {
   if (idx === -1) return;
   lista[idx] = { ...lista[idx], sincronizado: true };
   await AsyncStorage.setItem(KEY, JSON.stringify(lista));
+}
+
+/**
+ * Completa el historial local con los contratos que existen en el backend
+ * pero no en este dispositivo (típicamente tras desinstalar/reinstalar la
+ * app, o al iniciar sesión en un dispositivo nuevo). No hay PDF local para
+ * estos registros — se abren bajo demanda vía getContratoGeneradoUrls().
+ * Al subir un contrato, `local_id` en el servidor es el mismo `id` con el
+ * que se guardó localmente, así que basta comparar por ese campo.
+ */
+export async function hidratarDesdeServidor(remotos: ContratoGeneradoRemoto[]): Promise<ContratoGenerado[]> {
+  const lista = await getContratosGenerados();
+  const idsLocales = new Set(lista.map(c => c.id));
+  const faltantes = remotos.filter(r => !idsLocales.has(r.local_id));
+  if (faltantes.length === 0) return lista;
+
+  const nuevos: ContratoGenerado[] = faltantes.map(r => ({
+    id:            r.local_id,
+    remotoId:      r.id,
+    folio:         r.folio,
+    clienteNombre: r.acreditado_nombre,
+    fileUri:       '',
+    sincronizado:  true,
+    createdAt:     r.created_at,
+  }));
+
+  const combinada = [...nuevos, ...lista];
+  await AsyncStorage.setItem(KEY, JSON.stringify(combinada));
+  return combinada;
 }

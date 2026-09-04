@@ -8,33 +8,77 @@ import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, Image } f
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '@/src/components/ui/Header';
 import Button from '@/src/components/ui/Button';
 import { Colors, Typography, Spacing } from '@/src/theme';
 import { getContratoGenerado, eliminarContratoGenerado, type ContratoGenerado } from '@/src/services/contratosGenerados';
+import { getContratoGeneradoUrls } from '@/src/services/api';
 
 export default function VerContratoGeneradoScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [contrato, setContrato] = useState<ContratoGenerado | null>(null);
   const [loading,  setLoading]  = useState(true);
+  const [urls, setUrls] = useState<{ pdf_url?: string; ine_acreditado_url?: string; ine_solidario_url?: string } | null>(null);
+  const [cargandoUrl, setCargandoUrl] = useState(false);
 
   useEffect(() => {
     (async () => {
       const c = await getContratoGenerado(id);
       setContrato(c);
       setLoading(false);
+
+      // Este registro no tiene PDF en el dispositivo (se reconstruyó desde
+      // el backend, p. ej. tras reinstalar la app) — pedimos de una vez las
+      // URLs firmadas del PDF y las INEs para poder mostrarlas.
+      if (c?.remotoId) {
+        setCargandoUrl(true);
+        try {
+          setUrls(await getContratoGeneradoUrls(c.remotoId));
+        } catch {
+          // Sin conexión: se reintenta al tocar Ver/Compartir.
+        } finally {
+          setCargandoUrl(false);
+        }
+      }
     })();
   }, [id]);
 
+  async function obtenerUrls(): Promise<typeof urls> {
+    if (!contrato?.remotoId) return null;
+    if (urls) return urls;
+    setCargandoUrl(true);
+    try {
+      const res = await getContratoGeneradoUrls(contrato.remotoId);
+      setUrls(res);
+      return res;
+    } catch {
+      Alert.alert('Sin conexión', 'No se pudo obtener el contrato del servidor. Intenta de nuevo con internet.');
+      return null;
+    } finally {
+      setCargandoUrl(false);
+    }
+  }
+
   async function verPdf() {
     if (!contrato) return;
+    if (contrato.remotoId) {
+      const res = await obtenerUrls();
+      if (res?.pdf_url) await WebBrowser.openBrowserAsync(res.pdf_url);
+      return;
+    }
     try { await Print.printAsync({ uri: contrato.fileUri }); } catch { /* usuario canceló */ }
   }
 
   async function compartirPdf() {
     if (!contrato) return;
+    if (contrato.remotoId) {
+      const res = await obtenerUrls();
+      if (res?.pdf_url) await WebBrowser.openBrowserAsync(res.pdf_url);
+      return;
+    }
     try {
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(contrato.fileUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
@@ -44,7 +88,10 @@ export default function VerContratoGeneradoScreen() {
 
   function eliminar() {
     if (!contrato) return;
-    Alert.alert('Eliminar contrato', '¿Quitar este contrato del historial? El PDF se borrará del dispositivo.', [
+    const mensaje = contrato.remotoId
+      ? '¿Quitar este contrato del historial de este dispositivo? Seguirá disponible en el servidor.'
+      : '¿Quitar este contrato del historial? El PDF se borrará del dispositivo.';
+    Alert.alert('Eliminar contrato', mensaje, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar', style: 'destructive', onPress: async () => {
@@ -95,29 +142,41 @@ export default function VerContratoGeneradoScreen() {
           </Text>
         </View>
 
+        {contrato.remotoId && (
+          <View style={[s.syncBadge, s.syncBadgeOk]}>
+            <Ionicons name="cloud-outline" size={14} color={Colors.gold[400]} />
+            <Text style={[s.syncBadgeText, s.syncBadgeTextOk]}>Recuperado del servidor — sin copia en este dispositivo</Text>
+          </View>
+        )}
+
         <View style={{ gap: Spacing.sm, marginTop: Spacing.xl, alignSelf: 'stretch' }}>
-          <Button label="Ver / Imprimir" onPress={verPdf} fullWidth />
-          <Button label="Compartir" onPress={compartirPdf} variant="outline" fullWidth />
+          <Button label="Ver / Imprimir" onPress={verPdf} fullWidth loading={cargandoUrl} />
+          <Button label="Compartir" onPress={compartirPdf} variant="outline" fullWidth loading={cargandoUrl} />
           <Button label="Eliminar" onPress={eliminar} variant="danger" fullWidth />
         </View>
 
-        {(contrato.ineAcreditadoUri || contrato.ineSolidarioUri) && (
-          <View style={s.inesSection}>
-            <Text style={s.inesTitulo}>Identificaciones capturadas</Text>
-            {contrato.ineAcreditadoUri && (
-              <View style={s.ineCard}>
-                <Text style={s.ineLabel}>INE — Acreditado</Text>
-                <Image source={{ uri: contrato.ineAcreditadoUri }} style={s.ineImg} resizeMode="contain" />
-              </View>
-            )}
-            {contrato.ineSolidarioUri && (
-              <View style={s.ineCard}>
-                <Text style={s.ineLabel}>INE — Obligado solidario</Text>
-                <Image source={{ uri: contrato.ineSolidarioUri }} style={s.ineImg} resizeMode="contain" />
-              </View>
-            )}
-          </View>
-        )}
+        {(() => {
+          const ineAcreditado = contrato.ineAcreditadoUri ?? urls?.ine_acreditado_url;
+          const ineSolidario  = contrato.ineSolidarioUri ?? urls?.ine_solidario_url;
+          if (!ineAcreditado && !ineSolidario) return null;
+          return (
+            <View style={s.inesSection}>
+              <Text style={s.inesTitulo}>Identificaciones capturadas</Text>
+              {ineAcreditado && (
+                <View style={s.ineCard}>
+                  <Text style={s.ineLabel}>INE — Acreditado</Text>
+                  <Image source={{ uri: ineAcreditado }} style={s.ineImg} resizeMode="contain" />
+                </View>
+              )}
+              {ineSolidario && (
+                <View style={s.ineCard}>
+                  <Text style={s.ineLabel}>INE — Obligado solidario</Text>
+                  <Image source={{ uri: ineSolidario }} style={s.ineImg} resizeMode="contain" />
+                </View>
+              )}
+            </View>
+          );
+        })()}
       </ScrollView>
     </View>
   );
