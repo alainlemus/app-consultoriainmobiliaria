@@ -78,7 +78,27 @@ function nl2br(texto: string): string {
   return texto.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
 }
 
-export function renderPrestacionServiciosHtml(vars: ContratoVars, config: ContratoPrestacionServiciosConfig): string {
+/**
+ * Oficio (más alta que carta) tiene margen de sobra para un espaciado más
+ * generoso entre párrafos y aun así dejar las firmas solas en su propia
+ * hoja. Carta es ~18% más corta, así que con el espaciado original el
+ * contenido igual se desborda a una 4ta hoja — ahí además de usar el
+ * espaciado original se baja 1pt el tamaño de fuente para compensar esa
+ * diferencia de alto y que las firmas vuelvan a compartir la última hoja
+ * con el cierre del contrato.
+ */
+function espaciadoPorPapel(tamanoPapel: 'carta' | 'oficio') {
+  return tamanoPapel === 'oficio'
+    ? { fontSize: 12, lineHeight: 1.65, pMarginBottom: 14, h2MarginTop: 20, h2MarginBottom: 12, closingMarginTop: 24, firmaBloqueMarginTop: 48 }
+    : { fontSize: 11, lineHeight: 1.5,  pMarginBottom: 8,  h2MarginTop: 16, h2MarginBottom: 10, closingMarginTop: 16, firmaBloqueMarginTop: 40 };
+}
+
+export function renderPrestacionServiciosHtml(
+  vars: ContratoVars,
+  config: ContratoPrestacionServiciosConfig,
+  tamanoPapel: 'carta' | 'oficio' = 'carta',
+): string {
+  const espaciado = espaciadoPorPapel(tamanoPapel);
   const ciudad  = (vars.ciudad ?? 'Huejutla de Reyes').toUpperCase();
   const acreditado = (vars.acreditado || BLANCO).toUpperCase();
   const curp        = (vars.curp || BLANCO).toUpperCase();
@@ -125,7 +145,7 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
       <title>Contrato de Prestación de Servicios</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.5; color: #1a1a1a; background: #ffffff; }
+        body { font-family: Arial, sans-serif; font-size: ${espaciado.fontSize}px; line-height: ${espaciado.lineHeight}; color: #1a1a1a; background: #ffffff; }
         .page { padding: 0; }
         .header { background: #1a1a1a; padding: 14px 28px 0 28px; }
         .header-empresa { font-size: 18px; font-weight: bold; color: #d4af37; letter-spacing: 1.5px; text-transform: uppercase; }
@@ -135,17 +155,19 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
         .doc-titulo-bar span { font-size: 13px; font-weight: bold; color: #ffffff; text-transform: uppercase; letter-spacing: 1.5px; }
         .folio-area { padding: 10px 28px 0 28px; text-align: right; }
         .folio-box { display: inline-block; background: #fdf9ee; border: 1px solid #d4af37; border-radius: 4px; padding: 4px 12px; font-size: 10px; color: #96760f; }
-        .body-content { padding: 14px 28px 8px 28px; }
-        h2 { font-size: 12px; font-weight: bold; color: #9b2335; border-bottom: 2px solid #d4af37; padding-bottom: 3px; margin-top: 16px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1.5px; }
-        p { margin-bottom: 8px; text-align: justify; }
-        /* Agrupa firmas + footer para que, si no caben en la página actual, se
-           empujen juntos a la siguiente — nunca el footer solo en una hoja aparte. */
+        .body-content { padding: 14px 28px 40px 28px; }
+        h2 { font-size: 12px; font-weight: bold; color: #9b2335; border-bottom: 2px solid #d4af37; padding-bottom: 3px; margin-top: ${espaciado.h2MarginTop}px; margin-bottom: ${espaciado.h2MarginBottom}px; text-transform: uppercase; letter-spacing: 1.5px; }
+        p { margin-bottom: ${espaciado.pMarginBottom}px; text-align: justify; }
+        /* Agrupa las dos tablas de firmas para que, si no caben en la página
+           actual, se empujen juntas a la siguiente — nunca una tabla sola. */
         .cierre { padding: 0 28px 24px 28px; page-break-inside: avoid; break-inside: avoid; }
-        .firma-bloque { margin-top: 40px; }
+        .firma-bloque { margin-top: ${espaciado.firmaBloqueMarginTop}px; }
         .firmas { width: 100%; border-collapse: collapse; }
         .firmas td { width: 50%; padding: 0 24px; text-align: center; vertical-align: bottom; }
         .linea-firma { border-top: 2px solid #1a1a1a; padding-top: 8px; font-size: 12px; line-height: 1.6; }
-        .footer { margin-top: 24px; padding: 8px 0 0 0; border-top: 1px solid #d4af37; }
+        /* Fixed = se repite al pie de cada hoja impresa (funciona en Chromium/Android;
+           en iOS/WebKit algunos motores solo lo dibujan en la primera hoja). */
+        .footer { position: fixed; left: 28px; right: 28px; bottom: 14px; padding-top: 8px; border-top: 1px solid #d4af37; background: #ffffff; }
         .footer-inner { display: flex; justify-content: space-between; font-size: 10px; }
         .footer-left { color: #96760f; }
         .footer-right { color: #9b2335; }
@@ -175,7 +197,7 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
           <p>AMBAS PARTES SE COMPROMETEN A SOMETERSE AL TENOR DE LAS SIGUIENTES CLÁUSULAS SIN QUE EXISTAN VICIOS DE CONSENTIMIENTO:</p>
           <p style="margin-left:12px;">${clausulas}</p>
 
-          <p style="margin-top:16px;">
+          <p style="margin-top:${espaciado.closingMarginTop}px;">
             EN LA CIUDAD DE <strong>${ciudad}</strong>, A LOS <strong>${fechaLarga()}</strong>,
             HABIENDO LEÍDO Y COMPRENDIDO EL CONTENIDO DEL PRESENTE CONTRATO, LAS PARTES LO SUSCRIBEN EN SEÑAL DE CONFORMIDAD.
           </p>
@@ -198,11 +220,11 @@ export function renderPrestacionServiciosHtml(vars: ContratoVars, config: Contra
               </tr>
             </table>
           </div>
-          <div class="footer">
-            <div class="footer-inner">
-              <span class="footer-left">${config.site_name || 'Consultoría Inmobiliaria'} &bull; Documento generado el ${new Date().toLocaleDateString('es-MX')}</span>
-              <span class="footer-right">${vars.folio}</span>
-            </div>
+        </div>
+        <div class="footer">
+          <div class="footer-inner">
+            <span class="footer-left">${config.site_name || 'Consultoría Inmobiliaria'} &bull; Documento generado el ${new Date().toLocaleDateString('es-MX')}</span>
+            <span class="footer-right">${vars.folio}</span>
           </div>
         </div>
       </div>

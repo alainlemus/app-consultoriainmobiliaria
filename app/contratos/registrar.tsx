@@ -291,7 +291,7 @@ export default function RegistrarContratoScreen() {
       honorariosMonto:       honorariosMontoFinal ? Number(honorariosMontoFinal) : null,
       obligadoSolidario:     solidario.nombre,
       ciudad,
-    }, config);
+    }, config, tamanoPapel);
   }
 
   // ── Vista previa — genera el PDF con los datos actuales y lo abre para

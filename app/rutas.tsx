@@ -8,9 +8,12 @@ import MapView, { Marker, Polyline, Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getRutasAsesores, getRutasDias, getRutasPuntos } from '../src/services/api';
+import { snapPointsToRoads } from '../src/services/roadsSnap';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Radius, Spacing, Typography } from '../src/theme';
 import type { RutaAsesor, RutaDia, RutaPunto } from '../src/types';
+
+type Coord = { latitude: number; longitude: number };
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -194,6 +197,37 @@ export default function RutasScreen() {
     return Array.from(mapa.values());
   }, [verTodos, puntos, ordenAsesores]);
 
+  // ── Ajuste a calles (Roads API) ───────────────────────────────────────────
+  // Los puntos GPS crudos, al conectarse en línea recta, "cortan" las
+  // esquinas. Se pide a la Roads API que los pegue a la vialidad real; si
+  // falla (sin conexión, cuota agotada, API no habilitada en Google Cloud)
+  // se cae en silencio a la polilínea cruda — nunca rompe el mapa.
+  const [puntosAjustados, setPuntosAjustados] = useState<Coord[] | null>(null);
+  const [ajustadosPorAsesor, setAjustadosPorAsesor] = useState<Record<number, Coord[]>>({});
+
+  useEffect(() => {
+    setPuntosAjustados(null);
+    setAjustadosPorAsesor({});
+
+    if (verTodos) {
+      gruposPorAsesor.forEach(g => {
+        if (g.puntos.length < 2) return;
+        snapPointsToRoads(g.puntos.map(p => ({ lat: p.lat, lng: p.lng })))
+          .then(snapped => {
+            setAjustadosPorAsesor(prev => ({
+              ...prev,
+              [g.asesorId]: snapped.map(s => ({ latitude: s.lat, longitude: s.lng })),
+            }));
+          })
+          .catch(() => { /* se queda la polilínea cruda de este asesor */ });
+      });
+    } else if (puntos.length >= 2) {
+      snapPointsToRoads(puntos.map(p => ({ lat: p.lat, lng: p.lng })))
+        .then(snapped => setPuntosAjustados(snapped.map(s => ({ latitude: s.lat, longitude: s.lng }))))
+        .catch(() => { /* se queda la polilínea cruda */ });
+    }
+  }, [verTodos, puntos, gruposPorAsesor]);
+
   // ── Info de distancia aproximada (no aplica al ver varios asesores juntos) ─
 
   const distanciaKm = useMemo(() => {
@@ -373,7 +407,7 @@ export default function RutasScreen() {
               gruposPorAsesor.map(g => (
                 <React.Fragment key={g.asesorId}>
                   <Polyline
-                    coordinates={g.puntos.map(p => ({ latitude: p.lat, longitude: p.lng }))}
+                    coordinates={ajustadosPorAsesor[g.asesorId] ?? g.puntos.map(p => ({ latitude: p.lat, longitude: p.lng }))}
                     strokeColor={g.color}
                     strokeWidth={4}
                   />
@@ -396,7 +430,7 @@ export default function RutasScreen() {
             ) : (
               <>
                 <Polyline
-                  coordinates={puntos.map(p => ({ latitude: p.lat, longitude: p.lng }))}
+                  coordinates={puntosAjustados ?? puntos.map(p => ({ latitude: p.lat, longitude: p.lng }))}
                   strokeColor={ROUTE_COLOR}
                   strokeWidth={4}
                   lineDashPattern={undefined}
