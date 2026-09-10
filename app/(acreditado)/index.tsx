@@ -5,6 +5,7 @@ import {
   ActivityIndicator, TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
@@ -216,6 +217,7 @@ export default function MiTramiteScreen() {
               )}
             </>
           )}
+          <Text style={styles.version}>v{Constants.expoConfig?.version ?? '—'}</Text>
         </ScrollView>
       </View>
     );
@@ -367,6 +369,7 @@ export default function MiTramiteScreen() {
             )}
           </>
         )}
+        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '—'}</Text>
       </ScrollView>
     </View>
   );
@@ -438,4 +441,6 @@ const styles = StyleSheet.create({
   linkBtn:       { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
   linkBtnText:   { fontSize: Typography.fontSize.sm, color: Colors.gold[400] },
   mensajeInput:  { width: '100%', backgroundColor: Colors.dark[800], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.dark[600], padding: Spacing.base, color: Colors.cream[100], fontSize: Typography.fontSize.sm, minHeight: 100, textAlignVertical: 'top' },
+
+  version: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], textAlign: 'center', marginTop: Spacing.xl },
 });

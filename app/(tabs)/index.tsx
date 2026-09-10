@@ -5,6 +5,7 @@ import {
   Switch, ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
@@ -227,6 +228,8 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          <Text style={styles.version}>v{Constants.expoConfig?.version ?? '—'}</Text>
         </View>
       </ScrollView>
     </View>
@@ -435,5 +438,12 @@ const styles = StyleSheet.create({
     fontSize:   Typography.fontSize.xs,
     color:      Colors.crimson[500],
     marginTop:  Spacing.xs,
+  },
+
+  version: {
+    fontSize:  Typography.fontSize.xs,
+    color:     Colors.dark[300],
+    textAlign: 'center',
+    marginTop: Spacing.xl,
   },
 });

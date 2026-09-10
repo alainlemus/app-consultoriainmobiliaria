@@ -28,8 +28,8 @@ import MapView, { Marker, Region } from 'react-native-maps';
 
 import { ESTADOS_MX, MUNICIPIOS_MX } from '../src/data/mexico';
 import { getContactos, getUbicacionesMapa, registrarUbicacion, subirFotosVisita, actualizarSemaforoEscuela, getAnunciosMapa, actualizarEstadoAnuncio, getAsesores, type AsesorBasico } from '../src/services/api';
-import { cacheUbicaciones, getCacheUbicaciones, getUbicacionesPendientesSync, upsertCacheUbicacion, encolarUbicacion, encolarFotos } from '../src/services/offline';
-import { comprimirFotos } from '../src/utils/comprimirFoto';
+import { cacheUbicaciones, getCacheUbicaciones, getUbicacionesPendientesSync, upsertCacheUbicacion, encolarUbicacion, encolarFotos, desencolarFotos } from '../src/services/offline';
+import { comprimirFotos, limpiarArchivoLocal } from '../src/utils/comprimirFoto';
 import { useSyncContext } from '../src/contexts/SyncContext';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Radius, Spacing, Typography } from '../src/theme';
@@ -456,16 +456,23 @@ export default function MapaScreen() {
     };
 
     // Sube las fotos en background sin bloquear la UI.
-    // Si falla → encola en FOTOS_QUEUE para reintento automático.
-    const subirFotosBackground = (ubicacionId: number) => {
+    // Se encolan ANTES de intentar subir (no solo si falla): con señal
+    // lenta (2G) el proceso puede suspenderse a media subida y perder la
+    // foto sin dejar rastro si solo se encolara en el catch.
+    const subirFotosBackground = async (ubicacionId: number) => {
       if (fotosPayload.length === 0) return;
-      subirFotosVisita(ubicacionId, fotosPayload).catch(() => {
-        encolarFotos({
-          entidad:    'ubicacion',
-          entidad_id: ubicacionId,
-          fotos:      fotosPayload,
-        });
+      const idLocal = await encolarFotos({
+        entidad:    'ubicacion',
+        entidad_id: ubicacionId,
+        fotos:      fotosPayload,
       });
+      try {
+        await subirFotosVisita(ubicacionId, fotosPayload);
+        await Promise.all(fotosPayload.map(f => limpiarArchivoLocal(f.uri)));
+        await desencolarFotos(idLocal);
+      } catch {
+        // Queda en FOTOS_QUEUE — sincronizar() la reintentará después.
+      }
     };
 
     try {

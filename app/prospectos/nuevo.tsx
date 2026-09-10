@@ -13,8 +13,8 @@ import Input from '../../src/components/ui/Input';
 import EstadoSelectModal from '../../src/components/ui/EstadoSelectModal';
 import { createContacto, uploadFotoContacto, uploadSimuladorScreenshot, getEscuelas } from '../../src/services/api';
 import { useSyncContext } from '../../src/contexts/SyncContext';
-import { upsertCacheContacto, encolarFotos } from '../../src/services/offline';
-import { comprimirFoto, persistirDocumento } from '../../src/utils/comprimirFoto';
+import { upsertCacheContacto, encolarFotos, desencolarFotos } from '../../src/services/offline';
+import { comprimirFoto, persistirDocumento, limpiarArchivoLocal } from '../../src/utils/comprimirFoto';
 import type { ServicioProspecto, Escuela } from '../../src/types';
 import { SERVICIO_LABEL } from '../../src/types';
 
@@ -215,11 +215,17 @@ export default function NuevoProspectoScreen() {
       }
 
       // ── Contacto creado → subir imágenes en background ───────────────────────
+      // Se encolan ANTES de intentar subir (no solo si falla): con señal
+      // lenta el proceso puede suspenderse a media subida y perder la foto
+      // sin dejar rastro si solo se encolara en el catch.
       if (fotoAsset && contacto.id) {
         const foto = await comprimirFoto(fotoAsset.uri, 'foto_contacto');
-        uploadFotoContacto(contacto.id, foto).catch(() => {
-          encolarFotos({ entidad: 'contacto_foto', entidad_id: contacto.id, fotos: [foto] });
-        });
+        const contactoId = contacto.id;
+        encolarFotos({ entidad: 'contacto_foto', entidad_id: contactoId, fotos: [foto] }).then(idLocal =>
+          uploadFotoContacto(contactoId, foto)
+            .then(() => Promise.all([limpiarArchivoLocal(foto.uri), desencolarFotos(idLocal)]))
+            .catch(() => {}),
+        );
       }
 
       if (screenshotAsset && contacto.id) {
@@ -232,9 +238,12 @@ export default function NuevoProspectoScreen() {
           name: screenshotAsset.fileName ?? 'simulador.jpg',
           type: screenshotAsset.mimeType ?? 'image/jpeg',
         };
-        uploadSimuladorScreenshot(contacto.id, screenshotFoto).catch(() => {
-          encolarFotos({ entidad: 'contacto_screenshot', entidad_id: contacto.id, fotos: [screenshotFoto] });
-        });
+        const contactoId = contacto.id;
+        encolarFotos({ entidad: 'contacto_screenshot', entidad_id: contactoId, fotos: [screenshotFoto] }).then(idLocal =>
+          uploadSimuladorScreenshot(contactoId, screenshotFoto)
+            .then(() => Promise.all([limpiarArchivoLocal(screenshotFoto.uri), desencolarFotos(idLocal)]))
+            .catch(() => {}),
+        );
       }
 
       setSuccess(true);

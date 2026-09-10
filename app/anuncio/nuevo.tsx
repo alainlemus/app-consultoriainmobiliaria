@@ -30,8 +30,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { registrarAnuncio, subirFotosAnuncio } from '../../src/services/api';
-import { encolarAnuncio, encolarFotos } from '../../src/services/offline';
-import { comprimirFotos } from '../../src/utils/comprimirFoto';
+import { encolarAnuncio, encolarFotos, desencolarFotos } from '../../src/services/offline';
+import { comprimirFotos, limpiarArchivoLocal } from '../../src/utils/comprimirFoto';
 import { useSyncContext } from '../../src/contexts/SyncContext';
 import { Colors, Radius, Spacing, Typography } from '../../src/theme';
 import type { TipoAnuncio } from '../../src/types';
@@ -86,16 +86,23 @@ export default function NuevoAnuncioScreen() {
         : [];
 
       // Sube las fotos en background sin retener al asesor en pantalla.
-      // Si falla → encola en FOTOS_QUEUE para reintento automático.
-      const subirFotosBackground = (anuncioId: number) => {
+      // Se encolan ANTES de intentar subir (no solo si falla): con señal
+      // lenta (2G) el proceso puede suspenderse a media subida y perder la
+      // foto sin dejar rastro si solo se encolara en el catch.
+      const subirFotosBackground = async (anuncioId: number) => {
         if (fotosPayload.length === 0) return;
-        subirFotosAnuncio(anuncioId, fotosPayload).catch(() => {
-          encolarFotos({
-            entidad:    'anuncio',
-            entidad_id: anuncioId,
-            fotos:      fotosPayload,
-          });
+        const idLocal = await encolarFotos({
+          entidad:    'anuncio',
+          entidad_id: anuncioId,
+          fotos:      fotosPayload,
         });
+        try {
+          await subirFotosAnuncio(anuncioId, fotosPayload);
+          await Promise.all(fotosPayload.map(f => limpiarArchivoLocal(f.uri)));
+          await desencolarFotos(idLocal);
+        } catch {
+          // Queda en FOTOS_QUEUE — sincronizar() la reintentará después.
+        }
       };
 
       // 2a. Con red: intentar guardar directo

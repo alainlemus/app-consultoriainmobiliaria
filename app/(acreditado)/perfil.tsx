@@ -18,8 +18,8 @@ import {
   subirFotoAcreditado,
   revocarTokenBiometricoAcreditado,
 } from '@/src/services/acreditadoApi';
-import { encolarFotos } from '@/src/services/offline';
-import { comprimirFoto } from '@/src/utils/comprimirFoto';
+import { encolarFotos, desencolarFotos } from '@/src/services/offline';
+import { comprimirFoto, limpiarArchivoLocal } from '@/src/utils/comprimirFoto';
 import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
 import { isBiometricEnabled, disableBiometric, getBiometricLabel } from '@/src/services/biometrics';
 
@@ -147,19 +147,25 @@ export default function PerfilAcreditadoScreen() {
       // Comprimir y persistir en documentDirectory antes de subir
       const foto = await comprimirFoto(uri, 'perfil_acreditado');
 
+      // Se encola ANTES de intentar subir: con señal lenta el proceso puede
+      // suspenderse a media subida y perder la foto sin dejar rastro.
+      const idLocal = await encolarFotos({ entidad: 'perfil_acreditado', entidad_id: 0, fotos: [foto] });
       try {
         await subirFotoAcreditado(foto.uri);
         await refresh();
+        await Promise.all([limpiarArchivoLocal(foto.uri), desencolarFotos(idLocal)]);
         Alert.alert('✅ Foto actualizada', 'Tu foto de perfil se actualizó correctamente.');
       } catch (e: unknown) {
         const msg = (e instanceof Error ? e.message : '').toLowerCase();
         if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
-          await encolarFotos({ entidad: 'perfil_acreditado', entidad_id: 0, fotos: [foto] });
+          // Red débil → queda en la cola para reintento automático
           Alert.alert(
             '📋 Foto guardada',
             'La foto se subirá automáticamente cuando tengas mejor señal.',
           );
         } else {
+          // Error real (no de red) → no dejarla reintentando en la cola
+          await desencolarFotos(idLocal);
           Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo subir la foto. Intenta de nuevo.');
         }
       }

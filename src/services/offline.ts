@@ -623,6 +623,16 @@ export async function getFotosQueue(): Promise<FotosPendientes[]> {
   }
 }
 
+/**
+ * Quita una entrada de FOTOS_QUEUE tras un upload exitoso fuera del ciclo
+ * normal de sincronizar() (ej. la subida "en background" al guardar con red).
+ */
+export async function desencolarFotos(idLocal: string): Promise<void> {
+  const queue = await getFotosQueue();
+  const restante = queue.filter(item => item.id_local !== idLocal);
+  await AsyncStorage.setItem(KEYS.FOTOS_QUEUE, JSON.stringify(restante));
+}
+
 // ── Cola de documentos del acreditado ────────────────────────────────────────
 
 export async function encolarDocAcreditado(params: {

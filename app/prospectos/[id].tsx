@@ -12,9 +12,9 @@ import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
 import EstadoSelectModal from '../../src/components/ui/EstadoSelectModal';
 import { getContacto, updateContacto, uploadFotoContacto, uploadSimuladorScreenshot, getUbicacionesMapa } from '../../src/services/api';
-import { getCacheContacto, getCacheContactos, encolarFotos } from '../../src/services/offline';
+import { getCacheContacto, getCacheContactos, encolarFotos, desencolarFotos } from '../../src/services/offline';
 import { useSyncContext } from '../../src/contexts/SyncContext';
-import { comprimirFoto, persistirDocumento } from '../../src/utils/comprimirFoto';
+import { comprimirFoto, persistirDocumento, limpiarArchivoLocal } from '../../src/utils/comprimirFoto';
 import type { Contacto, EstadoProspecto, ServicioProspecto, Ubicacion } from '../../src/types';
 import { SERVICIO_LABEL } from '../../src/types';
 
@@ -200,13 +200,20 @@ export default function DetalleProspectoScreen() {
       let finalContacto: Contacto = updated;
 
       // ── Subir foto en background ──────────────────────────────────────────────
+      // Se encola ANTES de intentar subir (no solo si falla): con señal
+      // lenta el proceso puede suspenderse a media subida y perder la foto
+      // sin dejar rastro si solo se encolara en el catch.
       if (fotoAsset && updated.id) {
         const foto = await comprimirFoto(fotoAsset.uri, 'foto_contacto');
-        uploadFotoContacto(updated.id, foto)
-          .then(c => { finalContacto = c; })
-          .catch(() => {
-            encolarFotos({ entidad: 'contacto_foto', entidad_id: updated.id, fotos: [foto] });
-          });
+        const contactoId = updated.id;
+        encolarFotos({ entidad: 'contacto_foto', entidad_id: contactoId, fotos: [foto] }).then(idLocal =>
+          uploadFotoContacto(contactoId, foto)
+            .then(c => {
+              finalContacto = c;
+              return Promise.all([limpiarArchivoLocal(foto.uri), desencolarFotos(idLocal)]);
+            })
+            .catch(() => {}),
+        );
       }
 
       // ── Subir screenshot en background ────────────────────────────────────────
@@ -220,11 +227,15 @@ export default function DetalleProspectoScreen() {
           name: screenshotAsset.fileName ?? 'simulador.jpg',
           type: screenshotAsset.mimeType ?? 'image/jpeg',
         };
-        uploadSimuladorScreenshot(updated.id, screenshotFoto)
-          .then(c => { finalContacto = c; })
-          .catch(() => {
-            encolarFotos({ entidad: 'contacto_screenshot', entidad_id: updated.id, fotos: [screenshotFoto] });
-          });
+        const contactoId = updated.id;
+        encolarFotos({ entidad: 'contacto_screenshot', entidad_id: contactoId, fotos: [screenshotFoto] }).then(idLocal =>
+          uploadSimuladorScreenshot(contactoId, screenshotFoto)
+            .then(c => {
+              finalContacto = c;
+              return Promise.all([limpiarArchivoLocal(screenshotFoto.uri), desencolarFotos(idLocal)]);
+            })
+            .catch(() => {}),
+        );
       }
 
       setContacto(finalContacto);

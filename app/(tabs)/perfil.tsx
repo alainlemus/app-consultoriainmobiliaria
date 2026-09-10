@@ -10,8 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Card from '../../src/components/ui/Card';
 import { getMe, logout, updatePerfil, subirFotoPerfil, solicitarCancelacionCuenta, revocarTokenBiometrico } from '../../src/services/api';
-import { encolarFotos } from '../../src/services/offline';
-import { comprimirFoto } from '../../src/utils/comprimirFoto';
+import { encolarFotos, desencolarFotos } from '../../src/services/offline';
+import { comprimirFoto, limpiarArchivoLocal } from '../../src/utils/comprimirFoto';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { isBiometricEnabled, disableBiometric, getBiometricLabel } from '../../src/services/biometrics';
 import type { User } from '../../src/types';
@@ -133,19 +133,24 @@ export default function PerfilScreen() {
       // Comprimir y persistir antes de subir
       const foto = await comprimirFoto(result.assets[0].uri, 'perfil_asesor');
 
+      // Se encola ANTES de intentar subir: con señal lenta el proceso puede
+      // suspenderse a media subida y perder la foto sin dejar rastro.
+      const idLocal = await encolarFotos({ entidad: 'perfil_asesor', entidad_id: 0, fotos: [foto] });
       try {
         const nuevaUrl = await subirFotoPerfil(foto.uri);
         setUser(prev => prev ? { ...prev, foto_perfil_url: nuevaUrl } : prev);
+        await Promise.all([limpiarArchivoLocal(foto.uri), desencolarFotos(idLocal)]);
       } catch (e: unknown) {
         const msg = (e instanceof Error ? e.message : '').toLowerCase();
         if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
-          // Red débil → encolar para reintento automático
-          await encolarFotos({ entidad: 'perfil_asesor', entidad_id: 0, fotos: [foto] });
+          // Red débil → queda en la cola para reintento automático
           Alert.alert(
             '📋 Foto guardada',
             'La foto se subirá automáticamente cuando tengas mejor señal.',
           );
         } else {
+          // Error real (no de red) → no dejarla reintentando en la cola
+          await desencolarFotos(idLocal);
           Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo subir la foto.');
         }
       }
