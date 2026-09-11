@@ -67,6 +67,18 @@ const SECCIONES: Seccion[] = [
     ],
   },
   {
+    id: 'contratos',
+    icono: '🖋️',
+    titulo: 'Contratos (solo administradores)',
+    subtitulo: 'Genera el Contrato de Prestación de Servicios',
+    pasos: [
+      { icono: '📇', titulo: 'Registrar contrato', desc: 'Desde Inicio → "Contratos" → "Registrar contrato". Escanea la INE del acreditado (y del obligado solidario si aplica) para leer sus datos automáticamente.' },
+      { icono: '👁️', titulo: 'Revisar datos', desc: 'Confirma que los datos leídos de la INE sean correctos antes de continuar. Puedes corregirlos a mano si algo salió mal en la lectura.' },
+      { icono: '📄', titulo: 'Generar el PDF', desc: 'Elige el tipo de trámite y el tamaño de hoja, y toca "Generar contrato". Queda guardado en el historial de "Contratos" para consultarlo o compartirlo cuando quieras.' },
+      { icono: '📶', titulo: 'Funciona sin conexión', desc: 'Puedes registrar contratos sin internet; se guardan en tu dispositivo y se suben al CRM en cuanto recuperes la señal.' },
+    ],
+  },
+  {
     id: 'offline',
     icono: '📶',
     titulo: 'Modo sin internet',
@@ -74,10 +86,11 @@ const SECCIONES: Seccion[] = [
     pasos: [
       { icono: '🔴', titulo: 'Barra de estado', desc: 'En la parte superior de todos los tabs verás una barra de color. Roja = sin internet. Azul = sincronizando. Si no hay barra, todo está sincronizado.' },
       { icono: '📱', titulo: 'Datos en el dispositivo', desc: 'Sin conexión, prospectos y expedientes muestran los datos de tu última visita al CRM con el aviso "📴 Sin conexión — datos guardados". Puedes consultar toda la información aunque estés en zona sin señal.' },
-      { icono: '✏️', titulo: 'Crear y editar sin conexión', desc: 'Puedes crear prospectos nuevos y editar existentes aunque no tengas internet. Los cambios se guardan en tu dispositivo y muestran el mensaje "Se enviará al CRM cuando recuperes internet".' },
+      { icono: '✏️', titulo: 'Crear y editar sin conexión', desc: 'Puedes crear y editar prospectos, registrar visitas y anuncios aunque no tengas internet. Los cambios se guardan en tu dispositivo y muestran el mensaje "Se enviará cuando recuperes internet".' },
       { icono: '📄', titulo: 'Documentos sin conexión', desc: 'También puedes escanear o seleccionar documentos estando offline. Se guardan en cola y el botón cambia a "Guardar (sin conexión)".' },
+      { icono: '📸', titulo: 'Fotos protegidas', desc: 'Las fotos de anuncios, visitas y contactos se guardan en tu dispositivo desde antes de intentar subirlas. Si tienes señal débil (2G) o te mueves justo después de guardar, la foto no se pierde: se sube sola en cuanto haya mejor conexión.' },
       { icono: '🔢', titulo: 'Badge de pendientes', desc: 'El tab Prospectos muestra un número dorado indicando cuántos elementos están en cola para sincronizar.' },
-      { icono: '⚡', titulo: 'Sincronización automática', desc: 'Al recuperar internet, la app sincroniza todo automáticamente: prospectos, ediciones y documentos pendientes. También puedes tocar la barra azul para sincronizar manualmente.' },
+      { icono: '⚡', titulo: 'Sincronización automática', desc: 'Al recuperar internet, la app sincroniza todo automáticamente: prospectos, ediciones, anuncios, visitas, fotos y documentos pendientes. También puedes tocar la barra azul para sincronizar manualmente.' },
     ],
   },
   {
@@ -91,6 +104,30 @@ const SECCIONES: Seccion[] = [
       { icono: '🏢', titulo: 'Tipo: Propiedad', desc: 'Cuando visitas un inmueble en evaluación. Ingresa el nombre o dirección de la propiedad para identificarla en el mapa.' },
       { icono: '🏫', titulo: 'Tipo: Escuela', desc: 'Para visitas a escuelas o instituciones (ferias, presentaciones). Ingresa el nombre de la escuela.' },
       { icono: '📶', titulo: 'Funciona offline', desc: 'Las visitas registradas sin señal se guardan en tu dispositivo y se sincronizan automáticamente cuando recuperes internet.' },
+    ],
+  },
+  {
+    id: 'anuncios',
+    icono: '📢',
+    titulo: 'Anuncios publicitarios',
+    subtitulo: 'Registra la propaganda que colocas en campo',
+    pasos: [
+      { icono: '📢', titulo: 'Registrar anuncio', desc: 'Desde el Mapa, toca el botón "📢" para abrir "Nuevo anuncio". Elige el tipo (lona, hoja en tienda, hoja en poste, volante u otro), la fecha de colocación y una descripción opcional.' },
+      { icono: '📷', titulo: 'Fotos del anuncio', desc: 'Puedes agregar hasta 3 fotos con la cámara o desde la galería. Se comprimen automáticamente y se suben solas en segundo plano — no necesitas esperar a que terminen para seguir trabajando.' },
+      { icono: '📍', titulo: 'Ubicación automática', desc: 'Al guardar, la app registra tu ubicación GPS actual como el lugar del anuncio. Asegúrate de estar frente a él antes de tocar "Registrar".' },
+      { icono: '🗺️', titulo: 'Ver anuncios en el mapa', desc: 'En el Mapa, usa el chip "📢 Anuncios" para mostrar u ocultar los anuncios de todos los asesores. Toca uno para ver su detalle o marcarlo como retirado si ya no está en su lugar.' },
+      { icono: '📶', titulo: 'Funciona con señal débil', desc: 'Si tienes poca señal (2G) o te mueves justo después de guardar, el anuncio y sus fotos quedan seguros en tu dispositivo y se suben solos en cuanto haya mejor conexión.' },
+    ],
+  },
+  {
+    id: 'rutas',
+    icono: '📍',
+    titulo: 'Rutas y rastreo GPS',
+    subtitulo: 'Supervisión de tu actividad en campo',
+    pasos: [
+      { icono: '🟢', titulo: 'Activar rastreo', desc: 'En Inicio, activa el switch "📍 Rastreo de ubicación" para que la app registre tu recorrido mientras trabajas en campo. Puedes apagarlo cuando quieras desde el mismo switch.' },
+      { icono: '🗺️', titulo: 'Ver tu historial', desc: 'Toca "Rutas" en Inicio para ver el mapa de tus recorridos por día, con el trazo de la ruta y los puntos registrados.' },
+      { icono: '📶', titulo: 'Puntos pendientes', desc: 'Si guardaste puntos de ruta sin conexión, verás cuántos faltan por sincronizar. Se suben solos al recuperar internet.' },
     ],
   },
   {

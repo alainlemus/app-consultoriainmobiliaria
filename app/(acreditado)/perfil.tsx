@@ -356,6 +356,12 @@ export default function PerfilAcreditadoScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>CUENTA</Text>
 
+          <TouchableOpacity style={styles.accionRow} onPress={() => router.push('/ayuda-acreditado')}>
+            <Ionicons name="help-circle-outline" size={20} color={Colors.dark[400]} />
+            <Text style={styles.accionText}>Ver guía de uso</Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.dark[600]} />
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.accionRow} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={20} color={Colors.dark[400]} />
             <Text style={styles.accionText}>Cerrar sesión</Text>

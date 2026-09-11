@@ -94,6 +94,7 @@ export default function RootLayout() {
         <Stack.Screen name="expedientes/documentos/subir"     options={{ headerShown: false }} />
         <Stack.Screen name="mapa"                             options={{ headerShown: false }} />
         <Stack.Screen name="ayuda"                            options={{ headerShown: false }} />
+        <Stack.Screen name="ayuda-acreditado"                 options={{ headerShown: false }} />
         <Stack.Screen name="anuncio/nuevo"                    options={{ headerShown: false }} />
       </Stack>
       </SyncProvider>
