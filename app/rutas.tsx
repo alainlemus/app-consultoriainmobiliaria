@@ -8,10 +8,24 @@ import MapView, { Marker, Polyline, Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getRutasAsesores, getRutasDias, getRutasPuntos } from '../src/services/api';
-import { snapPointsToRoads } from '../src/services/roadsSnap';
+import { getDirectionsRoute } from '../src/services/directionsRoute';
 import { useAuth } from '../src/contexts/AuthContext';
-import { Colors, Radius, Spacing, Typography } from '../src/theme';
-import type { RutaAsesor, RutaDia, RutaPunto } from '../src/types';
+import { Colors, Radius, Shadows, Spacing, Typography } from '../src/theme';
+import type { RutaAsesor, RutaDia, RutaPunto, RutaPuntoTipo } from '../src/types';
+
+const TIPO_ICONO: Record<RutaPuntoTipo, string> = {
+  gps:            '📍',
+  visita_cliente: '🏠',
+  escuela:        '🏫',
+  propiedad:      '📋',
+};
+
+const TIPO_LABEL: Record<RutaPuntoTipo, string> = {
+  gps:            'Punto de ruta',
+  visita_cliente: 'Visita a cliente',
+  escuela:        'Visita a escuela',
+  propiedad:      'Visita a propiedad',
+};
 
 type Coord = { latitude: number; longitude: number };
 
@@ -197,11 +211,13 @@ export default function RutasScreen() {
     return Array.from(mapa.values());
   }, [verTodos, puntos, ordenAsesores]);
 
-  // ── Ajuste a calles (Roads API) ───────────────────────────────────────────
-  // Los puntos GPS crudos, al conectarse en línea recta, "cortan" las
-  // esquinas. Se pide a la Roads API que los pegue a la vialidad real; si
-  // falla (sin conexión, cuota agotada, API no habilitada en Google Cloud)
-  // se cae en silencio a la polilínea cruda — nunca rompe el mapa.
+  // ── Reconstrucción de la ruta real (Directions API) ───────────────────────
+  // Los puntos ahora son paradas dispersas (inicio, visitas a clientes/
+  // escuelas/propiedades, fin) que pueden estar a varios km entre sí — una
+  // línea recta entre ellos no sirve. Se pide a la Directions API el camino
+  // real por vialidad; si falla (sin conexión, cuota agotada, API no
+  // habilitada en Google Cloud) se cae en silencio a la polilínea cruda —
+  // nunca rompe el mapa.
   const [puntosAjustados, setPuntosAjustados] = useState<Coord[] | null>(null);
   const [ajustadosPorAsesor, setAjustadosPorAsesor] = useState<Record<number, Coord[]>>({});
 
@@ -212,34 +228,39 @@ export default function RutasScreen() {
     if (verTodos) {
       gruposPorAsesor.forEach(g => {
         if (g.puntos.length < 2) return;
-        snapPointsToRoads(g.puntos.map(p => ({ lat: p.lat, lng: p.lng })))
-          .then(snapped => {
+        getDirectionsRoute(g.puntos.map(p => ({ lat: p.lat, lng: p.lng })))
+          .then(ruta => {
             setAjustadosPorAsesor(prev => ({
               ...prev,
-              [g.asesorId]: snapped.map(s => ({ latitude: s.lat, longitude: s.lng })),
+              [g.asesorId]: ruta.map(s => ({ latitude: s.lat, longitude: s.lng })),
             }));
           })
           .catch(() => { /* se queda la polilínea cruda de este asesor */ });
       });
     } else if (puntos.length >= 2) {
-      snapPointsToRoads(puntos.map(p => ({ lat: p.lat, lng: p.lng })))
-        .then(snapped => setPuntosAjustados(snapped.map(s => ({ latitude: s.lat, longitude: s.lng }))))
+      getDirectionsRoute(puntos.map(p => ({ lat: p.lat, lng: p.lng })))
+        .then(ruta => setPuntosAjustados(ruta.map(s => ({ latitude: s.lat, longitude: s.lng }))))
         .catch(() => { /* se queda la polilínea cruda */ });
     }
   }, [verTodos, puntos, gruposPorAsesor]);
 
   // ── Info de distancia aproximada (no aplica al ver varios asesores juntos) ─
+  // Usa la polilínea ya reconstruida por la Directions API cuando está
+  // disponible — sumar línea recta entre paradas dispersas subestima mucho
+  // la distancia real recorrida por carretera.
 
   const distanciaKm = useMemo(() => {
-    if (verTodos || puntos.length < 2) return null;
+    if (verTodos) return null;
+    const base = puntosAjustados ?? puntos.map(p => ({ latitude: p.lat, longitude: p.lng }));
+    if (base.length < 2) return null;
     let total = 0;
-    for (let i = 1; i < puntos.length; i++) {
-      const dx = (puntos[i].lng - puntos[i-1].lng) * Math.cos((puntos[i].lat * Math.PI) / 180) * 111;
-      const dy = (puntos[i].lat - puntos[i-1].lat) * 111;
+    for (let i = 1; i < base.length; i++) {
+      const dx = (base[i].longitude - base[i-1].longitude) * Math.cos((base[i].latitude * Math.PI) / 180) * 111;
+      const dy = (base[i].latitude - base[i-1].latitude) * 111;
       total += Math.sqrt(dx * dx + dy * dy);
     }
     return total.toFixed(1);
-  }, [verTodos, puntos]);
+  }, [verTodos, puntos, puntosAjustados]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -451,6 +472,22 @@ export default function RutasScreen() {
                     pinColor={Colors.crimson[500]}
                   />
                 )}
+                {/* Marcadores de visitas (cliente/escuela/propiedad) — los puntos
+                    'gps' de inicio/fin ya se pintan arriba, se omiten aquí */}
+                {puntos.map((p, index) => (
+                  index > 0 && index < puntos.length - 1 && p.tipo !== 'gps' ? (
+                    <Marker
+                      key={p.id}
+                      coordinate={{ latitude: p.lat, longitude: p.lng }}
+                      title={p.nombre_lugar ?? TIPO_LABEL[p.tipo]}
+                      description={`${TIPO_LABEL[p.tipo]} · ${p.hora}`}
+                    >
+                      <View style={s.marcadorTipo}>
+                        <Text style={s.marcadorTipoEmoji}>{TIPO_ICONO[p.tipo]}</Text>
+                      </View>
+                    </Marker>
+                  ) : null
+                ))}
               </>
             )}
           </MapView>
@@ -478,7 +515,10 @@ export default function RutasScreen() {
                 )}
                 <View style={s.puntoInfo}>
                   <Text style={s.puntoHora}>
-                    {p.hora}{verTodos && p.asesor_nombre ? ` · ${p.asesor_nombre}` : ''}
+                    {p.tipo !== 'gps' ? `${TIPO_ICONO[p.tipo]} ` : ''}
+                    {p.nombre_lugar ?? (p.tipo !== 'gps' ? TIPO_LABEL[p.tipo] : p.hora)}
+                    {p.tipo !== 'gps' ? ` · ${p.hora}` : ''}
+                    {verTodos && p.asesor_nombre ? ` · ${p.asesor_nombre}` : ''}
                   </Text>
                   <Text style={s.puntoCoords}>{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</Text>
                 </View>
@@ -730,6 +770,20 @@ const s = StyleSheet.create({
   puntoHora:      { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[800] },
   puntoCoords:    { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 1 },
   puntoBadges:    { flexDirection: 'row', gap: Spacing.xs },
+
+  // Marcador circular para paradas de visita (cliente/escuela/propiedad)
+  marcadorTipo: {
+    width:            30,
+    height:           30,
+    borderRadius:     15,
+    backgroundColor:  Colors.white,
+    borderWidth:      2,
+    borderColor:      Colors.gold[400],
+    alignItems:       'center',
+    justifyContent:   'center',
+    ...Shadows.sm,
+  },
+  marcadorTipoEmoji: { fontSize: 15 },
   badge: {
     fontSize:        Typography.fontSize.xs,
     color:           Colors.dark[500],

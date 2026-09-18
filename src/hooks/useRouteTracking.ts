@@ -1,9 +1,11 @@
 /**
- * useRouteTracking — hook para rastrear la ubicación del asesor.
+ * useRouteTracking — hook para registrar la ruta del asesor.
  *
- * Usa expo-task-manager + Location.startLocationUpdatesAsync() para que
- * el tracking continúe aunque la app esté minimizada, el teléfono bloqueado,
- * o el usuario esté usando otras apps (Maps, WhatsApp, llamadas, etc.).
+ * No usa ubicación en segundo plano: registra un punto al activar y otro al
+ * desactivar el toggle, y el resto del recorrido se arma en el backend
+ * combinando esos puntos con las visitas a clientes/escuelas/propiedades
+ * (ver RouteController::getPoints en el backend) — cada una ya captura su
+ * propia ubicación en primer plano al registrarse desde app/mapa.tsx.
  *
  * Solo se activa para usuarios con rol 'asesor' (no super_admin, no acreditados).
  */
@@ -17,12 +19,6 @@ import {
   syncRoutePoints,
   guardarPuntoOffline,
 } from '../services/routeTracking';
-
-import {
-  startBackgroundTracking,
-  stopBackgroundTracking,
-  isBackgroundTrackingActive,
-} from '../services/backgroundTracking';
 
 const KEY_TRACKING_ENABLED = 'route:tracking_enabled';
 
@@ -53,16 +49,13 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
     if (isMountedRef.current) setPendientes(n);
   }, []);
 
-  // ── Restaurar estado al montar (el tracking puede estar activo en background) ─
+  // ── Restaurar estado al montar ──────────────────────────────────────────────
 
   useEffect(() => {
     if (!isAsesor) return;
     (async () => {
-      const [guardado, bgActivo] = await Promise.all([
-        AsyncStorage.getItem(KEY_TRACKING_ENABLED),
-        isBackgroundTrackingActive(),
-      ]);
-      if (isMountedRef.current && (guardado === '1' || bgActivo)) {
+      const guardado = await AsyncStorage.getItem(KEY_TRACKING_ENABLED);
+      if (isMountedRef.current && guardado === '1') {
         setEstaActivo(true);
       }
     })();
@@ -95,7 +88,6 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
     setError(null);
 
     try {
-      // 1. Pedir permiso de foreground primero
       const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
       if (fgStatus !== 'granted') {
         setError('Permiso de ubicación denegado. Actívalo en Configuración.');
@@ -103,10 +95,7 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
         return;
       }
 
-      // 2. Iniciar tarea de background (pide permiso "Siempre" en iOS si es necesario)
-      await startBackgroundTracking();
-
-      // 3. Registrar un punto inicial inmediatamente
+      // Registrar el punto de inicio de la ruta
       try {
         const loc = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
@@ -120,7 +109,7 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
         });
         await syncRoutePoints();
       } catch {
-        // Punto inicial falla silenciosamente — background seguirá capturando
+        // Punto inicial falla silenciosamente — no bloquea la activación
       }
 
       await AsyncStorage.setItem(KEY_TRACKING_ENABLED, '1');
@@ -142,10 +131,23 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
 
   const desactivar = useCallback(async () => {
     try {
-      // Detener la tarea de background
-      await stopBackgroundTracking();
+      // Registrar el punto final antes de detener — así la ruta del día
+      // queda con inicio y fin explícitos.
+      try {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        await guardarPuntoOffline({
+          lat:       loc.coords.latitude,
+          lng:       loc.coords.longitude,
+          precision: loc.coords.accuracy ?? 0,
+          velocidad: (loc.coords.speed ?? 0) * 3.6,
+          timestamp: new Date(loc.timestamp).toISOString(),
+        });
+      } catch {
+        // Punto final falla silenciosamente — no bloquea la desactivación
+      }
 
-      // Sync final
       await syncRoutePoints();
       await actualizarPendientes();
     } catch {}
@@ -177,8 +179,6 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
         clearInterval(syncIntervalRef.current);
         syncIntervalRef.current = null;
       }
-      // NO detener la tarea de background al desmontar el componente —
-      // debe seguir corriendo aunque el componente se desmonte.
     };
   }, [actualizarPendientes]);
 

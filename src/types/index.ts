@@ -367,12 +367,16 @@ export interface ServicioTramite {
 
 // ── Rutas de Asesores ────────────────────────────────────────────────────────
 
+export type RutaPuntoTipo = 'gps' | 'visita_cliente' | 'propiedad' | 'escuela';
+
 export interface RutaPunto {
-  id:        number;
+  id:        string;
   lat:       number;
   lng:       number;
   precision: number;
   velocidad: number;
+  tipo:      RutaPuntoTipo;
+  nombre_lugar: string | null;
   hora:      string;
   timestamp: string;
   // Solo vienen cuando se consulta con asesor_id="todos" (super_admin)

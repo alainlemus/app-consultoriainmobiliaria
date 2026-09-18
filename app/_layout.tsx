@@ -7,11 +7,6 @@ import { AuthProvider } from '../src/contexts/AuthContext';
 import { registrarPushToken, registrarPushTokenAcreditado, registrarListeners, limpiarBadge } from '../src/services/notifications';
 import { getAcreditadoToken, removeAcreditadoToken } from '../src/services/acreditadoApi';
 
-// ── IMPORTANTE: importar la definición de la tarea de background en el top-level
-// del layout raíz para que expo-task-manager la registre al arrancar la app,
-// incluso cuando iOS/Android revive el proceso en background para entregar ubicaciones.
-import '../src/services/backgroundTracking';
-
 export default function RootLayout() {
   const router = useRouter();
 

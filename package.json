@@ -1,6 +1,6 @@
 {
   "name": "app-consultoriainmobiliaria",
-  "version": "2.1.9",
+  "version": "2.2.0",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",

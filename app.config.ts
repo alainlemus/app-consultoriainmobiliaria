@@ -73,7 +73,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name:    'Consultoría Inmobiliaria',
     slug:    'app-consultoriainmobiliaria',
-    version: '2.1.9',
+    version: '2.2.0',
     orientation: 'portrait',
     icon:    './assets/icon.png',
     userInterfaceStyle: 'light',
@@ -142,10 +142,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'expo-location',
         {
-          locationAlwaysAndWhenInUsePermission: 'Consultoría Inmobiliaria necesita acceso a tu ubicación en todo momento para registrar tu ruta de trabajo, incluso cuando la app está en segundo plano.',
+          // Sin ubicación en segundo plano en ninguna plataforma — el registro
+          // de ruta (inicio/fin) y las visitas a clientes/escuelas/propiedades
+          // se capturan en primer plano, puntual, al momento de cada acción.
+          // El recorrido del día se reconstruye en el backend combinando esos
+          // puntos (ver RouteController::getPoints). Evita el problema de Apple
+          // guideline 2.5.4 (2.1.9 fue rechazada por declarar
+          // UIBackgroundModes:location solo para tracking de asesores).
           locationWhenInUsePermission: 'Consultoría Inmobiliaria usa tu ubicación para registrar visitas a clientes y tu ruta de trabajo.',
-          isIosBackgroundLocationEnabled: true,
-          isAndroidBackgroundLocationEnabled: true,
         },
       ],
       [
