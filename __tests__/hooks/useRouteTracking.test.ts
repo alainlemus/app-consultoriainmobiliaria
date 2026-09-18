@@ -1,15 +1,13 @@
 /**
- * Tests: src/hooks/useRouteTracking.ts (arquitectura background)
+ * Tests: src/hooks/useRouteTracking.ts (arquitectura sin background)
  *
  * Cubre:
- *  - activar: inicia background tracking, guarda punto inicial, persiste '1'
+ *  - activar: guarda punto inicial, persiste '1'
  *  - activar con permiso denegado: muestra error, no activa
  *  - activar cuando no es asesor: no hace nada
- *  - desactivar: detiene background tracking, persiste '0', limpia error
+ *  - desactivar: guarda punto final, persiste '0', limpia error, sync final
  *  - forzarSync: llama syncRoutePoints y actualiza contador
  *  - estado persistido: restaura estaActivo=true si AsyncStorage tiene '1'
- *  - estado persistido: restaura si la tarea de background está activa
- *  - cleanup al desmontar: NO detiene background (debe seguir en background)
  */
 
 import { renderHook, act, waitFor } from '@testing-library/react-native';
@@ -17,7 +15,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useRouteTracking } from '../../src/hooks/useRouteTracking';
 import * as routeTrackingService from '../../src/services/routeTracking';
-import * as backgroundTrackingService from '../../src/services/backgroundTracking';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -27,20 +24,10 @@ jest.mock('../../src/services/routeTracking', () => ({
   contarPendientesRoute: jest.fn(() => Promise.resolve(0)),
 }));
 
-jest.mock('../../src/services/backgroundTracking', () => ({
-  BACKGROUND_LOCATION_TASK:   'background-location-task',
-  startBackgroundTracking:    jest.fn(() => Promise.resolve()),
-  stopBackgroundTracking:     jest.fn(() => Promise.resolve()),
-  isBackgroundTrackingActive: jest.fn(() => Promise.resolve(false)),
-}));
-
 const mockLocation             = Location as jest.Mocked<typeof Location>;
 const mockSyncRoutePoints      = routeTrackingService.syncRoutePoints      as jest.Mock;
 const mockContarPendientes     = routeTrackingService.contarPendientesRoute as jest.Mock;
 const mockGuardarPuntoOffline  = routeTrackingService.guardarPuntoOffline   as jest.Mock;
-const mockStartBG              = backgroundTrackingService.startBackgroundTracking    as jest.Mock;
-const mockStopBG               = backgroundTrackingService.stopBackgroundTracking     as jest.Mock;
-const mockIsBGActive           = backgroundTrackingService.isBackgroundTrackingActive as jest.Mock;
 
 const LOC_MOCK = {
   coords: {
@@ -57,11 +44,7 @@ beforeEach(async () => {
   await AsyncStorage.clear();
 
   (mockLocation.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
-  (mockLocation.getForegroundPermissionsAsync    as jest.Mock).mockResolvedValue({ status: 'granted' });
-  (mockLocation.getCurrentPositionAsync          as jest.Mock).mockResolvedValue(LOC_MOCK);
-  mockStartBG.mockResolvedValue(undefined);
-  mockStopBG.mockResolvedValue(undefined);
-  mockIsBGActive.mockResolvedValue(false);
+  (mockLocation.getCurrentPositionAsync           as jest.Mock).mockResolvedValue(LOC_MOCK);
   mockSyncRoutePoints.mockResolvedValue({ ok: 1, errores: 0 });
   mockContarPendientes.mockResolvedValue(0);
   mockGuardarPuntoOffline.mockResolvedValue(undefined);
@@ -84,13 +67,6 @@ describe('activar', () => {
     expect(AsyncStorage.setItem).toHaveBeenCalledWith('route:tracking_enabled', '1');
   });
 
-  it('llama a startBackgroundTracking', async () => {
-    const { result } = renderHook(() => useRouteTracking(true));
-    await act(async () => { await result.current.activar(); });
-
-    expect(mockStartBG).toHaveBeenCalledTimes(1);
-  });
-
   it('guarda un punto inicial', async () => {
     const { result } = renderHook(() => useRouteTracking(true));
     await act(async () => { await result.current.activar(); });
@@ -111,7 +87,7 @@ describe('activar', () => {
     await act(async () => { await result.current.activar(); });
 
     expect(result.current.estaActivo).toBe(false);
-    expect(mockStartBG).not.toHaveBeenCalled();
+    expect(mockGuardarPuntoOffline).not.toHaveBeenCalled();
   });
 
   it('muestra error si el permiso de ubicación está denegado', async () => {
@@ -122,7 +98,7 @@ describe('activar', () => {
 
     expect(result.current.estaActivo).toBe(false);
     expect(result.current.error).toContain('Permiso de ubicación');
-    expect(mockStartBG).not.toHaveBeenCalled();
+    expect(mockGuardarPuntoOffline).not.toHaveBeenCalled();
   });
 
   it('pone iniciando=false al terminar activar exitosamente', async () => {
@@ -133,15 +109,13 @@ describe('activar', () => {
     expect(result.current.estaActivo).toBe(true);
   });
 
-  it('activa aunque el punto inicial falle (background sigue corriendo)', async () => {
+  it('activa aunque el punto inicial falle', async () => {
     (mockLocation.getCurrentPositionAsync as jest.Mock).mockRejectedValue(new Error('GPS fail'));
     const { result } = renderHook(() => useRouteTracking(true));
 
     await act(async () => { await result.current.activar(); });
 
-    // El tracking se activa igual — la tarea de background capturará puntos
     expect(result.current.estaActivo).toBe(true);
-    expect(mockStartBG).toHaveBeenCalled();
   });
 });
 
@@ -159,12 +133,14 @@ describe('desactivar', () => {
     expect(AsyncStorage.setItem).toHaveBeenCalledWith('route:tracking_enabled', '0');
   });
 
-  it('llama a stopBackgroundTracking', async () => {
+  it('guarda un punto final', async () => {
     const { result } = renderHook(() => useRouteTracking(true));
     await act(async () => { await result.current.activar(); });
+    mockGuardarPuntoOffline.mockClear();
+
     await act(async () => { await result.current.desactivar(); });
 
-    expect(mockStopBG).toHaveBeenCalled();
+    expect(mockGuardarPuntoOffline).toHaveBeenCalled();
   });
 
   it('limpia el error al desactivar', async () => {
@@ -187,6 +163,16 @@ describe('desactivar', () => {
     await act(async () => { await result.current.desactivar(); });
 
     expect(mockSyncRoutePoints).toHaveBeenCalled();
+  });
+
+  it('desactiva aunque el punto final falle', async () => {
+    const { result } = renderHook(() => useRouteTracking(true));
+    await act(async () => { await result.current.activar(); });
+
+    (mockLocation.getCurrentPositionAsync as jest.Mock).mockRejectedValue(new Error('GPS fail'));
+    await act(async () => { await result.current.desactivar(); });
+
+    expect(result.current.estaActivo).toBe(false);
   });
 });
 
@@ -229,16 +215,6 @@ describe('estado persistido', () => {
     });
   });
 
-  it('restaura estaActivo=true si la tarea de background está activa', async () => {
-    mockIsBGActive.mockResolvedValue(true);
-
-    const { result } = renderHook(() => useRouteTracking(true));
-
-    await waitFor(() => {
-      expect(result.current.estaActivo).toBe(true);
-    });
-  });
-
   it('no restaura estado si isAsesor=false', async () => {
     (AsyncStorage.getItem as jest.Mock).mockImplementation((key: string) =>
       key === 'route:tracking_enabled' ? Promise.resolve('1') : Promise.resolve(null)
@@ -248,21 +224,5 @@ describe('estado persistido', () => {
     await act(async () => { await Promise.resolve(); });
 
     expect(result.current.estaActivo).toBe(false);
-  });
-});
-
-// ══════════════════════════════════════════════════════════════════════════════
-// CLEANUP AL DESMONTAR
-// ══════════════════════════════════════════════════════════════════════════════
-
-describe('cleanup al desmontar', () => {
-  it('NO llama stopBackgroundTracking al desmontar (el tracking debe seguir en background)', async () => {
-    const { result, unmount } = renderHook(() => useRouteTracking(true));
-    await act(async () => { await result.current.activar(); });
-
-    mockStopBG.mockClear();
-    unmount();
-
-    expect(mockStopBG).not.toHaveBeenCalled();
   });
 });

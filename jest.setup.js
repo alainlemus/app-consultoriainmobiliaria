@@ -175,20 +175,5 @@ jest.mock('uuid', () => ({
 // ── react-native-get-random-values ────────────────────────────────────────────
 jest.mock('react-native-get-random-values', () => {});
 
-// ── expo-task-manager ─────────────────────────────────────────────────────────
-jest.mock('expo-task-manager', () => ({
-  defineTask:           jest.fn(),
-  isTaskRegisteredAsync: jest.fn(() => Promise.resolve(false)),
-  unregisterAllTasksAsync: jest.fn(() => Promise.resolve()),
-}));
-
-// ── src/services/backgroundTracking ──────────────────────────────────────────
-jest.mock('./src/services/backgroundTracking', () => ({
-  BACKGROUND_LOCATION_TASK:   'background-location-task',
-  startBackgroundTracking:    jest.fn(() => Promise.resolve()),
-  stopBackgroundTracking:     jest.fn(() => Promise.resolve()),
-  isBackgroundTrackingActive: jest.fn(() => Promise.resolve(false)),
-}));
-
 // ── fetch global ─────────────────────────────────────────────────────────────
 global.fetch = jest.fn();
