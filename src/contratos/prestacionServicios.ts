@@ -71,16 +71,32 @@ export const MARGENES_PAGINA = { top: 24, bottom: 24, left: 18, right: 18 };
 
 /** Carta y Oficio comparten ancho (8.5in = 612pt); solo cambia el alto. */
 const ANCHO_PAPEL_PT = 612;
+const ALTO_PAPEL_PT: Record<'carta' | 'oficio', number> = { carta: 792, oficio: 964 };
+
+/** Tamaño de hoja para Print.printToFileAsync (puntos a 72 dpi). */
+export const DIMENSIONES_PAPEL: Record<'carta' | 'oficio', { width: number; height: number }> = {
+  carta:  { width: ANCHO_PAPEL_PT, height: ALTO_PAPEL_PT.carta },
+  oficio: { width: ANCHO_PAPEL_PT, height: ALTO_PAPEL_PT.oficio },
+};
+
+/** Margen lateral del texto en px CSS, además de MARGENES_PAGINA (48px + 18pt ≈ 1.9 cm). */
+const MARGEN_LATERAL_PX = 48;
 
 /**
- * En iOS expo-print carga el HTML en un WKWebView de 612pt de ancho y mide
- * ahí el alto del documento, pero luego lo pagina al ancho imprimible
- * (612 − márgenes laterales). Con menos ancho el texto hace más renglones y
- * el documento queda más alto que lo medido, así que lo último (los nombres
- * del jurídico y del obligado solidario) se recortaba de la última hoja.
- * Fijando el body al ancho imprimible ambos layouts coinciden y no se pierde nada.
+ * En iOS expo-print carga el HTML en un WKWebView de 612px de ancho, pero al
+ * imprimir WebKit usa 1px CSS = 0.75pt, así que el área imprimible
+ * (612 − márgenes laterales = 576pt) equivale a 768px. Fijar el body a ese
+ * ancho hace que el contenido llene la hoja y que el layout del WebView y el
+ * de impresión coincidan (con anchos distintos el alto medido no cuadraba y
+ * se recortaba el final del contrato).
  */
-const anchoCuerpoIos = ANCHO_PAPEL_PT - MARGENES_PAGINA.left - MARGENES_PAGINA.right;
+const PT_POR_PX_IMPRESION = 0.75;
+const anchoCuerpoIos = Math.floor(
+  (ANCHO_PAPEL_PT - MARGENES_PAGINA.left - MARGENES_PAGINA.right) / PT_POR_PX_IMPRESION,
+);
+
+/** Quita un "LIC." / "C." inicial para no imprimir "LIC. LIC. …" o "C. LIC. …". */
+const sinTitulo = (nombre: string) => nombre.replace(/^\s*(LIC\.?|C\.)\s+/i, '');
 
 const fechaLarga = () => {
   const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -95,18 +111,22 @@ function reemplazarPlaceholders(texto: string, vars: Record<string, string>): st
   return Object.entries(vars).reduce((acc, [k, v]) => acc.split(k).join(v), texto);
 }
 
-function nl2br(texto: string): string {
-  return texto.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+function escapar(texto: string): string {
+  return texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+}
+
+/** Una línea de la plantilla (inciso / declaración) = un bloque paginable. */
+function lineas(texto: string): string {
+  const items = texto.split('\n').map((l) => l.trim()).filter(Boolean);
+  return items
+    .map((l, i) => `<div class="bloque item${i === items.length - 1 ? ' ultimo' : ''}">${escapar(l)}</div>`)
+    .join('\n');
 }
 
 /**
- * Oficio (más alta que carta) tiene margen de sobra para un espaciado más
- * generoso entre párrafos y aun así dejar las firmas solas en su propia
- * hoja. Carta es ~18% más corta, así que con el espaciado original el
- * contenido igual se desborda a una 4ta hoja — ahí además de usar el
- * espaciado original se baja 1pt el tamaño de fuente para compensar esa
- * diferencia de alto y que las firmas vuelvan a compartir la última hoja
- * con el cierre del contrato.
+ * Oficio (más alta que carta) admite un espaciado más generoso; en carta se
+ * compacta un poco para no gastar hojas de más. El reparto en hojas y que las
+ * firmas no queden solas lo resuelve paginarContrato().
  */
 function espaciadoPorPapel(tamanoPapel: 'carta' | 'oficio') {
   return tamanoPapel === 'oficio'
@@ -153,10 +173,32 @@ export function renderPrestacionServiciosHtml(
     '{site_name}':           (config.site_name || '').toUpperCase(),
   };
 
-  const intro          = nl2br(reemplazarPlaceholders(config.contrato_intro, placeholders));
-  const declPrestador   = nl2br(reemplazarPlaceholders(config.contrato_declaraciones_prestador, placeholders));
-  const declInteresado  = nl2br(reemplazarPlaceholders(config.contrato_declaraciones_interesado, placeholders));
-  const clausulas        = nl2br(reemplazarPlaceholders(config.contrato_clausulas, placeholders));
+  // {fecha} ya incluye "N DÍAS DEL MES DE <MES> DEL AÑO <AAAA>"; la plantilla
+  // del backend trae además un mes/año fijos ("… DÍAS DEL MES DE MAYO DEL AÑO
+  // 2026") que imprimían la fecha dos veces. Se descarta ese texto fijo.
+  const introPlantilla = config.contrato_intro.replace(
+    /\{fecha\}\s*DÍAS\s+DEL\s+MES\s+DE\s+\S+\s+DEL\s+AÑO\s+\d{4}/i,
+    '{fecha}',
+  );
+  const intro          = escapar(reemplazarPlaceholders(introPlantilla, placeholders));
+  const declPrestador   = lineas(reemplazarPlaceholders(config.contrato_declaraciones_prestador, placeholders));
+  const declInteresado  = lineas(reemplazarPlaceholders(config.contrato_declaraciones_interesado, placeholders));
+  const clausulas        = lineas(reemplazarPlaceholders(config.contrato_clausulas, placeholders));
+
+  const siteName = config.site_name || 'Consultoría Inmobiliaria';
+  const footerHtml = `
+    <div class="footer">
+      <span class="footer-left">${siteName} &bull; Documento generado el ${new Date().toLocaleDateString('es-MX')}</span>
+      <span class="footer-right">${vars.folio}<span class="footer-hoja"></span></span>
+    </div>`;
+
+  // Alto útil de cada hoja en px CSS (ver PT_POR_PX_IMPRESION). Se restan unos
+  // px de holgura: si la hoja HTML midiera siquiera 1px más que la física, cada
+  // hoja se desbordaría a la siguiente y saldrían hojas en blanco intercaladas.
+  const altoHojaPx = Math.floor(
+    (ALTO_PAPEL_PT[tamanoPapel] - MARGENES_PAGINA.top - MARGENES_PAGINA.bottom) / PT_POR_PX_IMPRESION,
+  ) - 8;
+  const paginar = Platform.OS === 'ios';
 
   return `
     <!DOCTYPE html>
@@ -167,92 +209,156 @@ export function renderPrestacionServiciosHtml(
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; font-size: ${espaciado.fontSize}px; line-height: ${espaciado.lineHeight}; color: #1a1a1a; background: #ffffff; }
-        ${Platform.OS === 'ios' ? `body { width: ${anchoCuerpoIos}px; }` : ''}
-        .page { padding: 0; }
-        .header { background: #1a1a1a; padding: 14px 28px 0 28px; }
+        ${paginar ? `body { width: ${anchoCuerpoIos}px; }` : ''}
+        .header { background: #1a1a1a; padding: 14px ${MARGEN_LATERAL_PX}px 0 ${MARGEN_LATERAL_PX}px; }
         .header-empresa { font-size: 18px; font-weight: bold; color: #d4af37; letter-spacing: 1.5px; text-transform: uppercase; }
         .header-slogan { font-size: 10px; color: #a0936a; margin-top: 2px; letter-spacing: 0.5px; padding-bottom: 12px; }
         .header-divider { height: 4px; background: linear-gradient(to right, #d4af37, #9b2335, #d4af37); }
-        .doc-titulo-bar { background: #9b2335; padding: 8px 28px; text-align: center; }
+        .doc-titulo-bar { background: #9b2335; padding: 8px ${MARGEN_LATERAL_PX}px; text-align: center; }
         .doc-titulo-bar span { font-size: 13px; font-weight: bold; color: #ffffff; text-transform: uppercase; letter-spacing: 1.5px; }
-        .folio-area { padding: 10px 28px 0 28px; text-align: right; }
+        .folio-area { padding: 10px 0 0 0; text-align: right; }
         .folio-box { display: inline-block; background: #fdf9ee; border: 1px solid #d4af37; border-radius: 4px; padding: 4px 12px; font-size: 10px; color: #96760f; }
-        .body-content { padding: 14px 28px 40px 28px; }
+        .contenido { padding: 0 ${MARGEN_LATERAL_PX}px; }
+        .bloque { padding-bottom: ${espaciado.pMarginBottom}px; text-align: justify; }
+        .bloque.item { padding-bottom: 0; margin-left: 12px; }
+        .bloque.item.ultimo { padding-bottom: ${espaciado.pMarginBottom}px; }
         h2 { font-size: 12px; font-weight: bold; color: #9b2335; border-bottom: 2px solid #d4af37; padding-bottom: 3px; margin-top: ${espaciado.h2MarginTop}px; margin-bottom: ${espaciado.h2MarginBottom}px; text-transform: uppercase; letter-spacing: 1.5px; }
-        p { margin-bottom: ${espaciado.pMarginBottom}px; text-align: justify; }
-        /* Agrupa las dos tablas de firmas para que, si no caben en la página
-           actual, se empujen juntas a la siguiente — nunca una tabla sola. */
-        .cierre { padding: 0 28px 24px 28px; page-break-inside: avoid; break-inside: avoid; }
+        .cierre { padding-top: ${espaciado.closingMarginTop}px; page-break-inside: avoid; break-inside: avoid; }
+        .cierre p { text-align: justify; }
         .firma-bloque { margin-top: ${espaciado.firmaBloqueMarginTop}px; }
         .firmas { width: 100%; border-collapse: collapse; }
         .firmas td { width: 50%; padding: 0 24px; text-align: center; vertical-align: bottom; }
         .linea-firma { border-top: 2px solid #1a1a1a; padding-top: 8px; font-size: 12px; line-height: 1.6; }
-        /* En flujo normal (NO position:fixed): fixed no reserva espacio, así que
-           en iOS/WebKit quedaba encima de la última fila de firmas y tapaba los
-           nombres del jurídico y del obligado solidario. Va dentro de .cierre
-           para que siempre acompañe a las firmas en la misma hoja. */
-        .footer { margin-top: 28px; padding-top: 8px; border-top: 1px solid #d4af37; }
-        .footer-inner { display: flex; justify-content: space-between; font-size: 10px; }
+        .footer { display: flex; justify-content: space-between; margin: 28px ${MARGEN_LATERAL_PX}px 0 ${MARGEN_LATERAL_PX}px; padding-top: 8px; border-top: 1px solid #d4af37; font-size: 10px; line-height: 1.4; }
         .footer-left { color: #96760f; }
         .footer-right { color: #9b2335; }
+        /* Hojas armadas por el script de abajo (solo iOS): alto fijo = alto
+           imprimible, el cuerpo crece y el pie queda pegado al fondo de cada hoja. */
+        .hoja { height: ${altoHojaPx}px; display: flex; flex-direction: column; overflow: hidden; page-break-after: always; break-after: page; }
+        .hoja:last-child { page-break-after: auto; break-after: auto; }
+        .hoja-cuerpo { flex: 1; overflow: hidden; }
+        .hoja .footer { margin-top: 0; }
       </style>
     </head>
     <body>
-      <div class="page">
-        <div class="header">
-          <div class="header-empresa">${config.site_name || 'Consultoría Inmobiliaria'}</div>
-          <div class="header-slogan">Gestión de trámites hipotecarios y patrimoniales</div>
-        </div>
-        <div class="header-divider"></div>
-        <div class="doc-titulo-bar"><span>Contrato de Prestación de Servicios Profesionales y Financiamiento de Gastos</span></div>
-        <div class="folio-area">
-          <div class="folio-box">Expediente: <strong>${vars.folio}</strong></div>
-        </div>
-        <div class="body-content">
-          <p>${intro}</p>
-
-          <h2>Declaraciones</h2>
-          <p><strong>POR PARTE DE "EL PRESTADOR":</strong></p>
-          <p style="margin-left:12px;">${declPrestador}</p>
-          <p><strong>DECLARA EL INTERESADO:</strong></p>
-          <p style="margin-left:12px;">${declInteresado}</p>
-
-          <h2>Cláusulas</h2>
-          <p>AMBAS PARTES SE COMPROMETEN A SOMETERSE AL TENOR DE LAS SIGUIENTES CLÁUSULAS SIN QUE EXISTAN VICIOS DE CONSENTIMIENTO:</p>
-          <p style="margin-left:12px;">${clausulas}</p>
-
-          <p style="margin-top:${espaciado.closingMarginTop}px;">
-            EN LA CIUDAD DE <strong>${ciudad}</strong>, A LOS <strong>${fechaLarga()}</strong>,
-            HABIENDO LEÍDO Y COMPRENDIDO EL CONTENIDO DEL PRESENTE CONTRATO, LAS PARTES LO SUSCRIBEN EN SEÑAL DE CONFORMIDAD.
-          </p>
-        </div>
-
-        <div class="cierre">
-          <div class="firma-bloque">
-            <table class="firmas">
-              <tr><td style="height:70px;"></td><td style="height:70px;"></td></tr>
-              <tr>
-                <td><div class="linea-firma"><strong>FIRMA DE "EL PRESTADOR"</strong><br>C. ${(config.firma_prestador || '').toUpperCase()}<br><small>${(config.site_name || '').toUpperCase()}</small></div></td>
-                <td><div class="linea-firma"><strong>FIRMA DEL "INTERESADO"</strong><br>C. ${acreditado}<br><small>RFC: ${rfc} &nbsp; CURP: ${curp}</small></div></td>
-              </tr>
-            </table>
-            <table class="firmas" style="margin-top:40px;">
-              <tr><td style="height:70px;"></td><td style="height:70px;"></td></tr>
-              <tr>
-                <td><div class="linea-firma"><strong>FIRMA POR PARTE DEL JURÍDICO</strong><br>LIC. ${(config.firma_juridico || '').toUpperCase()}</div></td>
-                <td><div class="linea-firma"><strong>FIRMA DEL "OBLIGADO SOLIDARIO"</strong><br>C. ${obligadoSolidario}</div></td>
-              </tr>
-            </table>
+      <div id="fuente">
+        <div class="bloque" style="padding-bottom:0;">
+          <div class="header">
+            <div class="header-empresa">${siteName}</div>
+            <div class="header-slogan">Gestión de trámites hipotecarios y patrimoniales</div>
           </div>
-          <div class="footer">
-            <div class="footer-inner">
-              <span class="footer-left">${config.site_name || 'Consultoría Inmobiliaria'} &bull; Documento generado el ${new Date().toLocaleDateString('es-MX')}</span>
-              <span class="footer-right">${vars.folio}</span>
+          <div class="header-divider"></div>
+          <div class="doc-titulo-bar"><span>Contrato de Prestación de Servicios Profesionales y Financiamiento de Gastos</span></div>
+        </div>
+        <div class="contenido">
+          <div class="bloque folio-area"><div class="folio-box">Expediente: <strong>${vars.folio}</strong></div></div>
+          <div class="bloque" style="padding-top:14px;">${intro}</div>
+
+          <div class="bloque junto"><h2>Declaraciones</h2></div>
+          <div class="bloque junto"><strong>POR PARTE DE "EL PRESTADOR":</strong></div>
+          ${declPrestador}
+          <div class="bloque junto"><strong>DECLARA EL INTERESADO:</strong></div>
+          ${declInteresado}
+
+          <div class="bloque junto"><h2>Cláusulas</h2></div>
+          <div class="bloque junto">AMBAS PARTES SE COMPROMETEN A SOMETERSE AL TENOR DE LAS SIGUIENTES CLÁUSULAS SIN QUE EXISTAN VICIOS DE CONSENTIMIENTO:</div>
+          ${clausulas}
+
+          <div class="bloque cierre">
+            <p>
+              EN LA CIUDAD DE <strong>${ciudad}</strong>, A LOS <strong>${fechaLarga()}</strong>,
+              HABIENDO LEÍDO Y COMPRENDIDO EL CONTENIDO DEL PRESENTE CONTRATO, LAS PARTES LO SUSCRIBEN EN SEÑAL DE CONFORMIDAD.
+            </p>
+            <div class="firma-bloque">
+              <table class="firmas">
+                <tr><td style="height:70px;"></td><td style="height:70px;"></td></tr>
+                <tr>
+                  <td><div class="linea-firma"><strong>FIRMA DE "EL PRESTADOR"</strong><br>C. ${sinTitulo(config.firma_prestador || '').toUpperCase()}<br><small>${(config.site_name || '').toUpperCase()}</small></div></td>
+                  <td><div class="linea-firma"><strong>FIRMA DEL "INTERESADO"</strong><br>C. ${acreditado}<br><small>RFC: ${rfc} &nbsp; CURP: ${curp}</small></div></td>
+                </tr>
+              </table>
+              <table class="firmas" style="margin-top:40px;">
+                <tr><td style="height:70px;"></td><td style="height:70px;"></td></tr>
+                <tr>
+                  <td><div class="linea-firma"><strong>FIRMA POR PARTE DEL JURÍDICO</strong><br>LIC. ${sinTitulo(config.firma_juridico || '').toUpperCase()}</div></td>
+                  <td><div class="linea-firma"><strong>FIRMA DEL "OBLIGADO SOLIDARIO"</strong><br>C. ${obligadoSolidario}</div></td>
+                </tr>
+              </table>
             </div>
           </div>
         </div>
+        ${footerHtml}
       </div>
+      ${paginar ? `<script>${SCRIPT_PAGINAR}
+paginarContrato(${altoHojaPx});</script>` : ''}
     </body>
     </html>
   `;
 }
+
+/**
+ * Corre DENTRO del WebView de expo-print. Va como string (no como función con
+ * toString()) porque en builds de release Hermes compila a bytecode y
+ * toString() ya no devuelve el código fuente.
+ *
+ * Reparte los .bloque en hojas de alto fijo con el pie al fondo de cada una:
+ *  - Un bloque que no cabe pasa completo a la hoja siguiente (nunca se parte).
+ *  - Los títulos/encabezados (.junto) no se quedan solos al final de una hoja.
+ *  - Si el cierre (párrafo final + firmas) no cabe, se lleva consigo las
+ *    últimas cláusulas, para que las firmas nunca queden solas en una hoja.
+ */
+const SCRIPT_PAGINAR = `
+function paginarContrato(altoHoja) {
+  var fuente = document.getElementById('fuente');
+  if (!fuente) return;
+  var header = fuente.firstElementChild;
+  var contenido = fuente.querySelector('.contenido');
+  var footerModelo = fuente.querySelector('.footer');
+  var bloques = Array.prototype.slice.call(contenido.children);
+  var LLEVAR_CON_FIRMAS = 2;
+  var hojas = [];
+  var cuerpo;
+
+  function nuevaHoja() {
+    var hoja = document.createElement('div');
+    hoja.className = 'hoja';
+    cuerpo = document.createElement('div');
+    cuerpo.className = 'hoja-cuerpo';
+    var inner = document.createElement('div');
+    inner.className = 'contenido';
+    cuerpo.appendChild(inner);
+    hoja.appendChild(cuerpo);
+    hoja.appendChild(footerModelo.cloneNode(true));
+    document.body.appendChild(hoja);
+    hojas.push(hoja);
+    return inner;
+  }
+  function cabe() { return cuerpo.scrollHeight <= cuerpo.clientHeight; }
+
+  var actual = nuevaHoja();
+  cuerpo.insertBefore(header, actual);
+
+  for (var i = 0; i < bloques.length; i++) {
+    var bloque = bloques[i];
+    actual.appendChild(bloque);
+    if (cabe() || actual.children.length === 1) continue;
+
+    var llevar = [bloque];
+    var extra = bloque.classList.contains('cierre') ? LLEVAR_CON_FIRMAS : 0;
+    var prev = bloque.previousElementSibling;
+    while (prev && (extra > 0 || prev.classList.contains('junto')) && actual.children.length > llevar.length + 1) {
+      if (!prev.classList.contains('junto')) extra--;
+      llevar.unshift(prev);
+      prev = prev.previousElementSibling;
+    }
+    actual = nuevaHoja();
+    for (var j = 0; j < llevar.length; j++) actual.appendChild(llevar[j]);
+  }
+
+  fuente.parentNode.removeChild(fuente);
+  for (var k = 0; k < hojas.length; k++) {
+    var n = hojas[k].querySelector('.footer-hoja');
+    if (n) n.textContent = ' • Hoja ' + (k + 1) + ' de ' + hojas.length;
+  }
+}
+`;

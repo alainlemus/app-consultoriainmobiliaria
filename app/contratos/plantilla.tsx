@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Header from '@/src/components/ui/Header';
 import Button from '@/src/components/ui/Button';
 import { Colors, Typography, Spacing } from '@/src/theme';
-import { getContratoConfig, renderPrestacionServiciosHtml, MARGENES_PAGINA } from '@/src/contratos/prestacionServicios';
+import { getContratoConfig, renderPrestacionServiciosHtml, MARGENES_PAGINA, DIMENSIONES_PAPEL } from '@/src/contratos/prestacionServicios';
 
 export default function VerPlantillaScreen() {
   const router = useRouter();
@@ -37,7 +37,7 @@ export default function VerPlantillaScreen() {
         obligadoSolidario:  '',
       }, config);
 
-      const { uri } = await Print.printToFileAsync({ html, margins: MARGENES_PAGINA });
+      const { uri } = await Print.printToFileAsync({ html, ...DIMENSIONES_PAPEL.carta, margins: MARGENES_PAGINA });
       await Print.printAsync({ uri });
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo generar la vista previa.');
@@ -53,7 +53,7 @@ export default function VerPlantillaScreen() {
       const html = renderPrestacionServiciosHtml({
         folio: 'EJEMPLO', acreditado: '', curp: '', rfc: '', domAcreditado: '', tipoTramite: 'Crédito', obligadoSolidario: '',
       }, config);
-      const { uri } = await Print.printToFileAsync({ html, margins: MARGENES_PAGINA });
+      const { uri } = await Print.printToFileAsync({ html, ...DIMENSIONES_PAPEL.carta, margins: MARGENES_PAGINA });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
       }

@@ -31,7 +31,7 @@ import Button from '@/src/components/ui/Button';
 import Input from '@/src/components/ui/Input';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import { getExpediente, uploadDocumento, uploadContratoGenerado } from '@/src/services/api';
-import { getContratoConfig, renderPrestacionServiciosHtml, MARGENES_PAGINA } from '@/src/contratos/prestacionServicios';
+import { getContratoConfig, renderPrestacionServiciosHtml, MARGENES_PAGINA, DIMENSIONES_PAPEL } from '@/src/contratos/prestacionServicios';
 import { reconocerIne, ocrDisponible, type DatosIneOcr } from '@/src/utils/ineOcr';
 import { persistirDocumento, comprimirFoto } from '@/src/utils/comprimirFoto';
 import { guardarContratoGenerado } from '@/src/services/contratosGenerados';
@@ -43,14 +43,6 @@ type Mode = 'captura' | 'ocr' | 'revision' | 'datos-tramite' | 'generando' | 'li
 type TamanoPapel = 'oficio' | 'carta';
 
 const CONTRATO_TIPO_DOCUMENTO = 'Contrato de Prestación de Servicios';
-
-// Puntos a 72 dpi (lo que espera expo-print). Carta = 216×279mm (8.5×11in,
-// igual al default de expo-print). Oficio = 216×340mm, tamaño de hoja más
-// usado en trámites en México.
-const DIMENSIONES_PAPEL: Record<TamanoPapel, { width: number; height: number }> = {
-  carta:  { width: 612, height: 792 },
-  oficio: { width: 612, height: 964 },
-};
 
 interface DatosPersona {
   nombre:    string;
