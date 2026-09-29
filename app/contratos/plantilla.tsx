@@ -17,10 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Header from '@/src/components/ui/Header';
 import Button from '@/src/components/ui/Button';
 import { Colors, Typography, Spacing } from '@/src/theme';
-import { getContratoConfig, renderPrestacionServiciosHtml } from '@/src/contratos/prestacionServicios';
-
-// Igual que en app/contratos/registrar.tsx — deja aire entre el borde de la hoja y el contenido.
-const MARGENES_PAGINA = { top: 24, bottom: 24, left: 18, right: 18 };
+import { getContratoConfig, renderPrestacionServiciosHtml, MARGENES_PAGINA } from '@/src/contratos/prestacionServicios';
 
 export default function VerPlantillaScreen() {
   const router = useRouter();

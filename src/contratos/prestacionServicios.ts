@@ -15,6 +15,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { KEYS } from '../services/offline';
 import type { ContratoPrestacionServiciosConfig } from '../services/api';
 
@@ -60,6 +61,26 @@ export interface ContratoVars {
 }
 
 const BLANCO = '________________________';
+
+/**
+ * Márgenes de página en puntos (72pt = 1in) para Print.printToFileAsync.
+ * Compartidos por todas las pantallas que imprimen el contrato porque el
+ * HTML depende de ellos (ver ANCHO_PAPEL_PT / anchoCuerpoIos abajo).
+ */
+export const MARGENES_PAGINA = { top: 24, bottom: 24, left: 18, right: 18 };
+
+/** Carta y Oficio comparten ancho (8.5in = 612pt); solo cambia el alto. */
+const ANCHO_PAPEL_PT = 612;
+
+/**
+ * En iOS expo-print carga el HTML en un WKWebView de 612pt de ancho y mide
+ * ahí el alto del documento, pero luego lo pagina al ancho imprimible
+ * (612 − márgenes laterales). Con menos ancho el texto hace más renglones y
+ * el documento queda más alto que lo medido, así que lo último (los nombres
+ * del jurídico y del obligado solidario) se recortaba de la última hoja.
+ * Fijando el body al ancho imprimible ambos layouts coinciden y no se pierde nada.
+ */
+const anchoCuerpoIos = ANCHO_PAPEL_PT - MARGENES_PAGINA.left - MARGENES_PAGINA.right;
 
 const fechaLarga = () => {
   const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -146,6 +167,7 @@ export function renderPrestacionServiciosHtml(
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; font-size: ${espaciado.fontSize}px; line-height: ${espaciado.lineHeight}; color: #1a1a1a; background: #ffffff; }
+        ${Platform.OS === 'ios' ? `body { width: ${anchoCuerpoIos}px; }` : ''}
         .page { padding: 0; }
         .header { background: #1a1a1a; padding: 14px 28px 0 28px; }
         .header-empresa { font-size: 18px; font-weight: bold; color: #d4af37; letter-spacing: 1.5px; text-transform: uppercase; }
@@ -165,9 +187,11 @@ export function renderPrestacionServiciosHtml(
         .firmas { width: 100%; border-collapse: collapse; }
         .firmas td { width: 50%; padding: 0 24px; text-align: center; vertical-align: bottom; }
         .linea-firma { border-top: 2px solid #1a1a1a; padding-top: 8px; font-size: 12px; line-height: 1.6; }
-        /* Fixed = se repite al pie de cada hoja impresa (funciona en Chromium/Android;
-           en iOS/WebKit algunos motores solo lo dibujan en la primera hoja). */
-        .footer { position: fixed; left: 28px; right: 28px; bottom: 14px; padding-top: 8px; border-top: 1px solid #d4af37; background: #ffffff; }
+        /* En flujo normal (NO position:fixed): fixed no reserva espacio, así que
+           en iOS/WebKit quedaba encima de la última fila de firmas y tapaba los
+           nombres del jurídico y del obligado solidario. Va dentro de .cierre
+           para que siempre acompañe a las firmas en la misma hoja. */
+        .footer { margin-top: 28px; padding-top: 8px; border-top: 1px solid #d4af37; }
         .footer-inner { display: flex; justify-content: space-between; font-size: 10px; }
         .footer-left { color: #96760f; }
         .footer-right { color: #9b2335; }
@@ -220,11 +244,11 @@ export function renderPrestacionServiciosHtml(
               </tr>
             </table>
           </div>
-        </div>
-        <div class="footer">
-          <div class="footer-inner">
-            <span class="footer-left">${config.site_name || 'Consultoría Inmobiliaria'} &bull; Documento generado el ${new Date().toLocaleDateString('es-MX')}</span>
-            <span class="footer-right">${vars.folio}</span>
+          <div class="footer">
+            <div class="footer-inner">
+              <span class="footer-left">${config.site_name || 'Consultoría Inmobiliaria'} &bull; Documento generado el ${new Date().toLocaleDateString('es-MX')}</span>
+              <span class="footer-right">${vars.folio}</span>
+            </div>
           </div>
         </div>
       </div>
