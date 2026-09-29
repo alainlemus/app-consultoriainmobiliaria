@@ -9,7 +9,9 @@
     "web": "expo start --web",
     "test": "jest --forceExit",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage --forceExit"
+    "test:coverage": "jest --coverage --forceExit",
+    "update:staging": "APP_ENV=staging EXPO_PUBLIC_API_URL=https://dev.consultoriainmobiliaria.com.mx/api/v1 EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyAC_cTEOtFqreDqAzDsqtd-MqC38eREKLQ eas update --channel staging",
+    "update:production": "APP_ENV=production EXPO_PUBLIC_API_URL=https://consultoriainmobiliaria.com.mx/api/v1 EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyAC_cTEOtFqreDqAzDsqtd-MqC38eREKLQ eas update --channel production"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -43,6 +45,7 @@
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
     "expo-task-manager": "~14.0.9",
+    "expo-updates": "~29.0.20",
     "expo-web-browser": "~15.0.11",
     "react": "19.1.0",
     "react-dom": "^19.1.0",

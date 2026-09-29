@@ -27,6 +27,7 @@
       }
     },
     "staging-simulator": {
+      "channel": "staging",
       "distribution": "internal",
       "ios": {
         "simulator": true
@@ -38,6 +39,7 @@
       }
     },
     "staging": {
+      "channel": "staging",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
@@ -52,6 +54,7 @@
       }
     },
     "production": {
+      "channel": "production",
       "distribution": "store",
       "android": {
         "buildType": "app-bundle",

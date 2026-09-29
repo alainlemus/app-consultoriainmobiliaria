@@ -78,6 +78,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     icon:    './assets/icon.png',
     userInterfaceStyle: 'light',
     scheme: 'consultoriainmobiliaria',
+    // EAS Update (OTA): los cambios solo-JS se publican con
+    //   eas update --channel staging   (o production)
+    // y llegan a la app instalada sin reinstalar. 'fingerprint' cambia el
+    // runtime solo cuando cambia algo nativo, así un update nunca llega a un
+    // binario incompatible (y subir `version` no corta los updates).
+    runtimeVersion: { policy: 'fingerprint' },
+    updates: {
+      url: 'https://u.expo.dev/0e90bae8-ab6a-412f-a91d-01433afe689d',
+    },
     splash: {
       image:       './assets/splash-icon.png',
       resizeMode:  'contain',
@@ -86,6 +95,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       bundleIdentifier: 'com.consultoriainmobiliaria.app',
       supportsTablet: true,
+      // Solo usa encriptación estándar/exenta (HTTPS). Declararlo aquí evita que
+      // EAS Build lo pregunte e intente escribir la respuesta en este archivo
+      // dinámico (falla con "Error reading Expo config ... Unexpected token '{'").
+      config: { usesNonExemptEncryption: false },
       infoPlist: {
         NSAppTransportSecurity: {
           NSExceptionDomains: {
