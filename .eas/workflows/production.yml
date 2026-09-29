@@ -8,7 +8,6 @@ name: Production
 on:
   push:
     branches: ['main']
-    paths: ['**', '!**/*.md']
 
 jobs:
   fingerprint:

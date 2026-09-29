@@ -47,7 +47,7 @@ Ambos calculan el fingerprint y deciden entre **update OTA** o **build**:
 | `develop` (`staging.yml`) | Update OTA al canal `staging` | Build `staging` (iOS + Android) para testers |
 | `main` (`production.yml`) | Update OTA al canal `production` (iOS) | Build `production` iOS + envío a App Store Connect |
 
-Los cambios que solo tocan `.md` no disparan nada.
+Todo push a esas ramas dispara el flujo (si nada nativo cambió, solo cuesta un update OTA).
 
 ### A. Día a día (testers)
 ```bash

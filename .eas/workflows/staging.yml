@@ -6,7 +6,6 @@ name: Staging
 on:
   push:
     branches: ['develop']
-    paths: ['**', '!**/*.md']
 
 jobs:
   fingerprint:
