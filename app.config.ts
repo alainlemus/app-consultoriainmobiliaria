@@ -61,6 +61,13 @@ const withFixImageToPdf: ConfigPlugin = (config) =>
     },
   ]);
 
+// Única fuente de la versión visible de la app (la que ve el usuario en la
+// tienda). Se sube SOLO con `npm run release:patch|minor|major`, nunca a mano.
+// El número de build (buildNumber / versionCode) lo lleva EAS en remoto
+// (eas.json > cli.appVersionSource = "remote" + autoIncrement).
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { version: APP_VERSION } = require('./package.json') as { version: string };
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const isProduction = process.env.APP_ENV === 'production';
   const isStaging    = process.env.APP_ENV === 'staging';
@@ -73,7 +80,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name:    'Consultoría Inmobiliaria',
     slug:    'app-consultoriainmobiliaria',
-    version: '2.2.1',
+    version: APP_VERSION,
     orientation: 'portrait',
     icon:    './assets/icon.png',
     userInterfaceStyle: 'light',

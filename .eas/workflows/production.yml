@@ -1,0 +1,51 @@
+# Push a main → App Store (canal production).
+# Subir la versión (npm run release:*) o cualquier cambio nativo cambia el
+# fingerprint → build de producción + envío a App Store Connect.
+# Solo cambios de JS → update OTA a los usuarios de la versión actual.
+# Android: se agregará cuando exista la cuenta de servicio de Google Play.
+name: Production
+
+on:
+  push:
+    branches: ['main']
+    paths: ['**', '!**/*.md']
+
+jobs:
+  fingerprint:
+    name: Fingerprint
+    type: fingerprint
+    environment: production
+
+  get_ios_build:
+    name: Buscar build iOS compatible
+    needs: [fingerprint]
+    type: get-build
+    params:
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      profile: production
+
+  build_ios:
+    name: Build iOS
+    needs: [get_ios_build]
+    if: ${{ !needs.get_ios_build.outputs.build_id }}
+    type: build
+    params:
+      platform: ios
+      profile: production
+  submit_ios:
+    name: Enviar a App Store Connect
+    needs: [build_ios]
+    type: submit
+    params:
+      build_id: ${{ needs.build_ios.outputs.build_id }}
+      profile: production
+
+  update_ios:
+    name: Update OTA iOS
+    needs: [get_ios_build]
+    if: ${{ needs.get_ios_build.outputs.build_id }}
+    type: update
+    environment: production
+    params:
+      channel: production
+      platform: ios

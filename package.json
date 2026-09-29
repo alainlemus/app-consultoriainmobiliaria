@@ -10,8 +10,14 @@
     "test": "jest --forceExit",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage --forceExit",
-    "update:staging": "APP_ENV=staging EXPO_PUBLIC_API_URL=https://dev.consultoriainmobiliaria.com.mx/api/v1 EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyAC_cTEOtFqreDqAzDsqtd-MqC38eREKLQ eas update --channel staging",
-    "update:production": "APP_ENV=production EXPO_PUBLIC_API_URL=https://consultoriainmobiliaria.com.mx/api/v1 EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyAC_cTEOtFqreDqAzDsqtd-MqC38eREKLQ eas update --channel production"
+    "release:patch": "npm version patch -m \"chore(release): v%s\"",
+    "release:minor": "npm version minor -m \"chore(release): v%s\"",
+    "release:major": "npm version major -m \"chore(release): v%s\"",
+    "build:staging": "eas build --profile staging --platform all",
+    "build:production": "eas build --profile production --platform all",
+    "submit:production": "eas submit --profile production --platform all --latest",
+    "update:staging": "eas update --channel staging --environment preview",
+    "update:production": "eas update --channel production --environment production"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

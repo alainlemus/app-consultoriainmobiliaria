@@ -1,0 +1,66 @@
+# Push a develop → testers (canal staging).
+# Si ya hay un build de staging con el mismo fingerprint (nada nativo cambió)
+# se publica un update OTA; si no, se genera un build nuevo.
+name: Staging
+
+on:
+  push:
+    branches: ['develop']
+    paths: ['**', '!**/*.md']
+
+jobs:
+  fingerprint:
+    name: Fingerprint
+    type: fingerprint
+    environment: preview
+
+  get_ios_build:
+    name: Buscar build iOS compatible
+    needs: [fingerprint]
+    type: get-build
+    params:
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      profile: staging
+  get_android_build:
+    name: Buscar build Android compatible
+    needs: [fingerprint]
+    type: get-build
+    params:
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      profile: staging
+
+  build_ios:
+    name: Build iOS
+    needs: [get_ios_build]
+    if: ${{ !needs.get_ios_build.outputs.build_id }}
+    type: build
+    params:
+      platform: ios
+      profile: staging
+  build_android:
+    name: Build Android
+    needs: [get_android_build]
+    if: ${{ !needs.get_android_build.outputs.build_id }}
+    type: build
+    params:
+      platform: android
+      profile: staging
+
+  update_ios:
+    name: Update OTA iOS
+    needs: [get_ios_build]
+    if: ${{ needs.get_ios_build.outputs.build_id }}
+    type: update
+    environment: preview
+    params:
+      channel: staging
+      platform: ios
+  update_android:
+    name: Update OTA Android
+    needs: [get_android_build]
+    if: ${{ needs.get_android_build.outputs.build_id }}
+    type: update
+    environment: preview
+    params:
+      channel: staging
+      platform: android
