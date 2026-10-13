@@ -3,7 +3,7 @@
  * Entra con un resorte, el icono late y cada punto aparece uno tras otro.
  */
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing, Typography } from '../theme';
 
@@ -51,6 +51,8 @@ export default function AvisoRuta({ visible, onActivar, onCancelar }: {
           <Text style={s.titulo}>Activar tu ruta</Text>
           <Text style={s.intro}>Esto es lo que va a pasar:</Text>
 
+          {/* Si la pantalla es chica, el contenido se desplaza y los botones siempre se ven */}
+          <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
           <View style={s.lista}>
             {PUNTOS.map((p, i) => (
               <Animated.View
@@ -63,6 +65,7 @@ export default function AvisoRuta({ visible, onActivar, onCancelar }: {
             ))}
           </View>
           <Text style={s.permiso}>Tu teléfono te pedirá permiso para usar la ubicación: elige «Permitir siempre» para que la ruta no se corte.</Text>
+          </ScrollView>
 
           <Pressable style={s.btnActivar} onPress={onActivar}>
             <Ionicons name="play-circle" size={22} color={Colors.gold[400]} />
@@ -83,11 +86,12 @@ const s = StyleSheet.create({
   icono: { alignSelf: 'center', width: 76, height: 76, borderRadius: 38, backgroundColor: Colors.dark[900], alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
   titulo:{ fontSize: Typography.fontSize['2xl'], fontWeight: Typography.fontWeight.black, color: Colors.dark[900], textAlign: 'center' },
   intro: { fontSize: Typography.fontSize.base, color: Colors.dark[500], textAlign: 'center', marginTop: Spacing.xs, marginBottom: Spacing.md },
+  scroll: { flexGrow: 0, flexShrink: 1 },
   lista: { gap: Spacing.md, backgroundColor: Colors.cream[100], borderRadius: Radius.md, padding: Spacing.md },
   fila:  { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   filaIcono: { width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.gold[50], alignItems: 'center', justifyContent: 'center' },
-  texto: { flex: 1, fontSize: Typography.fontSize.base, color: Colors.dark[800], lineHeight: 23, fontWeight: Typography.fontWeight.medium },
-  permiso: { fontSize: Typography.fontSize.sm, color: Colors.dark[500], textAlign: 'center', lineHeight: 20, marginTop: Spacing.md, marginBottom: Spacing.lg },
+  texto: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[800], lineHeight: 21, fontWeight: Typography.fontWeight.medium },
+  permiso: { fontSize: Typography.fontSize.sm, color: Colors.dark[500], textAlign: 'center', lineHeight: 20, marginTop: Spacing.md, marginBottom: Spacing.md },
   btnActivar:     { flexDirection: 'row', gap: Spacing.sm, backgroundColor: Colors.dark[900], borderRadius: Radius.md, paddingVertical: Spacing.base, alignItems: 'center', justifyContent: 'center' },
   btnActivarText: { color: Colors.gold[400], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
   btnCancelar:     { paddingVertical: Spacing.md, alignItems: 'center' },
