@@ -8,6 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius, Spacing, Typography } from '../../src/theme';
 import { getExpediente } from '../../src/services/api';
+import { getCacheExpediente } from '../../src/services/offline';
 import DocumentosExpediente from '../../src/components/DocumentosExpediente';
 import type { Expediente } from '../../src/types';
 
@@ -22,7 +23,12 @@ export default function DetalleExpedienteScreen() {
   useEffect(() => {
     getExpediente(Number(id))
       .then(setExp)
-      .catch(e => setError(e instanceof Error ? e.message : 'No se pudo cargar el expediente'))
+      .catch(async e => {
+        // Sin conexión: se usa la copia guardada en el dispositivo
+        const guardado = await getCacheExpediente(Number(id));
+        if (guardado) setExp(guardado);
+        else setError(e instanceof Error ? e.message : 'No se pudo cargar el expediente');
+      })
       .finally(() => setCargando(false));
   }, [id]);
 
@@ -45,11 +51,7 @@ export default function DetalleExpedienteScreen() {
       ) : (
         <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
           {/* Cliente */}
-          <TouchableOpacity
-            style={styles.card}
-            activeOpacity={contacto ? 0.8 : 1}
-            onPress={() => contacto && router.push(`/prospectos/${contacto.id}`)}
-          >
+          <View style={styles.card}>
             {contacto?.foto_url ? (
               <Image source={{ uri: contacto.foto_url }} style={styles.avatar} />
             ) : (
@@ -60,10 +62,15 @@ export default function DetalleExpedienteScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.nombre} numberOfLines={2}>{contacto?.nombre ?? `Expediente #${exp.id}`}</Text>
               <Text style={styles.sub}>{exp.folio ?? `#${exp.id}`}{exp.tipo_tramite?.nombre ? ` · ${exp.tipo_tramite.nombre}` : ''}</Text>
-              {contacto?.telefono ? <Text style={styles.sub}>{contacto.telefono}</Text> : null}
             </View>
-            {contacto ? <Text style={styles.chevron}>›</Text> : null}
-          </TouchableOpacity>
+          </View>
+          {(contacto?.telefono || contacto?.email || contacto?.curp) ? (
+            <View style={styles.datos}>
+              {contacto?.telefono ? <Text style={styles.dato}>📞  {contacto.telefono}</Text> : null}
+              {contacto?.email    ? <Text style={styles.dato}>✉️  {contacto.email}</Text> : null}
+              {contacto?.curp     ? <Text style={styles.dato}>🪪  {contacto.curp}</Text> : null}
+            </View>
+          ) : null}
 
           <Text style={styles.sectionLabel}>Documentos</Text>
           <DocumentosExpediente expedienteId={exp.id} />
@@ -96,7 +103,8 @@ const styles = StyleSheet.create({
   avatarLetter:   { color: Colors.gold[400], fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold },
   nombre:  { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   sub:     { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
-  chevron: { fontSize: 22, color: Colors.dark[300] },
+  datos:   { backgroundColor: Colors.white, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[200], padding: Spacing.md, marginTop: Spacing.xs, gap: 6 },
+  dato:    { fontSize: Typography.fontSize.sm, color: Colors.dark[700] },
   sectionLabel: {
     fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, color: Colors.dark[500],
     letterSpacing: 1, textTransform: 'uppercase', marginTop: Spacing.lg, marginBottom: Spacing.xs,
