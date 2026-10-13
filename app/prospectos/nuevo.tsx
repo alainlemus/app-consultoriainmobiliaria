@@ -5,6 +5,7 @@ import {
   Image, Alert, Modal, ActivityIndicator, Switch, TextInput as RNTextInput,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -465,7 +466,7 @@ export default function NuevoProspectoScreen() {
         <View style={styles.avisoBackdrop}>
           <View style={styles.avisoCard}>
             <View style={[styles.avisoIcono, aviso?.offline && styles.avisoIconoOffline]}>
-              <Text style={styles.avisoIconoText}>{aviso?.offline ? '📴' : '✓'}</Text>
+              <Ionicons name={aviso?.offline ? 'cloud-offline' : 'checkmark'} size={34} color={Colors.white} />
             </View>
             <Text style={styles.avisoTitulo}>Prospecto guardado</Text>
             <Text style={styles.avisoTexto}>

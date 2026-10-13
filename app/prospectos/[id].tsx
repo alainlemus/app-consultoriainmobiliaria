@@ -4,6 +4,7 @@ import {
   TouchableOpacity, ActivityIndicator, TextInput,
   KeyboardAvoidingView, Platform, Alert, Image, Switch,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -445,13 +446,13 @@ export default function DetalleProspectoScreen() {
           <View style={styles.actionsCard}>
             {contacto.expediente_activo ? (
               <ActionRow
-                icon="📂"
+                icon="folder-open"
                 label={`Ver expediente${contacto.expediente_activo.folio ? ` ${contacto.expediente_activo.folio}` : ''}`}
                 onPress={() => router.push(`/expedientes/${contacto.expediente_activo!.id}`)}
               />
             ) : (
               <ActionRow
-                icon="📁"
+                icon="folder-open-outline"
                 label="Iniciar expediente"
                 sublabel="Cuando ya es cliente"
                 onPress={() => router.push({
@@ -461,7 +462,7 @@ export default function DetalleProspectoScreen() {
               />
             )}
             <ActionRow
-              icon="🔎"
+              icon="search"
               label="Precalificar"
               sublabel="Simulador FOVISSSTE"
               onPress={() => Linking.openURL('https://inscripcioncontinua.fovissste.gob.mx/simulador/')}
@@ -469,7 +470,7 @@ export default function DetalleProspectoScreen() {
             />
             {ultimaVisita ? (
               <ActionRow
-                icon="📍"
+                icon="location"
                 label="Ver ubicación en mapa"
                 sublabel={[ultimaVisita.municipio, ultimaVisita.estado].filter(Boolean).join(', ') || undefined}
                 onPress={() => router.push({
@@ -486,13 +487,13 @@ export default function DetalleProspectoScreen() {
             ) : null}
             {!ultimaVisita && (
               <ActionRow
-                icon="🗺️"
+                icon="map"
                 label="Registrar visita"
                 onPress={() => router.push({ pathname: '/mapa', params: { contacto_id: String(contacto.id), contacto_nombre: contacto.nombre } })}
                 border
               />
             )}
-            <ActionRow icon="✏️" label="Editar prospecto" onPress={() => setEditing(true)} />
+            <ActionRow icon="create" label="Editar prospecto" onPress={() => setEditing(true)} />
           </View>
         </ScrollView>
       </View>
@@ -857,14 +858,14 @@ function InfoRow({ label, value, last }: { label: string; value: string; last?: 
   );
 }
 
-function ActionRow({ icon, label, sublabel, onPress, border }: { icon: string; label: string; sublabel?: string; onPress: () => void; border?: boolean }) {
+function ActionRow({ icon, label, sublabel, onPress, border }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; sublabel?: string; onPress: () => void; border?: boolean }) {
   return (
     <TouchableOpacity
       style={[styles.actionRow, border && styles.actionRowBorder]}
       onPress={onPress}
       activeOpacity={0.75}
     >
-      <Text style={styles.actionIcon}>{icon}</Text>
+      <Ionicons name={icon} size={24} color={Colors.dark[700]} style={{ width: 30 }} />
       <View style={{ flex: 1 }}>
         <Text style={styles.actionLabel}>{label}</Text>
         {sublabel ? <Text style={{ fontSize: 12, color: Colors.dark[400], marginTop: 1 }}>{sublabel}</Text> : null}

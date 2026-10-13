@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, FlatList,
   TouchableOpacity, ActivityIndicator, RefreshControl, Image, Modal, Pressable,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
@@ -160,7 +161,10 @@ export default function ExpedientesScreen() {
               <View style={styles.info}>
                 {!exp._pendiente_sync && (
                   <View style={styles.badgeRow}>
-                    <Text style={styles.docsPill}>📎 {exp.documentos_count ?? 0} documento{(exp.documentos_count ?? 0) === 1 ? '' : 's'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="attach" size={16} color={Colors.dark[500]} />
+                      <Text style={styles.docsPill}>{exp.documentos_count ?? 0} documento{(exp.documentos_count ?? 0) === 1 ? '' : 's'}</Text>
+                    </View>
                     <Text style={styles.chevron}>›</Text>
                   </View>
                 )}

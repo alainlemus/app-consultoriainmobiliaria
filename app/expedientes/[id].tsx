@@ -4,6 +4,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius, Spacing, Typography } from '../../src/theme';
@@ -66,9 +67,9 @@ export default function DetalleExpedienteScreen() {
           </View>
           {(contacto?.telefono || contacto?.email || contacto?.curp) ? (
             <View style={styles.datos}>
-              {contacto?.telefono ? <Text style={styles.dato}>📞  {contacto.telefono}</Text> : null}
-              {contacto?.email    ? <Text style={styles.dato}>✉️  {contacto.email}</Text> : null}
-              {contacto?.curp     ? <Text style={styles.dato}>🪪  {contacto.curp}</Text> : null}
+              {contacto?.telefono ? <View style={styles.datoRow}><Ionicons name="call-outline" size={20} color={Colors.dark[500]} /><Text style={styles.dato}>{contacto.telefono}</Text></View> : null}
+              {contacto?.email    ? <View style={styles.datoRow}><Ionicons name="mail-outline" size={20} color={Colors.dark[500]} /><Text style={styles.dato}>{contacto.email}</Text></View> : null}
+              {contacto?.curp     ? <View style={styles.datoRow}><Ionicons name="id-card-outline" size={20} color={Colors.dark[500]} /><Text style={styles.dato}>{contacto.curp}</Text></View> : null}
             </View>
           ) : null}
 
@@ -104,6 +105,7 @@ const styles = StyleSheet.create({
   nombre:  { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   sub:     { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
   datos:   { backgroundColor: Colors.white, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[200], padding: Spacing.md, marginTop: Spacing.xs, gap: 6 },
+  datoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   dato:    { fontSize: Typography.fontSize.sm, color: Colors.dark[700] },
   sectionLabel: {
     fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, color: Colors.dark[500],

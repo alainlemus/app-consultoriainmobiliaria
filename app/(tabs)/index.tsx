@@ -4,6 +4,7 @@ import {
   TouchableOpacity, RefreshControl, StatusBar, Image,
   Switch, ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -136,20 +137,20 @@ export default function DashboardScreen() {
           )}
           {/* ── KPI cards ── */}
           <View style={styles.kpiGrid}>
-            <KpiCard label="Prospectos"  value={stats?.totalProspectos  ?? '—'} icon="👥" accent={Colors.gold[400]} onPress={() => router.push('/(tabs)/prospectos')} />
-            <KpiCard label="Expedientes" value={stats?.totalExpedientes ?? '—'} icon="📁" accent={Colors.dark[500]} onPress={() => router.push('/(tabs)/expedientes')} />
+            <KpiCard label="Prospectos"  value={stats?.totalProspectos  ?? '—'} icon="people" accent={Colors.gold[400]} onPress={() => router.push('/(tabs)/prospectos')} />
+            <KpiCard label="Expedientes" value={stats?.totalExpedientes ?? '—'} icon="folder" accent={Colors.dark[500]} onPress={() => router.push('/(tabs)/expedientes')} />
           </View>
 
           {/* ── Acciones rápidas ── */}
           <SectionHeader title="Acciones" />
           <View style={styles.actionsGrid}>
-            <ActionTile icon="➕" label="Nuevo prospecto" onPress={() => router.push('/prospectos/nuevo')} primary />
+            <ActionTile icon="person-add" label="Nuevo prospecto" onPress={() => router.push('/prospectos/nuevo')} primary />
             {isSuperAdmin && (
-              <ActionTile icon="🖋️" label="Contratos" onPress={() => router.push('/contratos')} />
+              <ActionTile icon="document-text" label="Contratos" onPress={() => router.push('/contratos')} />
             )}
-            <ActionTile icon="🗺️" label="Mapa"            onPress={() => router.push('/mapa')} />
+            <ActionTile icon="map" label="Mapa"            onPress={() => router.push('/mapa')} />
             {mostrarRutas && (
-              <ActionTile icon="📍" label="Rutas" onPress={() => router.push('/rutas')} />
+              <ActionTile icon="trail-sign" label="Rutas" onPress={() => router.push('/rutas')} />
             )}
           </View>
 
@@ -158,7 +159,10 @@ export default function DashboardScreen() {
             <View style={styles.trackingCard}>
               <View style={styles.trackingRow}>
                 <View style={styles.trackingInfo}>
-                  <Text style={styles.trackingLabel}>📍 Ruta</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="navigate" size={18} color={Colors.dark[800]} />
+                    <Text style={styles.trackingLabel}>Ruta</Text>
+                  </View>
                   <Text style={styles.trackingSub}>
                      {estaActivo
                        ? routePendientes > 0
@@ -246,24 +250,26 @@ const sh = StyleSheet.create({
   link:  { fontSize: Typography.fontSize.sm, color: Colors.gold[500], fontWeight: Typography.fontWeight.semibold },
 });
 
-function KpiCard({ label, value, icon, accent, onPress }: { label: string; value: number | string; icon: string; accent: string; onPress?: () => void }) {
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
+function KpiCard({ label, value, icon, accent, onPress }: { label: string; value: number | string; icon: IconName; accent: string; onPress?: () => void }) {
   return (
     <TouchableOpacity style={[styles.kpiCard, { borderTopColor: accent }]} onPress={onPress} activeOpacity={0.8}>
-      <Text style={styles.kpiIcon}>{icon}</Text>
+      <Ionicons name={icon} size={26} color={accent} style={{ marginBottom: 2 }} />
       <Text style={[styles.kpiValue, { color: accent }]}>{value}</Text>
       <Text style={styles.kpiLabel} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-function ActionTile({ icon, label, onPress, primary }: { icon: string; label: string; onPress: () => void; primary?: boolean }) {
+function ActionTile({ icon, label, onPress, primary }: { icon: IconName; label: string; onPress: () => void; primary?: boolean }) {
   return (
     <TouchableOpacity
       style={[styles.actionTile, primary && styles.actionTilePrimary]}
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <Text style={[styles.actionIcon, primary && styles.actionIconPrimary]}>{icon}</Text>
+      <Ionicons name={icon} size={30} color={primary ? Colors.gold[400] : Colors.dark[700]} />
       <Text style={[styles.actionLabel, primary && styles.actionLabelPrimary]}>{label}</Text>
     </TouchableOpacity>
   );

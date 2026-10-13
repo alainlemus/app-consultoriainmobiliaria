@@ -32,13 +32,16 @@ try {
 } catch { /* no disponible en Expo Go / simulador */ }
 
 // ── Resto de imports ──────────────────────────────────────────────────────────
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -341,29 +344,13 @@ export default function SubirDocumentoScreen() {
         </ScrollView>
 
       {/* Antes de subir: recordatorio de lo que debe cumplir el documento */}
-      <Modal visible={confirmar} transparent animationType="fade" onRequestClose={() => setConfirmar(false)}>
-        <View style={s.avisoBackdrop}>
-          <View style={s.avisoCard}>
-            <Text style={s.avisoIcono}>⚠️</Text>
-            <Text style={s.avisoTitulo}>Revisa tu documento</Text>
-            <Text style={s.avisoTexto}>
-              Un documento incorrecto o vencido detiene el trámite. Antes de subir{' '}
-              <Text style={s.avisoNegrita}>{TIPOS_DOCUMENTO.find(t => t.value === tipo)?.label}</Text>, confirma que:
-            </Text>
-            <View style={s.avisoLista}>
-              {[...(TIPOS_DOCUMENTO.find(t => t.value === tipo)?.requisitos ?? []), ...REQUISITOS_GENERALES].map((r, i) => (
-                <Text key={i} style={s.avisoItem}>• {r}</Text>
-              ))}
-            </View>
-            <Pressable style={s.avisoBtnPrimario} onPress={() => { setConfirmar(false); subir(); }}>
-              <Text style={s.avisoBtnPrimarioText}>Sí, cumple — {reemplazando ? 'reemplazar' : 'subir'}</Text>
-            </Pressable>
-            <Pressable style={s.avisoBtnSecundario} onPress={() => setConfirmar(false)}>
-              <Text style={s.avisoBtnSecundarioText}>Revisar de nuevo</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      <AvisoRequisitos
+        visible={confirmar}
+        tipo={tipo}
+        accion={reemplazando ? 'reemplazar' : 'subir'}
+        onCancelar={() => setConfirmar(false)}
+        onAceptar={() => { setConfirmar(false); subir(); }}
+      />
       </KeyboardAvoidingView>
     );
   }
@@ -416,7 +403,7 @@ export default function SubirDocumentoScreen() {
 
         <View style={s.actions}>
           <Pressable style={s.btnEscanear} onPress={escanear}>
-            <Text style={s.btnIcon}>📄</Text>
+            <Ionicons name="scan" size={36} color={Colors.white} />
             <Text style={s.btnLabel}>Escanear documento</Text>
             <Text style={s.btnSubLabel}>
               {DocumentScanner ? 'Múltiples páginas → PDF' : 'Requiere EAS Build'}
@@ -424,7 +411,7 @@ export default function SubirDocumentoScreen() {
           </Pressable>
 
           <Pressable style={s.btnGaleria} onPress={seleccionarGaleria}>
-            <Text style={s.btnIcon}>📁</Text>
+            <Ionicons name="folder-open" size={36} color={Colors.white} />
             <Text style={s.btnLabel}>Archivo</Text>
             <Text style={s.btnSubLabel}>PDF o foto de la galería</Text>
           </Pressable>
@@ -435,17 +422,99 @@ export default function SubirDocumentoScreen() {
 }
 
 
-/** Lo que hay que revisar del tipo de documento elegido. */
+/** Lo que hay que revisar del tipo de documento elegido (aparece con un fundido al cambiar de tipo). */
 function RequisitosCard({ tipo }: { tipo: string }) {
-  const def = TIPOS_DOCUMENTO.find(t => t.value === tipo);
+  const def  = TIPOS_DOCUMENTO.find(t => t.value === tipo);
+  const fade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    fade.setValue(0);
+    Animated.timing(fade, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+  }, [tipo, fade]);
+
   if (!def) return null;
   return (
-    <View style={s.requisitos}>
-      <Text style={s.requisitosTitulo}>Antes de subirlo, revisa que:</Text>
+    <Animated.View style={[s.requisitos, { opacity: fade, transform: [{ translateY: fade.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }]}>
+      <View style={s.requisitosCabecera}>
+        <Ionicons name="alert-circle" size={22} color={Colors.gold[600]} />
+        <Text style={s.requisitosTitulo}>Antes de subirlo, revisa que:</Text>
+      </View>
       {def.requisitos.map((r, i) => (
-        <Text key={i} style={s.requisitosItem}>• {r}</Text>
+        <View key={i} style={s.requisitoFila}>
+          <Ionicons name="checkmark-circle" size={20} color={Colors.gold[600]} />
+          <Text style={s.requisitosItem}>{r}</Text>
+        </View>
       ))}
-    </View>
+    </Animated.View>
+  );
+}
+
+/**
+ * Aviso antes de subir: la tarjeta entra con un resorte, el icono late para llamar la
+ * atención y cada requisito aparece uno tras otro.
+ */
+function AvisoRequisitos({ visible, tipo, accion, onCancelar, onAceptar }: {
+  visible: boolean; tipo: string; accion: 'subir' | 'reemplazar'; onCancelar: () => void; onAceptar: () => void;
+}) {
+  const def        = TIPOS_DOCUMENTO.find(t => t.value === tipo);
+  const requisitos = [...(def?.requisitos ?? []), ...REQUISITOS_GENERALES];
+
+  const entrada = useRef(new Animated.Value(0)).current;
+  const latido  = useRef(new Animated.Value(1)).current;
+  const items   = useRef(Array.from({ length: 12 }, () => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    if (!visible) return;
+    entrada.setValue(0);
+    items.forEach(v => v.setValue(0));
+    Animated.spring(entrada, { toValue: 1, friction: 6, tension: 80, useNativeDriver: true }).start();
+    Animated.stagger(
+      140,
+      items.slice(0, requisitos.length).map(v => Animated.timing(v, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true })),
+    ).start();
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(latido, { toValue: 1.18, duration: 600, useNativeDriver: true }),
+      Animated.timing(latido, { toValue: 1,    duration: 600, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [visible, tipo, entrada, latido, items, requisitos.length]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancelar}>
+      <View style={s.avisoBackdrop}>
+        <Animated.View style={[s.avisoCard, { opacity: entrada, transform: [{ scale: entrada.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }] }]}>
+          <Animated.View style={[s.avisoIconoWrap, { transform: [{ scale: latido }] }]}>
+            <Ionicons name="warning" size={44} color={Colors.white} />
+          </Animated.View>
+          <Text style={s.avisoTitulo}>¡Revisa tu documento!</Text>
+          <Text style={s.avisoTexto}>
+            Un documento incorrecto o vencido detiene el trámite. Antes de {accion}{' '}
+            <Text style={s.avisoNegrita}>{def?.label}</Text>, confirma que:
+          </Text>
+
+          <ScrollView style={s.avisoLista} contentContainerStyle={{ gap: Spacing.sm }} showsVerticalScrollIndicator={false}>
+            {requisitos.map((r, i) => (
+              <Animated.View
+                key={i}
+                style={[s.avisoFila, { opacity: items[i] ?? 1, transform: [{ translateX: (items[i] ?? entrada).interpolate({ inputRange: [0, 1], outputRange: [-16, 0] }) }] }]}
+              >
+                <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                <Text style={s.avisoItem}>{r}</Text>
+              </Animated.View>
+            ))}
+          </ScrollView>
+
+          <Pressable style={s.avisoBtnPrimario} onPress={onAceptar}>
+            <Ionicons name="shield-checkmark" size={22} color={Colors.gold[400]} />
+            <Text style={s.avisoBtnPrimarioText}>Sí, cumple — {accion}</Text>
+          </Pressable>
+          <Pressable style={s.avisoBtnSecundario} onPress={onCancelar}>
+            <Text style={s.avisoBtnSecundarioText}>Revisar de nuevo</Text>
+          </Pressable>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 }
 
@@ -455,23 +524,26 @@ const s = StyleSheet.create({
   chipBloqueado: { opacity: 0.35 },
   requisitos: {
     marginTop: Spacing.md, backgroundColor: Colors.gold[50], borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.gold[300] ?? Colors.gold[400], padding: Spacing.md, gap: 3,
+    borderWidth: 1.5, borderColor: Colors.gold[400], padding: Spacing.base, gap: Spacing.sm,
   },
-  requisitosTitulo: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, color: Colors.gold[700] ?? Colors.dark[800], marginBottom: 2 },
-  requisitosItem:   { fontSize: Typography.fontSize.xs, color: Colors.dark[700], lineHeight: 18 },
+  requisitosCabecera: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  requisitosTitulo:   { flex: 1, fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.gold[700] },
+  requisitoFila:      { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  requisitosItem:     { flex: 1, fontSize: Typography.fontSize.base, color: Colors.dark[800], lineHeight: 24 },
 
-  avisoBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  avisoCard:     { width: '100%', backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.xl },
-  avisoIcono:    { fontSize: 34, textAlign: 'center', marginBottom: Spacing.xs },
-  avisoTitulo:   { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900], textAlign: 'center', marginBottom: Spacing.sm },
-  avisoTexto:    { fontSize: Typography.fontSize.sm, color: Colors.dark[600], textAlign: 'center', lineHeight: 20 },
+  avisoBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: Spacing.lg },
+  avisoCard:     { width: '100%', maxHeight: '90%', backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.xl },
+  avisoIconoWrap:{ alignSelf: 'center', width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.warning, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
+  avisoTitulo:   { fontSize: Typography.fontSize['2xl'], fontWeight: Typography.fontWeight.black, color: Colors.dark[900], textAlign: 'center', marginBottom: Spacing.sm },
+  avisoTexto:    { fontSize: Typography.fontSize.base, color: Colors.dark[600], textAlign: 'center', lineHeight: 24 },
   avisoNegrita:  { fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
-  avisoLista:    { marginTop: Spacing.md, marginBottom: Spacing.lg, gap: 4, backgroundColor: Colors.cream[100], borderRadius: Radius.md, padding: Spacing.md },
-  avisoItem:     { fontSize: Typography.fontSize.sm, color: Colors.dark[700], lineHeight: 20 },
-  avisoBtnPrimario:     { backgroundColor: Colors.dark[900], borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
+  avisoLista:    { marginTop: Spacing.md, marginBottom: Spacing.lg, backgroundColor: Colors.cream[100], borderRadius: Radius.md, padding: Spacing.md, flexGrow: 0 },
+  avisoFila:     { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  avisoItem:     { flex: 1, fontSize: Typography.fontSize.base, color: Colors.dark[800], lineHeight: 24, fontWeight: Typography.fontWeight.medium },
+  avisoBtnPrimario:     { flexDirection: 'row', gap: Spacing.sm, backgroundColor: Colors.dark[900], borderRadius: Radius.md, paddingVertical: Spacing.base, alignItems: 'center', justifyContent: 'center' },
   avisoBtnPrimarioText: { color: Colors.gold[400], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
   avisoBtnSecundario:     { paddingVertical: Spacing.md, alignItems: 'center' },
-  avisoBtnSecundarioText: { color: Colors.dark[500], fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold },
+  avisoBtnSecundarioText: { color: Colors.dark[600], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold },
 
   flex:     { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
