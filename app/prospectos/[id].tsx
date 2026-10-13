@@ -332,7 +332,7 @@ export default function DetalleProspectoScreen() {
           {/* Banner offline */}
           {desdeCache && (
             <View style={styles.cacheBanner}>
-              <Text style={styles.cacheText}>📴 Sin conexión — mostrando datos guardados</Text>
+              <Text style={styles.cacheText}>Datos guardados en el dispositivo</Text>
             </View>
           )}
           {/* Foto + badges */}
@@ -380,11 +380,9 @@ export default function DetalleProspectoScreen() {
 
           <SectionLabel>Datos personales</SectionLabel>
           <Card>
-            <InfoRow label="Nombre"    value={contacto.nombre ?? '—'} />
             <InfoRow label="Teléfono"  value={contacto.telefono ?? '—'} />
             <InfoRow label="Correo"    value={contacto.email ?? '—'} />
-            <InfoRow label="CURP"      value={contacto.curp ?? '—'} />
-            <InfoRow label="Servicio"  value={SERVICIO_LABEL[contacto.servicio ?? ''] ?? contacto.servicio ?? '—'} last />
+            <InfoRow label="CURP"      value={contacto.curp ?? '—'} last />
           </Card>
 
           {contacto.notas ? (
@@ -478,11 +476,7 @@ export default function DetalleProspectoScreen() {
             </>
           ) : null}
 
-          <SectionLabel>Fechas</SectionLabel>
-          <Card>
-            <InfoRow label="Registrado"  value={fmt(contacto.created_at)} />
-            <InfoRow label="Actualizado" value={fmt(contacto.updated_at)} last />
-          </Card>
+          <Text style={styles.fechasText}>Registrado el {fmt(contacto.created_at)}</Text>
 
           {/* Acciones rápidas */}
           <SectionLabel>Acciones</SectionLabel>
@@ -1126,13 +1120,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
 
+  fechasText: { fontSize: Typography.fontSize.xs, color: Colors.dark[400], textAlign: 'center', marginTop: Spacing.md },
   cacheBanner: {
-    backgroundColor:  Colors.dark[800],
+    backgroundColor:   Colors.cream[100],
     paddingHorizontal: Spacing.base,
-    paddingVertical:   Spacing.md,
+    paddingVertical:   Spacing.xs,
+    borderRadius:      Radius.sm,
     marginBottom:      Spacing.sm,
-    borderLeftWidth:   4,
-    borderLeftColor:   Colors.gold[400],
   },
-  cacheText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold },
+  cacheText: { color: Colors.dark[500], fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold },
 });

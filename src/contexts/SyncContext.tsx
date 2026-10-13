@@ -112,11 +112,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Estado inicial (no esperar el primer evento)
     NetInfo.fetch().then(state => {
-      setOnline(!!(state.isConnected && state.isInternetReachable));
+      setOnline(state.isConnected !== false && state.isInternetReachable !== false);
     });
 
     const unsub = NetInfo.addEventListener(state => {
-      const conectado = !!(state.isConnected && state.isInternetReachable);
+      // isInternetReachable puede ser null (aún sin saber): solo cuenta como sin red si es false.
+      const conectado = state.isConnected !== false && state.isInternetReachable !== false;
       setOnline(conectado);
       // Sincronizar automáticamente al recuperar conexión
       if (conectado) {

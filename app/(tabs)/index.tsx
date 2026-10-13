@@ -136,16 +136,14 @@ export default function DashboardScreen() {
           )}
           {/* ── KPI cards ── */}
           <View style={styles.kpiGrid}>
-            <KpiCard label="Prospectos"  value={stats?.totalProspectos  ?? '—'} icon="👥" accent={Colors.gold[400]}    />
-            <KpiCard label="Expedientes" value={stats?.totalExpedientes ?? '—'} icon="📁" accent={Colors.dark[500]} />
+            <KpiCard label="Prospectos"  value={stats?.totalProspectos  ?? '—'} icon="👥" accent={Colors.gold[400]} onPress={() => router.push('/(tabs)/prospectos')} />
+            <KpiCard label="Expedientes" value={stats?.totalExpedientes ?? '—'} icon="📁" accent={Colors.dark[500]} onPress={() => router.push('/(tabs)/expedientes')} />
           </View>
 
           {/* ── Acciones rápidas ── */}
-          <SectionHeader title="Acciones rápidas" />
+          <SectionHeader title="Acciones" />
           <View style={styles.actionsGrid}>
             <ActionTile icon="➕" label="Nuevo prospecto" onPress={() => router.push('/prospectos/nuevo')} primary />
-            <ActionTile icon="👥" label="Prospectos"      onPress={() => router.push('/(tabs)/prospectos')} />
-            <ActionTile icon="📁" label="Expedientes"     onPress={() => router.push('/(tabs)/expedientes')} />
             {isSuperAdmin && (
               <ActionTile icon="🖋️" label="Contratos" onPress={() => router.push('/contratos')} />
             )}
@@ -248,13 +246,13 @@ const sh = StyleSheet.create({
   link:  { fontSize: Typography.fontSize.sm, color: Colors.gold[500], fontWeight: Typography.fontWeight.semibold },
 });
 
-function KpiCard({ label, value, icon, accent }: { label: string; value: number | string; icon: string; accent: string }) {
+function KpiCard({ label, value, icon, accent, onPress }: { label: string; value: number | string; icon: string; accent: string; onPress?: () => void }) {
   return (
-    <View style={[styles.kpiCard, { borderTopColor: accent }]}>
+    <TouchableOpacity style={[styles.kpiCard, { borderTopColor: accent }]} onPress={onPress} activeOpacity={0.8}>
       <Text style={styles.kpiIcon}>{icon}</Text>
       <Text style={[styles.kpiValue, { color: accent }]}>{value}</Text>
       <Text style={styles.kpiLabel} numberOfLines={1}>{label}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -351,6 +349,8 @@ const styles = StyleSheet.create({
     minHeight:       90,           // área táctil mínima cómoda
   },
   actionTilePrimary: {
+    flexBasis:       '100%',   // la acción principal ocupa todo el ancho
+    paddingVertical: Spacing.lg,
     backgroundColor: Colors.dark[900],
     borderColor:     Colors.dark[900],
   },

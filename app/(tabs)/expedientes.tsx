@@ -121,7 +121,7 @@ export default function ExpedientesScreen() {
       {desdeCache && (
         <View style={styles.cacheBanner}>
           <Text style={styles.cacheText}>
-            📴 Sin conexión — mostrando datos guardados en el dispositivo
+            Datos guardados en el dispositivo
           </Text>
         </View>
       )}
@@ -249,13 +249,11 @@ const styles = StyleSheet.create({
   empty:  { textAlign: 'center', color: Colors.dark[400], marginTop: 40, fontSize: Typography.fontSize.sm },
 
   cacheBanner: {
-    backgroundColor:  Colors.dark[800],
+    backgroundColor:   Colors.cream[100],
     paddingHorizontal: Spacing.base,
-    paddingVertical:   Spacing.md,
-    borderLeftWidth:   4,
-    borderLeftColor:   Colors.gold[400],
+    paddingVertical:   Spacing.xs,
   },
-  cacheText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, lineHeight: Typography.fontSize.sm * 1.4 },
+  cacheText: { color: Colors.dark[500], fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold },
 
   // Selector de asesor (sobre fondo oscuro del header)
   asesorFiltro: {
