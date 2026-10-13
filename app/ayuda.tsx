@@ -44,8 +44,8 @@ const SECCIONES: Seccion[] = [
     titulo: 'Prospectos',
     subtitulo: 'Registra y da seguimiento a clientes',
     pasos: [
-      { icono: '➕', titulo: 'Agregar prospecto', desc: 'En la pestaña Prospectos toca "＋ Nuevo" (o desde Inicio → "Nuevo prospecto"). Solo necesitas el nombre; teléfono, correo y notas son opcionales.' },
-      { icono: '➕', titulo: 'Más datos', desc: 'Si los tienes a la mano, toca "Más datos (opcional)" para agregar CURP, foto, escuela y los datos de precalificación FOVISSSTE (estado y municipio donde usará el crédito, régimen pensionario, captura del simulador).' },
+      { icono: '➕', titulo: 'Agregar prospecto', desc: 'En la pestaña Prospectos toca "＋ Nuevo" (o desde Inicio → "Nuevo prospecto"). Solo necesitas el nombre; lo demás es opcional.' },
+      { icono: '➕', titulo: 'Datos opcionales', desc: 'Debajo del nombre, teléfono y correo hay campos opcionales: estado, CURP y los datos de precalificación FOVISSSTE (estado y municipio donde usará el crédito, régimen pensionario, captura del simulador). Llénalos si los tienes a la mano.' },
       { icono: '🔄', titulo: 'Actualizar estado', desc: 'Desde el detalle del prospecto cambia su estado entre Nuevo y Precalificado.' },
       { icono: '📁', titulo: 'Pasar a cliente', desc: 'Un prospecto es alguien a quien aún estás evaluando. Cuando se confirma como cliente, entra a su detalle y toca "Iniciar expediente": pasa a la pestaña Expedientes y deja de aparecer en Prospectos.' },
     ],

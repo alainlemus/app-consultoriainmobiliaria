@@ -7,7 +7,7 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 ### Cambiado
 - Flujo simplificado: el prospecto es quien se está evaluando y el expediente es del cliente. El asesor registra prospectos y, al volverse cliente, abre su expediente y sube o escanea ahí los documentos. Se quita la pestaña Comisiones y en los expedientes ya no hay estado, etapa, checklist por secciones ni rechazo de documentos.
 - Expedientes: lista simple con el número de documentos y un detalle con la lista de documentos (escanear o subir PDF/foto, ver y eliminar; se pueden subir varios del mismo tipo).
-- Nuevo prospecto: solo pide el nombre (teléfono, correo y notas opcionales); CURP, foto, estado, escuela y precalificación quedan en "Más datos (opcional)". El servicio queda fijo en FOVISSSTE.
+- Nuevo prospecto: solo el nombre es obligatorio y los demás campos (CURP, estado y precalificación) están a la vista como opcionales; ya no se pide escuela ni foto. Campos de texto en caja con borde y listas con flecha. Al guardar sale un aviso, en línea o sin conexión. El servicio queda fijo en FOVISSSTE.
 - Inicio muestra prospectos y expedientes; "Rastreo de ubicación" ahora es "Ruta" (captura la ruta conforme a las ubicaciones registradas). Perfil ya no pide banco ni CLABE.
 - App del acreditado: su trámite aparece "En revisión"; se quitan la barra de etapas y la pestaña Seguimiento.
 

@@ -59,7 +59,6 @@ export default function NuevoProspectoScreen() {
   const [loading, setLoading] = useState(false);
   // Aviso al terminar: guardado en el servidor o solo en el dispositivo (sin internet)
   const [aviso, setAviso] = useState<{ offline: boolean } | null>(null);
-  const [masDatos, setMasDatos] = useState(false);
 
   function set(key: keyof typeof form) {
     return (val: string) => setForm(f => ({ ...f, [key]: val }));
@@ -250,17 +249,6 @@ export default function NuevoProspectoScreen() {
           />
         </View>
 
-        {/* ── Más datos (plegado) ────────────────────────────────────── */}
-        <TouchableOpacity
-          style={styles.masDatosBtn}
-          onPress={() => setMasDatos(v => !v)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.masDatosText}>{masDatos ? '▾  Menos datos' : '▸  Más datos (opcional)'}</Text>
-        </TouchableOpacity>
-
-        {masDatos ? (
-          <>
         {/* ── Estado del prospecto ─────────────────────────────────── */}
         <Text style={styles.sectionLabel}>Estado del prospecto</Text>
         <View style={styles.section}>
@@ -459,9 +447,6 @@ export default function NuevoProspectoScreen() {
           </>
         ) : null}
 
-          </>
-        ) : null}
-
         {/* ── Guardar ───────────────────────────────────────────────── */}
         <TouchableOpacity
           style={[styles.saveBtn, loading && { opacity: 0.6 }]}
@@ -512,8 +497,6 @@ const styles = StyleSheet.create({
   avisoBtn:      { alignSelf: 'stretch', backgroundColor: Colors.dark[900], borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
   avisoBtnText:  { color: Colors.gold[400], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
 
-  masDatosBtn:  { marginTop: Spacing.base, paddingVertical: Spacing.md, alignItems: 'center', borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[300], backgroundColor: Colors.white },
-  masDatosText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[700] },
 
   flex: { flex: 1 },
 
