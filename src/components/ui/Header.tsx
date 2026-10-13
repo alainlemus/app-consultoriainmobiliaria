@@ -1,4 +1,5 @@
 import React from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing } from '../../theme';
@@ -25,8 +26,8 @@ export default function Header({ title, subtitle, onBack, rightElement, dark = t
       <View style={styles.row}>
         {/* Botón atrás */}
         {onBack ? (
-          <TouchableOpacity style={styles.backBtn} onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={[styles.backIcon, dark && styles.backIconDark]}>←</Text>
+          <TouchableOpacity style={styles.backBtn} onPress={onBack} accessibilityLabel="Atrás" accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} />
           </TouchableOpacity>
         ) : (
           <View style={styles.backPlaceholder} />

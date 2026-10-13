@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity,
   FlatList, TextInput, SafeAreaView,
@@ -38,7 +39,7 @@ export default function EstadoSelectModal({ value, onChange, placeholder = 'Eleg
         <Text style={[styles.triggerText, !value && styles.placeholder]} numberOfLines={1}>
           {value || placeholder}
         </Text>
-        <Text style={styles.arrow}>▾</Text>
+        <Ionicons name="chevron-down" size={16} color={Colors.dark[400]} style={styles.arrow} />
       </TouchableOpacity>
 
       {/* ── Modal hoja ──────────────────────────────────────────────── */}
@@ -48,7 +49,7 @@ export default function EstadoSelectModal({ value, onChange, placeholder = 'Eleg
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Seleccionar estado</Text>
             <TouchableOpacity onPress={() => setOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.close}>✕</Text>
+              <Ionicons name="close" size={18} color={Colors.dark[500]} style={styles.close} />
             </TouchableOpacity>
           </View>
 
@@ -71,7 +72,7 @@ export default function EstadoSelectModal({ value, onChange, placeholder = 'Eleg
             onPress={() => { onChange(''); setOpen(false); }}
           >
             <Text style={styles.clearText}>Sin especificar</Text>
-            {!value && <Text style={styles.check}>✓</Text>}
+            {!value && <Ionicons name="checkmark" size={18} color={Colors.dark[500]} style={styles.check} />}
           </TouchableOpacity>
 
           {/* Lista de estados */}
@@ -87,7 +88,7 @@ export default function EstadoSelectModal({ value, onChange, placeholder = 'Eleg
                 <Text style={[styles.optionText, value === item && styles.optionTextActive]}>
                   {item}
                 </Text>
-                {value === item ? <Text style={styles.check}>✓</Text> : null}
+                {value === item ? <Ionicons name="checkmark" size={18} color={Colors.dark[500]} style={styles.check} /> : null}
               </TouchableOpacity>
             )}
             ItemSeparatorComponent={() => <View style={styles.separator} />}

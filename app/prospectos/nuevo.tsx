@@ -198,7 +198,7 @@ export default function NuevoProspectoScreen() {
       {/* Header */}
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backIcon}>←</Text>
+          <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.topTitle}>Nuevo prospecto</Text>
         <View style={{ width: 40 }} />

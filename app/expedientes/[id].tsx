@@ -3,7 +3,7 @@
  * (escanear o subir, ver, eliminar). Sin etapas ni estados: eso se lleva en el panel.
  */
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,7 +39,7 @@ export default function DetalleExpedienteScreen() {
     <View style={styles.flex}>
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backIcon}>←</Text>
+          <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.topTitle}>Expediente</Text>
         <View style={{ width: 40 }} />
@@ -53,13 +53,9 @@ export default function DetalleExpedienteScreen() {
         <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 40 }]} showsVerticalScrollIndicator={false}>
           {/* Cliente */}
           <View style={styles.card}>
-            {contacto?.foto_url ? (
-              <Image source={{ uri: contacto.foto_url }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarFallback}>
-                <Text style={styles.avatarLetter}>{(contacto?.nombre?.[0] ?? '?').toUpperCase()}</Text>
-              </View>
-            )}
+            <View style={styles.avatarFallback}>
+              <Ionicons name="folder-open" size={28} color={Colors.gold[400]} />
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.nombre} numberOfLines={2}>{contacto?.nombre ?? `Expediente #${exp.id}`}</Text>
               <Text style={styles.sub}>{exp.folio ?? `#${exp.id}`}{exp.tipo_tramite?.nombre ? ` · ${exp.tipo_tramite.nombre}` : ''}</Text>
@@ -101,7 +97,6 @@ const styles = StyleSheet.create({
   },
   avatar:         { width: 52, height: 52, borderRadius: 26 },
   avatarFallback: { width: 52, height: 52, borderRadius: 26, backgroundColor: Colors.dark[900], alignItems: 'center', justifyContent: 'center' },
-  avatarLetter:   { color: Colors.gold[400], fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold },
   nombre:  { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   sub:     { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
   datos:   { backgroundColor: Colors.white, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[200], padding: Spacing.md, marginTop: Spacing.xs, gap: 6 },

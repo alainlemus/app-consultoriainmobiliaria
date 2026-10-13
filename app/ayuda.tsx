@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, StatusBar, LayoutAnimation,
@@ -11,6 +12,8 @@ import { Colors, Typography, Spacing, Radius } from '../src/theme';
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface Paso {
   icono: string;
@@ -29,112 +32,112 @@ interface Seccion {
 const SECCIONES: Seccion[] = [
   {
     id: 'inicio',
-    icono: '🚀',
+    icono: 'rocket',
     titulo: 'Primeros pasos',
     subtitulo: 'Cómo empezar a usar la app',
     pasos: [
-      { icono: '🔐', titulo: 'Inicia sesión', desc: 'Usa el correo y contraseña que te dio tu administrador. Si olvidaste tu contraseña, contacta al admin para restablecerla.' },
-      { icono: '👤', titulo: 'Completa tu perfil', desc: 'Ve a la pestaña Perfil y llena tu información de contacto.' },
-      { icono: '📸', titulo: 'Sube tu foto', desc: 'En Perfil toca tu foto y selecciona "Tomar selfie". La cámara frontal se abrirá automáticamente.' },
+      { icono: 'lock-closed', titulo: 'Inicia sesión', desc: 'Usa el correo y contraseña que te dio tu administrador. Si olvidaste tu contraseña, contacta al admin para restablecerla.' },
+      { icono: 'person', titulo: 'Completa tu perfil', desc: 'Ve a la pestaña Perfil y llena tu información de contacto.' },
+      { icono: 'camera', titulo: 'Sube tu foto', desc: 'En Perfil toca tu foto y selecciona "Tomar selfie". La cámara frontal se abrirá automáticamente.' },
     ],
   },
   {
     id: 'prospectos',
-    icono: '🤝',
+    icono: 'people',
     titulo: 'Prospectos',
     subtitulo: 'Registra y da seguimiento a clientes',
     pasos: [
-      { icono: '➕', titulo: 'Agregar prospecto', desc: 'En la pestaña Prospectos toca "＋ Nuevo" (o desde Inicio → "Nuevo prospecto"). Solo necesitas el nombre; lo demás es opcional.' },
-      { icono: '➕', titulo: 'Datos opcionales', desc: 'Debajo del nombre, teléfono y correo hay campos opcionales: estado, CURP y los datos de precalificación FOVISSSTE (estado y municipio donde usará el crédito, régimen pensionario, captura del simulador). Llénalos si los tienes a la mano.' },
-      { icono: '🔄', titulo: 'Actualizar estado', desc: 'Desde el detalle del prospecto cambia su estado entre Nuevo y Precalificado.' },
-      { icono: '📁', titulo: 'Pasar a cliente', desc: 'Un prospecto es alguien a quien aún estás evaluando. Cuando se confirma como cliente, entra a su detalle y toca "Iniciar expediente": pasa a la pestaña Expedientes y deja de aparecer en Prospectos.' },
+      { icono: 'add-circle', titulo: 'Agregar prospecto', desc: 'En la pestaña Prospectos toca "＋ Nuevo" (o desde Inicio → "Nuevo prospecto"). Solo necesitas el nombre; lo demás es opcional.' },
+      { icono: 'add-circle', titulo: 'Datos opcionales', desc: 'Debajo del nombre, teléfono y correo hay campos opcionales: estado, CURP y los datos de precalificación FOVISSSTE (estado y municipio donde usará el crédito, régimen pensionario, captura del simulador). Llénalos si los tienes a la mano.' },
+      { icono: 'refresh', titulo: 'Actualizar estado', desc: 'Desde el detalle del prospecto cambia su estado entre Nuevo y Precalificado.' },
+      { icono: 'folder', titulo: 'Pasar a cliente', desc: 'Un prospecto es alguien a quien aún estás evaluando. Cuando se confirma como cliente, entra a su detalle y toca "Iniciar expediente": pasa a la pestaña Expedientes y deja de aparecer en Prospectos.' },
     ],
   },
   {
     id: 'expedientes',
-    icono: '📁',
+    icono: 'folder',
     titulo: 'Expedientes',
     subtitulo: 'Los documentos de tus clientes',
     pasos: [
-      { icono: '📋', titulo: 'Ver tus expedientes', desc: 'En la pestaña Expedientes verás los de tus clientes, con cuántos documentos tiene cada uno.' },
-      { icono: '📄', titulo: 'Escanear documentos', desc: 'Entra al expediente, toca "Escanear o subir documento", elige el tipo (INE, CURP, comprobantes…) y toca "Escanear documento": puedes capturar varias páginas y la app las convierte en un PDF. Requiere el build de producción.' },
-      { icono: '🖼️', titulo: 'Subir un archivo o foto', desc: 'En la misma pantalla toca "Archivo" para adjuntar un PDF o una foto de tu galería. Puedes subir varios documentos del mismo tipo.' },
-      { icono: '👁️', titulo: 'Ver y eliminar', desc: 'Toca un documento de la lista para abrirlo (con un enlace temporal válido 5 min) o toca 🗑️ para eliminarlo. Tu administrador recibe los documentos en el panel para capturarlos.' },
+      { icono: 'clipboard', titulo: 'Ver tus expedientes', desc: 'En la pestaña Expedientes verás los de tus clientes, con cuántos documentos tiene cada uno.' },
+      { icono: 'document-text', titulo: 'Escanear documentos', desc: 'Entra al expediente, toca "Escanear o subir documento", elige el tipo (INE, CURP, comprobantes…) y toca "Escanear documento": puedes capturar varias páginas y la app las convierte en un PDF. Requiere el build de producción.' },
+      { icono: 'image', titulo: 'Subir un archivo o foto', desc: 'En la misma pantalla toca "Archivo" para adjuntar un PDF o una foto de tu galería. Puedes subir varios documentos del mismo tipo.' },
+      { icono: 'eye', titulo: 'Ver y eliminar', desc: 'Toca un documento de la lista para abrirlo (con un enlace temporal válido 5 min) o toca Eliminar para quitarlo. Tu administrador recibe los documentos en el panel para capturarlos.' },
     ],
   },
   {
     id: 'contratos',
-    icono: '🖋️',
+    icono: 'create',
     titulo: 'Contratos (solo administradores)',
     subtitulo: 'Genera el Contrato de Prestación de Servicios',
     pasos: [
-      { icono: '📇', titulo: 'Registrar contrato', desc: 'Desde Inicio → "Contratos" → "Registrar contrato". Escanea la INE del acreditado (y del obligado solidario si aplica) para leer sus datos automáticamente.' },
-      { icono: '👁️', titulo: 'Revisar datos', desc: 'Confirma que los datos leídos de la INE sean correctos antes de continuar. Puedes corregirlos a mano si algo salió mal en la lectura.' },
-      { icono: '📄', titulo: 'Generar el PDF', desc: 'Elige el tipo de trámite y el tamaño de hoja, y toca "Generar contrato". Queda guardado en el historial de "Contratos" para consultarlo o compartirlo cuando quieras.' },
-      { icono: '📶', titulo: 'Funciona sin conexión', desc: 'Puedes registrar contratos sin internet; se guardan en tu dispositivo y se suben al CRM en cuanto recuperes la señal.' },
+      { icono: 'id-card', titulo: 'Registrar contrato', desc: 'Desde Inicio → "Contratos" → "Registrar contrato". Escanea la INE del acreditado (y del obligado solidario si aplica) para leer sus datos automáticamente.' },
+      { icono: 'eye', titulo: 'Revisar datos', desc: 'Confirma que los datos leídos de la INE sean correctos antes de continuar. Puedes corregirlos a mano si algo salió mal en la lectura.' },
+      { icono: 'document-text', titulo: 'Generar el PDF', desc: 'Elige el tipo de trámite y el tamaño de hoja, y toca "Generar contrato". Queda guardado en el historial de "Contratos" para consultarlo o compartirlo cuando quieras.' },
+      { icono: 'cellular', titulo: 'Funciona sin conexión', desc: 'Puedes registrar contratos sin internet; se guardan en tu dispositivo y se suben al CRM en cuanto recuperes la señal.' },
     ],
   },
   {
     id: 'offline',
-    icono: '📶',
+    icono: 'cellular',
     titulo: 'Modo sin internet',
     subtitulo: 'La app funciona aunque no tengas señal',
     pasos: [
-      { icono: '🔴', titulo: 'Barra de estado', desc: 'En la parte superior de todos los tabs verás una barra de color. Roja = sin internet. Azul = sincronizando. Si no hay barra, todo está sincronizado.' },
-      { icono: '📱', titulo: 'Datos en el dispositivo', desc: 'Sin conexión, los prospectos y expedientes muestran los datos de tu última visita al CRM con el aviso "📴 Sin conexión — datos guardados". Puedes consultar toda la información aunque estés en zona sin señal.' },
-      { icono: '✏️', titulo: 'Crear y editar sin conexión', desc: 'Puedes crear y editar prospectos, registrar visitas y anuncios aunque no tengas internet. Los cambios se guardan en tu dispositivo y muestran el mensaje "Se enviará cuando recuperes internet".' },
-      { icono: '📄', titulo: 'Documentos sin conexión', desc: 'También puedes escanear o seleccionar documentos estando offline. Se guardan en cola y el botón cambia a "Guardar (sin conexión)".' },
-      { icono: '📸', titulo: 'Fotos protegidas', desc: 'Las fotos de anuncios, visitas y contactos se guardan en tu dispositivo desde antes de intentar subirlas. Si tienes señal débil (2G) o te mueves justo después de guardar, la foto no se pierde: se sube sola en cuanto haya mejor conexión.' },
-      { icono: '🔢', titulo: 'Badge de pendientes', desc: 'El tab Prospectos muestra un número dorado indicando cuántos elementos están en cola para sincronizar.' },
-      { icono: '⚡', titulo: 'Sincronización automática', desc: 'Al recuperar internet, la app sincroniza todo automáticamente: prospectos, ediciones, anuncios, visitas, fotos y documentos pendientes. También puedes tocar la barra azul para sincronizar manualmente.' },
+      { icono: 'ellipse', titulo: 'Barra de estado', desc: 'En la parte superior de todos los tabs verás una barra de color. Roja = sin internet. Azul = sincronizando. Si no hay barra, todo está sincronizado.' },
+      { icono: 'phone-portrait', titulo: 'Datos en el dispositivo', desc: 'Sin conexión, los prospectos y expedientes muestran los datos de tu última visita al CRM con el aviso "Datos guardados en el dispositivo". Puedes consultar toda la información aunque estés en zona sin señal.' },
+      { icono: 'create', titulo: 'Crear y editar sin conexión', desc: 'Puedes crear y editar prospectos, registrar visitas y anuncios aunque no tengas internet. Los cambios se guardan en tu dispositivo y muestran el mensaje "Se enviará cuando recuperes internet".' },
+      { icono: 'document-text', titulo: 'Documentos sin conexión', desc: 'También puedes escanear o seleccionar documentos estando offline. Se guardan en cola y el botón cambia a "Guardar (sin conexión)".' },
+      { icono: 'camera', titulo: 'Fotos protegidas', desc: 'Las fotos de anuncios, visitas y contactos se guardan en tu dispositivo desde antes de intentar subirlas. Si tienes señal débil (2G) o te mueves justo después de guardar, la foto no se pierde: se sube sola en cuanto haya mejor conexión.' },
+      { icono: 'keypad', titulo: 'Badge de pendientes', desc: 'El tab Prospectos muestra un número dorado indicando cuántos elementos están en cola para sincronizar.' },
+      { icono: 'flash', titulo: 'Sincronización automática', desc: 'Al recuperar internet, la app sincroniza todo automáticamente: prospectos, ediciones, anuncios, visitas, fotos y documentos pendientes. También puedes tocar la barra azul para sincronizar manualmente.' },
     ],
   },
   {
     id: 'mapa',
-    icono: '🗺️',
+    icono: 'map',
     titulo: 'Mapa de Visitas',
     subtitulo: 'Documenta tu actividad en campo',
     pasos: [
-      { icono: '📍', titulo: 'Registrar visita', desc: 'En la pestaña Mapa toca "+ Registrar Visita". La app detecta tu ubicación automáticamente. Agrega notas y, si quieres, selecciona fotos de la galería.' },
-      { icono: '🏠', titulo: 'Tipo: Cliente', desc: 'Usa este tipo al visitar a un prospecto. Puedes vincular la visita a un contacto existente para que el admin vea el historial completo.' },
-      { icono: '🏢', titulo: 'Tipo: Propiedad', desc: 'Cuando visitas un inmueble en evaluación. Ingresa el nombre o dirección de la propiedad para identificarla en el mapa.' },
-      { icono: '🏫', titulo: 'Tipo: Escuela', desc: 'Para visitas a escuelas o instituciones (ferias, presentaciones). Ingresa el nombre de la escuela.' },
-      { icono: '📶', titulo: 'Funciona offline', desc: 'Las visitas registradas sin señal se guardan en tu dispositivo y se sincronizan automáticamente cuando recuperes internet.' },
+      { icono: 'location', titulo: 'Registrar visita', desc: 'En la pestaña Mapa toca "+ Registrar Visita". La app detecta tu ubicación automáticamente. Agrega notas y, si quieres, selecciona fotos de la galería.' },
+      { icono: 'home', titulo: 'Tipo: Cliente', desc: 'Usa este tipo al visitar a un prospecto. Puedes vincular la visita a un contacto existente para que el admin vea el historial completo.' },
+      { icono: 'business', titulo: 'Tipo: Propiedad', desc: 'Cuando visitas un inmueble en evaluación. Ingresa el nombre o dirección de la propiedad para identificarla en el mapa.' },
+      { icono: 'school', titulo: 'Tipo: Escuela', desc: 'Para visitas a escuelas o instituciones (ferias, presentaciones). Ingresa el nombre de la escuela.' },
+      { icono: 'cellular', titulo: 'Funciona offline', desc: 'Las visitas registradas sin señal se guardan en tu dispositivo y se sincronizan automáticamente cuando recuperes internet.' },
     ],
   },
   {
     id: 'anuncios',
-    icono: '📢',
+    icono: 'megaphone',
     titulo: 'Anuncios publicitarios',
     subtitulo: 'Registra la propaganda que colocas en campo',
     pasos: [
-      { icono: '📢', titulo: 'Registrar anuncio', desc: 'Desde el Mapa, toca el botón "📢" para abrir "Nuevo anuncio". Elige el tipo (lona, hoja en tienda, hoja en poste, volante u otro), la fecha de colocación y una descripción opcional.' },
-      { icono: '📷', titulo: 'Fotos del anuncio', desc: 'Puedes agregar hasta 3 fotos con la cámara o desde la galería. Se comprimen automáticamente y se suben solas en segundo plano — no necesitas esperar a que terminen para seguir trabajando.' },
-      { icono: '📍', titulo: 'Ubicación automática', desc: 'Al guardar, la app registra tu ubicación GPS actual como el lugar del anuncio. Asegúrate de estar frente a él antes de tocar "Registrar".' },
-      { icono: '🗺️', titulo: 'Ver anuncios en el mapa', desc: 'En el Mapa, usa el chip "📢 Anuncios" para mostrar u ocultar los anuncios de todos los asesores. Toca uno para ver su detalle o marcarlo como retirado si ya no está en su lugar.' },
-      { icono: '📶', titulo: 'Funciona con señal débil', desc: 'Si tienes poca señal (2G) o te mueves justo después de guardar, el anuncio y sus fotos quedan seguros en tu dispositivo y se suben solos en cuanto haya mejor conexión.' },
+      { icono: 'megaphone', titulo: 'Registrar anuncio', desc: 'Desde el Mapa, toca el botón del megáfono para abrir "Nuevo anuncio". Elige el tipo (lona, hoja en tienda, hoja en poste, volante u otro), la fecha de colocación y una descripción opcional.' },
+      { icono: 'camera', titulo: 'Fotos del anuncio', desc: 'Puedes agregar hasta 3 fotos con la cámara o desde la galería. Se comprimen automáticamente y se suben solas en segundo plano — no necesitas esperar a que terminen para seguir trabajando.' },
+      { icono: 'location', titulo: 'Ubicación automática', desc: 'Al guardar, la app registra tu ubicación GPS actual como el lugar del anuncio. Asegúrate de estar frente a él antes de tocar "Registrar".' },
+      { icono: 'map', titulo: 'Ver anuncios en el mapa', desc: 'En el Mapa, usa el chip "Anuncios" para mostrar u ocultar los anuncios de todos los asesores. Toca uno para ver su detalle o marcarlo como retirado si ya no está en su lugar.' },
+      { icono: 'cellular', titulo: 'Funciona con señal débil', desc: 'Si tienes poca señal (2G) o te mueves justo después de guardar, el anuncio y sus fotos quedan seguros en tu dispositivo y se suben solos en cuanto haya mejor conexión.' },
     ],
   },
   {
     id: 'rutas',
-    icono: '📍',
+    icono: 'location',
     titulo: 'Rutas y rastreo GPS',
     subtitulo: 'Supervisión de tu actividad en campo',
     pasos: [
-      { icono: '🟢', titulo: 'Activar rastreo', desc: 'En Inicio, activa el switch "📍 Ruta" para que la app registre tu recorrido mientras trabajas en campo. Puedes apagarlo cuando quieras desde el mismo switch.' },
-      { icono: '🗺️', titulo: 'Ver tu historial', desc: 'Toca "Rutas" en Inicio para ver el mapa de tus recorridos por día, con el trazo de la ruta y los puntos registrados.' },
-      { icono: '📶', titulo: 'Puntos pendientes', desc: 'Si guardaste puntos de ruta sin conexión, verás cuántos faltan por sincronizar. Se suben solos al recuperar internet.' },
+      { icono: 'ellipse', titulo: 'Activar rastreo', desc: 'En Inicio, activa el switch "Ruta" para que la app registre tu recorrido mientras trabajas en campo. Puedes apagarlo cuando quieras desde el mismo switch.' },
+      { icono: 'map', titulo: 'Ver tu historial', desc: 'Toca "Rutas" en Inicio para ver el mapa de tus recorridos por día, con el trazo de la ruta y los puntos registrados.' },
+      { icono: 'cellular', titulo: 'Puntos pendientes', desc: 'Si guardaste puntos de ruta sin conexión, verás cuántos faltan por sincronizar. Se suben solos al recuperar internet.' },
     ],
   },
   {
     id: 'perfil',
-    icono: '👤',
+    icono: 'person',
     titulo: 'Mi Perfil',
     subtitulo: 'Gestiona tu información personal',
     pasos: [
-      { icono: '✏️', titulo: 'Editar datos', desc: 'Toca "Editar" en la pantalla Perfil para modificar nombre, teléfono, banco y CLABE. Toca "Guardar" cuando termines.' },
-      { icono: '📸', titulo: 'Foto de perfil', desc: 'Toca tu foto → "Tomar selfie". La cámara frontal se activa para actualizar tu imagen.' },
-      { icono: '🚪', titulo: 'Cerrar sesión', desc: 'Al final de la pantalla Perfil encontrarás el botón "Cerrar sesión".' },
+      { icono: 'create', titulo: 'Editar datos', desc: 'Toca "Editar" en la pantalla Perfil para modificar nombre, teléfono, banco y CLABE. Toca "Guardar" cuando termines.' },
+      { icono: 'camera', titulo: 'Foto de perfil', desc: 'Toca tu foto → "Tomar selfie". La cámara frontal se activa para actualizar tu imagen.' },
+      { icono: 'log-out', titulo: 'Cerrar sesión', desc: 'Al final de la pantalla Perfil encontrarás el botón "Cerrar sesión".' },
     ],
   },
 ];
@@ -156,7 +159,7 @@ export default function AyudaScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backIcon}>←</Text>
+          <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Centro de Ayuda</Text>
         <View style={{ width: 40 }} />
@@ -169,7 +172,7 @@ export default function AyudaScreen() {
       >
         {/* Banner */}
         <View style={styles.banner}>
-          <Text style={styles.bannerEmoji}>❓</Text>
+          <Ionicons name="help-circle" size={40} color={Colors.gold[400]} />
           <View style={styles.bannerTexto}>
             <Text style={styles.bannerTitulo}>Guía de uso</Text>
             <Text style={styles.bannerSub}>Toca cada sección para ver los pasos detallados.</Text>
@@ -185,13 +188,13 @@ export default function AyudaScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.seccionLeft}>
-                <Text style={styles.seccionEmoji}>{s.icono}</Text>
+                <Ionicons name={s.icono as IconName} size={26} color={Colors.gold[400]} />
                 <View>
                   <Text style={styles.seccionTitulo}>{s.titulo}</Text>
                   <Text style={styles.seccionSub}>{s.subtitulo}</Text>
                 </View>
               </View>
-              <Text style={[styles.chevron, abiertos[s.id] && styles.chevronAbierto]}>›</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.dark[400]} />
             </TouchableOpacity>
 
             {abiertos[s.id] && (
@@ -199,7 +202,7 @@ export default function AyudaScreen() {
                 {s.pasos.map((p, i) => (
                   <View key={i} style={styles.paso}>
                     <View style={styles.pasoBadge}>
-                      <Text style={styles.pasoEmoji}>{p.icono}</Text>
+                      <Ionicons name={p.icono as IconName} size={22} color={Colors.gold[400]} />
                     </View>
                     <View style={styles.pasoTexto}>
                       <View style={styles.pasoTituloRow}>

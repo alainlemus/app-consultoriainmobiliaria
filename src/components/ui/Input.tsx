@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ViewStyle, TextInputProps, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '../../theme';
 
 interface InputProps extends TextInputProps {
@@ -29,8 +30,8 @@ export default function Input({ label, error, hint, containerStyle, dark = false
           {...rest}
         />
         {secureTextEntry && (
-          <TouchableOpacity style={styles.eyeBtn} onPress={() => setVisible(v => !v)}>
-            <Text style={styles.eyeIcon}>{visible ? '🙈' : '👁'}</Text>
+          <TouchableOpacity style={styles.eyeBtn} onPress={() => setVisible(v => !v)} accessibilityLabel={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'} accessibilityRole="button">
+            <Ionicons name={visible ? 'eye-off' : 'eye'} size={22} color={Colors.dark[500]} />
           </TouchableOpacity>
         )}
       </View>

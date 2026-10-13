@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   View, Text, StyleSheet, FlatList,
   TouchableOpacity, TextInput, ActivityIndicator, RefreshControl, Modal, Pressable,
@@ -127,7 +128,7 @@ export default function ProspectosScreen() {
         </View>
 
         <View style={styles.searchWrap}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Ionicons name="search" size={20} color={Colors.dark[500]} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar nombre, teléfono…"
@@ -138,7 +139,7 @@ export default function ProspectosScreen() {
           />
           {query.length > 0 && (
             <TouchableOpacity onPress={() => setQuery('')}>
-              <Text style={styles.clearBtn}>✕</Text>
+              <Ionicons name="close" size={18} color={Colors.dark[500]} style={styles.clearBtn} />
             </TouchableOpacity>
           )}
         </View>
@@ -149,7 +150,7 @@ export default function ProspectosScreen() {
             style={styles.asesorFiltro}
             onPress={() => setModalAsesores(true)}
           >
-            <Text style={styles.asesorFiltroIcon}>👤</Text>
+            <Ionicons name="person" size={20} color={Colors.dark[500]} style={styles.asesorFiltroIcon} />
             <Text style={styles.asesorFiltroText} numberOfLines={1}>
               {asesorFiltrado ? asesorFiltrado.name : 'Todos los asesores'}
             </Text>
@@ -158,10 +159,10 @@ export default function ProspectosScreen() {
                 onPress={() => setAsesorFiltrado(null)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Text style={{ color: Colors.dark[400], fontSize: 14 }}>✕</Text>
+                <Ionicons name="close" size={16} color={Colors.dark[400]} />
               </TouchableOpacity>
             )}
-            {!asesorFiltrado && <Text style={styles.asesorFiltroChevron}>▾</Text>}
+            {!asesorFiltrado && <Ionicons name="chevron-down" size={16} color={Colors.dark[400]} style={styles.asesorFiltroChevron} />}
           </TouchableOpacity>
         )}
 
@@ -196,7 +197,7 @@ export default function ProspectosScreen() {
       {/* ── Error ── */}
       {errorMsg && (
         <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>⚠️  {errorMsg}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="warning" size={16} color={Colors.dark[500]} /><Text style={[styles.errorText, { flexShrink: 1 }]}> {errorMsg}</Text></View>
           <TouchableOpacity onPress={() => load()}>
             <Text style={styles.retryText}>Reintentar</Text>
           </TouchableOpacity>
@@ -222,7 +223,7 @@ export default function ProspectosScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Text style={styles.emptyIcon}>👥</Text>
+              <Ionicons name="people" size={20} color={Colors.dark[500]} style={styles.emptyIcon} />
               <Text style={styles.emptyTitle}>Sin prospectos</Text>
               <Text style={styles.emptyText}>
                 Agrega tu primer prospecto con el botón Nuevo
@@ -250,7 +251,7 @@ export default function ProspectosScreen() {
                   {c.email ?? c.telefono ?? '—'}
                 </Text>
                 {c._pendiente_sync && (
-                  <Text style={styles.pendienteSyncText}>⏳ Pendiente de sincronizar</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="hourglass" size={16} color={Colors.dark[500]} /><Text style={[styles.pendienteSyncText, { flexShrink: 1 }]}>Pendiente de sincronizar</Text></View>
                 )}
               </View>
               {!c._pendiente_sync && (
@@ -276,9 +277,9 @@ export default function ProspectosScreen() {
             onPress={() => { setAsesorFiltrado(null); setModalAsesores(false); }}
           >
             <Text style={[styles.asesorItemText, !asesorFiltrado && styles.asesorItemTextActive]}>
-              👥 Todos los asesores
+              <Ionicons name="people" size={16} color={Colors.dark[500]} />{' '}Todos los asesores
             </Text>
-            {!asesorFiltrado && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+            {!asesorFiltrado && <Ionicons name="checkmark" size={18} color={Colors.gold[400]} />}
           </TouchableOpacity>
           {asesores.map(a => (
             <TouchableOpacity
@@ -287,9 +288,9 @@ export default function ProspectosScreen() {
               onPress={() => { setAsesorFiltrado(a); setModalAsesores(false); }}
             >
               <Text style={[styles.asesorItemText, asesorFiltrado?.id === a.id && styles.asesorItemTextActive]}>
-                👤 {a.name}
+                <Ionicons name="person" size={16} color={Colors.dark[500]} />{' '}{a.name}
               </Text>
-              {asesorFiltrado?.id === a.id && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+              {asesorFiltrado?.id === a.id && <Ionicons name="checkmark" size={18} color={Colors.gold[400]} />}
             </TouchableOpacity>
           ))}
         </View>

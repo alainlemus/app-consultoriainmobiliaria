@@ -537,7 +537,13 @@ export async function reemplazarDocumento(expedienteId: number, documentoId: num
   return { ...doc, url: resolveStorageUrl(doc.url) };
 }
 
-/** Marca un documento ya subido como no válido — el acreditado ve el motivo y debe volver a subirlo */
+/** Solo administradores: da por válido un documento */
+export async function validarDocumento(expedienteId: number, documentoId: number): Promise<Documento> {
+  const res = await apiFetch<ApiResponse<Documento>>(`/expedientes/${expedienteId}/documentos/${documentoId}/validar`, { method: 'POST' });
+  return { ...res.data, url: resolveStorageUrl(res.data.url) };
+}
+
+/** Solo administradores: marca un documento como no válido — se guarda el motivo y el acreditado lo ve */
 export async function rechazarDocumento(expedienteId: number, documentoId: number, motivo: string): Promise<Documento> {
   const res = await apiFetch<ApiResponse<Documento>>(`/expedientes/${expedienteId}/documentos/${documentoId}/rechazar`, {
     method: 'POST',

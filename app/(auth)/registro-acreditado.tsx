@@ -58,7 +58,7 @@ export default function RegistroAcreditadoScreen() {
 
       if (result.expediente_vinculado) {
         Alert.alert(
-          '¡Expediente encontrado! 🎉',
+          '¡Expediente encontrado!',
           `Tu cuenta fue vinculada automáticamente al expediente ${result.expediente_vinculado.folio}. Puedes consultar el estado de tu trámite desde la app.`,
           [{ text: 'Ver mi trámite', onPress: () => router.replace('/(acreditado)') }],
         );

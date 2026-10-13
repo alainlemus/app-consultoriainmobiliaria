@@ -143,6 +143,9 @@ export interface Documento {
   uri_local?:      string;
   estado:          'pendiente' | 'recibido' | 'rechazado' | 'no_aplica';
   notas?:          string;
+  /** Lo decide un administrador: en revisión, validado o rechazado (con motivo). */
+  validacion?:     'en_revision' | 'validado' | 'rechazado';
+  motivo_rechazo?: string | null;
   created_at?:     string;
   _local_id?:      string;
   _pendiente_sync?: boolean;
@@ -159,12 +162,12 @@ export const ANUNCIO_TIPO_LABEL: Record<TipoAnuncio, string> = {
   otro:        'Otro',
 };
 
-export const ANUNCIO_TIPO_EMOJI: Record<TipoAnuncio, string> = {
-  lona:        '📢',
-  hoja_tienda: '🏪',
-  hoja_poste:  '📌',
-  volante:     '📄',
-  otro:        '📣',
+export const ANUNCIO_TIPO_ICONO: Record<TipoAnuncio, string> = {
+  lona:        'megaphone',
+  hoja_tienda: 'storefront',
+  hoja_poste:  'pin',
+  volante:     'document-text',
+  otro:        'megaphone-outline',
 };
 
 export interface Anuncio {

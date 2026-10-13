@@ -108,7 +108,7 @@ export default function PerfilAcreditadoScreen() {
       await cambiarPasswordAcreditado(pwActual, pwNueva, pwConfirmacion);
       setPwActual(''); setPwNueva(''); setPwConfirmacion('');
       setShowPassword(false);
-      Alert.alert('✅ Contraseña actualizada', 'Tu contraseña fue cambiada correctamente.');
+      Alert.alert('Contraseña actualizada', 'Tu contraseña fue cambiada correctamente.');
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'No se pudo cambiar la contraseña.');
     } finally { setCambiandoPw(false); }
@@ -154,13 +154,13 @@ export default function PerfilAcreditadoScreen() {
         await subirFotoAcreditado(foto.uri);
         await refresh();
         await Promise.all([limpiarArchivoLocal(foto.uri), desencolarFotos(idLocal)]);
-        Alert.alert('✅ Foto actualizada', 'Tu foto de perfil se actualizó correctamente.');
+        Alert.alert('Foto actualizada', 'Tu foto de perfil se actualizó correctamente.');
       } catch (e: unknown) {
         const msg = (e instanceof Error ? e.message : '').toLowerCase();
         if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
           // Red débil → queda en la cola para reintento automático
           Alert.alert(
-            '📋 Foto guardada',
+            'Foto guardada',
             'La foto se subirá automáticamente cuando tengas mejor señal.',
           );
         } else {

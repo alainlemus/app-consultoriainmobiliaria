@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
   ScrollView, StyleSheet, Text, TouchableOpacity, View,
@@ -13,11 +14,11 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Radius, Shadows, Spacing, Typography } from '../src/theme';
 import type { RutaAsesor, RutaDia, RutaPunto, RutaPuntoTipo } from '../src/types';
 
-const TIPO_ICONO: Record<RutaPuntoTipo, string> = {
-  gps:            '📍',
-  visita_cliente: '🏠',
-  escuela:        '🏫',
-  propiedad:      '📋',
+const TIPO_ICONO: Record<RutaPuntoTipo, React.ComponentProps<typeof Ionicons>['name']> = {
+  gps:            'location',
+  visita_cliente: 'home',
+  escuela:        'school',
+  propiedad:      'business',
 };
 
 const TIPO_LABEL: Record<RutaPuntoTipo, string> = {
@@ -290,12 +291,12 @@ export default function RutasScreen() {
           >
             {loadingAsesores
               ? <ActivityIndicator size={12} color={Colors.gold[400]} style={{ marginRight: 4 }} />
-              : <Text style={s.chipIcon}>{verTodos ? '👥' : '👤'}</Text>
+              : <Ionicons name={verTodos ? 'people' : 'person'} size={16} color={Colors.dark[500]} />
             }
             <Text style={[s.chipLabel, nombreAsesorChip && s.chipLabelActive]} numberOfLines={1}>
               {nombreAsesorChip ?? 'Seleccionar asesor'}
             </Text>
-            <Text style={s.chipArrow}>▾</Text>
+            <Ionicons name="chevron-down" size={16} color={Colors.dark[400]} style={s.chipArrow} />
           </TouchableOpacity>
         )}
 
@@ -308,12 +309,12 @@ export default function RutasScreen() {
         >
           {loadingDias
             ? <ActivityIndicator size={12} color={Colors.gold[400]} style={{ marginRight: 4 }} />
-            : <Text style={s.chipIcon}>📅</Text>
+            : <Ionicons name="calendar" size={20} color={Colors.dark[500]} style={s.chipIcon} />
           }
           <Text style={[s.chipLabel, fecha && s.chipLabelActive, !asesorId && s.chipLabelDisabled]} numberOfLines={1}>
             {fecha ? formatFecha(fecha) : 'Seleccionar fecha'}
           </Text>
-          <Text style={s.chipArrow}>▾</Text>
+          <Ionicons name="chevron-down" size={16} color={Colors.dark[400]} style={s.chipArrow} />
         </TouchableOpacity>
 
         {/* Botón limpiar fecha */}
@@ -323,7 +324,7 @@ export default function RutasScreen() {
             onPress={() => { setFecha(null); setPuntos([]); }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={s.clearBtnText}>✕</Text>
+            <Ionicons name="close" size={18} color={Colors.dark[500]} style={s.clearBtnText} />
           </TouchableOpacity>
         )}
       </View>
@@ -372,9 +373,9 @@ export default function RutasScreen() {
       {/* ── Error ── */}
       {error && (
         <View style={s.errorBanner}>
-          <Text style={s.errorText}>⚠️ {error}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="warning" size={16} color={Colors.dark[500]} /><Text style={[s.errorText, { flexShrink: 1 }]}>{error}</Text></View>
           <TouchableOpacity onPress={() => setError(null)}>
-            <Text style={s.errorClose}>✕</Text>
+            <Ionicons name="close" size={18} color={Colors.dark[500]} style={s.errorClose} />
           </TouchableOpacity>
         </View>
       )}
@@ -388,7 +389,7 @@ export default function RutasScreen() {
           </View>
         ) : !asesorId ? (
           <View style={s.centered}>
-            <Text style={s.emptyIcon}>🗺️</Text>
+            <Ionicons name="map" size={20} color={Colors.dark[500]} style={s.emptyIcon} />
             <Text style={s.emptyTitle}>
               {isSuperAdmin ? 'Selecciona un asesor' : 'Sin datos de ruta'}
             </Text>
@@ -400,7 +401,7 @@ export default function RutasScreen() {
           </View>
         ) : !fecha ? (
           <View style={s.centered}>
-            <Text style={s.emptyIcon}>📅</Text>
+            <Ionicons name="calendar" size={20} color={Colors.dark[500]} style={s.emptyIcon} />
             <Text style={s.emptyTitle}>Selecciona una fecha</Text>
             <Text style={s.emptySubtitle}>
               {dias.length > 0
@@ -410,7 +411,7 @@ export default function RutasScreen() {
           </View>
         ) : puntos.length === 0 ? (
           <View style={s.centered}>
-            <Text style={s.emptyIcon}>📍</Text>
+            <Ionicons name="location" size={20} color={Colors.dark[500]} style={s.emptyIcon} />
             <Text style={s.emptyTitle}>Sin puntos</Text>
             <Text style={s.emptySubtitle}>No hay ruta registrada el {formatFechaLarga(fecha)}</Text>
           </View>
@@ -483,7 +484,7 @@ export default function RutasScreen() {
                       description={`${TIPO_LABEL[p.tipo]} · ${p.hora}`}
                     >
                       <View style={s.marcadorTipo}>
-                        <Text style={s.marcadorTipoEmoji}>{TIPO_ICONO[p.tipo]}</Text>
+                        <Ionicons name={TIPO_ICONO[p.tipo]} size={20} color={Colors.dark[700]} />
                       </View>
                     </Marker>
                   ) : null
@@ -552,11 +553,11 @@ export default function RutasScreen() {
               >
                 <View style={s.sheetItemLeft}>
                   <Text style={[s.sheetItemName, asesorId === TODOS && s.sheetItemNameActive]}>
-                    👥 Todos los asesores
+                    <Ionicons name="people" size={16} color={Colors.dark[500]} />{' '}Todos los asesores
                   </Text>
                   <Text style={s.sheetItemSub}>Ver las rutas de todos juntas, con un color por asesor</Text>
                 </View>
-                {asesorId === TODOS && <Text style={s.sheetItemCheck}>✓</Text>}
+                {asesorId === TODOS && <Ionicons name="checkmark" size={18} color={Colors.dark[500]} style={s.sheetItemCheck} />}
               </TouchableOpacity>
             )}
             {asesores.length === 0 ? (
@@ -576,7 +577,7 @@ export default function RutasScreen() {
                     <View style={s.sheetItemMeta}>
                       {a.puntos_hoy > 0 && (
                         <View style={s.badgeVerde}>
-                          <Text style={s.badgeVerdeText}>🟢 {a.puntos_hoy} pts hoy</Text>
+                          <Text style={s.badgeVerdeText}><Ionicons name="ellipse" size={10} color="#22c55e" />{' '}{a.puntos_hoy} pts hoy</Text>
                         </View>
                       )}
                       {a.total_puntos > 0 && (
@@ -587,7 +588,7 @@ export default function RutasScreen() {
                       )}
                     </View>
                   </View>
-                  {a.id === asesorId && <Text style={s.sheetItemCheck}>✓</Text>}
+                  {a.id === asesorId && <Ionicons name="checkmark" size={18} color={Colors.dark[500]} style={s.sheetItemCheck} />}
                 </TouchableOpacity>
               ))
             )}
@@ -626,7 +627,7 @@ export default function RutasScreen() {
                       </Text>
                       <Text style={s.sheetItemSub}>{d.puntos} punto{d.puntos !== 1 ? 's' : ''} registrado{d.puntos !== 1 ? 's' : ''}</Text>
                     </View>
-                    {d.fecha === fecha && <Text style={s.sheetItemCheck}>✓</Text>}
+                    {d.fecha === fecha && <Ionicons name="checkmark" size={18} color={Colors.dark[500]} style={s.sheetItemCheck} />}
                   </TouchableOpacity>
                 );
               })

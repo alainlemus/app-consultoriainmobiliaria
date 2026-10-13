@@ -101,7 +101,7 @@ export default function ExpedientesScreen() {
             style={styles.asesorFiltro}
             onPress={() => setModalAsesores(true)}
           >
-            <Text style={styles.asesorFiltroIcon}>👤</Text>
+            <Ionicons name="person" size={20} color={Colors.dark[500]} style={styles.asesorFiltroIcon} />
             <Text style={styles.asesorFiltroText} numberOfLines={1}>
               {asesorFiltrado ? asesorFiltrado.name : 'Todos los asesores'}
             </Text>
@@ -110,10 +110,10 @@ export default function ExpedientesScreen() {
                 onPress={() => setAsesorFiltrado(null)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>✕</Text>
+                <Ionicons name="close" size={16} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
             )}
-            {!asesorFiltrado && <Text style={styles.asesorFiltroChevron}>▾</Text>}
+            {!asesorFiltrado && <Ionicons name="chevron-down" size={16} color={Colors.dark[400]} style={styles.asesorFiltroChevron} />}
           </TouchableOpacity>
         )}
       </View>
@@ -147,16 +147,10 @@ export default function ExpedientesScreen() {
               }
               activeOpacity={exp._pendiente_sync ? 1 : 0.8}
             >
-              {/* Foto del acreditado */}
-              {exp.contacto?.foto_url ? (
-                <Image source={{ uri: exp.contacto.foto_url }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatarFallback}>
-                  <Text style={styles.avatarLetter}>
-                    {(exp.contacto?.nombre?.[0] ?? '?').toUpperCase()}
-                  </Text>
-                </View>
-              )}
+              {/* Ya no se pide foto: icono de expediente */}
+              <View style={styles.avatarFallback}>
+                <Ionicons name="folder-open" size={26} color={Colors.gold[400]} />
+              </View>
 
               <View style={styles.info}>
                 {!exp._pendiente_sync && (
@@ -165,7 +159,7 @@ export default function ExpedientesScreen() {
                       <Ionicons name="attach" size={16} color={Colors.dark[500]} />
                       <Text style={styles.docsPill}>{exp.documentos_count ?? 0} documento{(exp.documentos_count ?? 0) === 1 ? '' : 's'}</Text>
                     </View>
-                    <Text style={styles.chevron}>›</Text>
+                    <Ionicons name="chevron-forward" size={16} color={Colors.dark[400]} style={styles.chevron} />
                   </View>
                 )}
                 <Text style={styles.nombre}>
@@ -178,7 +172,7 @@ export default function ExpedientesScreen() {
                   {exp.tipo_tramite?.nombre ?? '—'}
                 </Text>
                 {exp._pendiente_sync && (
-                  <Text style={styles.pendienteSyncText}>⏳ Pendiente de sincronizar</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="hourglass" size={16} color={Colors.dark[500]} /><Text style={[styles.pendienteSyncText, { flexShrink: 1 }]}>Pendiente de sincronizar</Text></View>
                 )}
               </View>
             </TouchableOpacity>
@@ -197,9 +191,9 @@ export default function ExpedientesScreen() {
             onPress={() => { setAsesorFiltrado(null); setModalAsesores(false); }}
           >
             <Text style={[styles.asesorItemText, !asesorFiltrado && styles.asesorItemTextActive]}>
-              👥 Todos los asesores
+              <Ionicons name="people" size={16} color={Colors.dark[500]} />{' '}Todos los asesores
             </Text>
-            {!asesorFiltrado && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+            {!asesorFiltrado && <Ionicons name="checkmark" size={18} color={Colors.gold[400]} />}
           </TouchableOpacity>
           {asesores.map(a => (
             <TouchableOpacity
@@ -208,9 +202,9 @@ export default function ExpedientesScreen() {
               onPress={() => { setAsesorFiltrado(a); setModalAsesores(false); }}
             >
               <Text style={[styles.asesorItemText, asesorFiltrado?.id === a.id && styles.asesorItemTextActive]}>
-                👤 {a.name}
+                <Ionicons name="person" size={16} color={Colors.dark[500]} />{' '}{a.name}
               </Text>
-              {asesorFiltrado?.id === a.id && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+              {asesorFiltrado?.id === a.id && <Ionicons name="checkmark" size={18} color={Colors.gold[400]} />}
             </TouchableOpacity>
           ))}
         </View>

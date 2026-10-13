@@ -105,13 +105,13 @@ export default function DocumentosScreen() {
     const opciones: { text: string; onPress?: () => void; style?: 'cancel' | 'destructive' }[] = [];
 
     if (DocumentScanner && RNImageToPdf) {
-      opciones.push({ text: '📷 Escanear documento', onPress: () => escanear() });
+      opciones.push({ text: 'Escanear documento', onPress: () => escanear() });
     } else {
-      opciones.push({ text: '📷 Tomar foto', onPress: () => subirDesde('camara') });
+      opciones.push({ text: 'Tomar foto', onPress: () => subirDesde('camara') });
     }
 
     opciones.push(
-      { text: '📄 Archivo PDF',  onPress: () => subirDesde('archivo') },
+      { text: 'Archivo PDF',  onPress: () => subirDesde('archivo') },
       { text: 'Cancelar', style: 'cancel' },
     );
 
@@ -198,14 +198,14 @@ export default function DocumentosScreen() {
             try {
               await subirDocumentoAcreditado(uriPersist, nombreBase || tipo, mime);
               await cargar();
-              Alert.alert('✅ Listo', `${tipo} subido correctamente.`);
+              Alert.alert('Listo', `${tipo} subido correctamente.`);
             } catch (e: unknown) {
               const msg = (e instanceof Error ? e.message : '').toLowerCase();
               if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
                 // Red débil o nula → encolar para reintento automático
                 await encolarDocAcreditado({ uri: uriPersist, tipo, mimeType: mime });
                 Alert.alert(
-                  '📋 Guardado sin conexión',
+                  'Guardado sin conexión',
                   `El documento "${tipo}" se enviará automáticamente cuando tengas mejor señal.`,
                 );
               } else {

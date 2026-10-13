@@ -88,7 +88,7 @@ export default function MiTramiteScreen() {
       setMensajeAdicional('');
       setMostrarMensaje(false);
       Alert.alert(
-        '¡Solicitud enviada! ✅',
+        '¡Solicitud enviada!',
         `Tu solicitud de asesoría para "${servicio.nombre}" fue registrada. Un asesor se pondrá en contacto contigo a la brevedad.`,
         [{ text: 'Entendido' }],
       );
@@ -124,7 +124,7 @@ export default function MiTramiteScreen() {
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? 'bienvenido'} 👋</Text>
+              <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? 'bienvenido'}</Text>
               <Text style={styles.headerSub}>Consultoría Inmobiliaria</Text>
             </View>
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
@@ -231,7 +231,7 @@ export default function MiTramiteScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? ''} 👋</Text>
+            <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? ''}</Text>
             <Text style={styles.headerSub}>Consultoría Inmobiliaria</Text>
           </View>
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>

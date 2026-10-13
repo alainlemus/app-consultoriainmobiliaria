@@ -169,7 +169,7 @@ export default function SubirDocumentoScreen() {
           return;
         }
         await reemplazarDocumento(Number(expedienteId), Number(reemplazarId), uriPersistida, mimeType);
-        Alert.alert('✓ Listo', 'Documento reemplazado correctamente.', [
+        Alert.alert('Listo', 'Documento reemplazado correctamente.', [
           { text: 'OK', onPress: () => router.back() },
         ]);
         return;
@@ -185,7 +185,7 @@ export default function SubirDocumentoScreen() {
           notas:        notas || undefined,
         });
         Alert.alert(
-          '📋 Guardado sin conexión',
+          'Guardado sin conexión',
           'El documento se enviará automáticamente cuando recuperes internet.',
           [{ text: 'Entendido', onPress: () => router.back() }],
         );
@@ -206,7 +206,7 @@ export default function SubirDocumentoScreen() {
           mimeType,
           seccion,
         );
-        Alert.alert('✓ Listo', 'Documento subido correctamente.', [
+        Alert.alert('Listo', 'Documento subido correctamente.', [
           { text: 'OK', onPress: () => router.back() },
         ]);
       } catch (e: unknown) {
@@ -256,7 +256,7 @@ export default function SubirDocumentoScreen() {
       >
         <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={volverASelector} style={s.backBtn}>
-            <Text style={s.backIcon}>←</Text>
+            <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} style={s.backIcon} />
           </TouchableOpacity>
           <Text style={s.topTitle}>Revisar documento</Text>
           <View style={{ width: 40 }} />
@@ -281,7 +281,7 @@ export default function SubirDocumentoScreen() {
                 )}
               </View>
               <View style={s.pdfBadge}>
-                <Text style={s.pdfIcon}>📄</Text>
+                <Ionicons name="document-text" size={20} color={Colors.dark[500]} style={s.pdfIcon} />
                 <Text style={s.pdfLabel}>
                   PDF · {pages.length} página{pages.length !== 1 ? 's' : ''}
                 </Text>
@@ -364,7 +364,7 @@ export default function SubirDocumentoScreen() {
     >
       <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <Text style={s.backIcon}>←</Text>
+          <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} style={s.backIcon} />
         </TouchableOpacity>
         <Text style={s.topTitle}>{reemplazando ? 'Reemplazar documento' : 'Agregar documento'}</Text>
         <View style={{ width: 40 }} />

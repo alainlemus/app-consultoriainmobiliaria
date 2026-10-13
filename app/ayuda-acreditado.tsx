@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, StatusBar, LayoutAnimation,
@@ -11,6 +12,8 @@ import { Colors, Typography, Spacing, Radius } from '../src/theme';
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface Paso {
   icono: string;
@@ -29,51 +32,51 @@ interface Seccion {
 const SECCIONES: Seccion[] = [
   {
     id: 'inicio',
-    icono: '🏠',
+    icono: 'home',
     titulo: 'Mi Trámite',
     subtitulo: 'Consulta el estado de tu crédito',
     pasos: [
-      { icono: '🙋', titulo: 'Sin trámite activo', desc: 'Si aún no tienes un trámite, elige el servicio que necesitas (FOVISSSTE, INFONAVIT, Avalúo, etc.) y toca "Solicitar asesoría". Un asesor se pondrá en contacto contigo.' },
-      { icono: '📊', titulo: 'Estado del trámite', desc: 'Una vez que tu trámite inicia, verás que está "En revisión" mientras tu asesor revisa tus documentos.' },
-      { icono: 'ℹ️', titulo: '¿Qué está pasando?', desc: 'Esta tarjeta te explica, en palabras simples, en qué punto está tu trámite.' },
-      { icono: '📞', titulo: 'Tu asesor', desc: 'Al final de la pantalla verás los datos de tu asesor asignado — puedes llamarle, escribirle por WhatsApp o enviarle un correo directamente desde ahí.' },
-      { icono: '📅', titulo: 'Fechas importantes', desc: 'Cuando estén definidas, verás la fecha de firma ante notario y la fecha esperada de pago.' },
+      { icono: 'hand-left', titulo: 'Sin trámite activo', desc: 'Si aún no tienes un trámite, elige el servicio que necesitas (FOVISSSTE, INFONAVIT, Avalúo, etc.) y toca "Solicitar asesoría". Un asesor se pondrá en contacto contigo.' },
+      { icono: 'stats-chart', titulo: 'Estado del trámite', desc: 'Una vez que tu trámite inicia, verás que está "En revisión" mientras tu asesor revisa tus documentos.' },
+      { icono: 'information-circle', titulo: '¿Qué está pasando?', desc: 'Esta tarjeta te explica, en palabras simples, en qué punto está tu trámite.' },
+      { icono: 'call', titulo: 'Tu asesor', desc: 'Al final de la pantalla verás los datos de tu asesor asignado — puedes llamarle, escribirle por WhatsApp o enviarle un correo directamente desde ahí.' },
+      { icono: 'calendar', titulo: 'Fechas importantes', desc: 'Cuando estén definidas, verás la fecha de firma ante notario y la fecha esperada de pago.' },
     ],
   },
   {
     id: 'documentos',
-    icono: '📄',
+    icono: 'document-text',
     titulo: 'Documentos',
     subtitulo: 'Sube los documentos que te piden',
     pasos: [
-      { icono: '📋', titulo: 'Ver tu checklist', desc: 'En la pestaña Documentos verás la lista de documentos requeridos y su estado: Pendiente, Recibido o Rechazado.' },
-      { icono: '📤', titulo: 'Subir un documento', desc: 'Toca "Subir documento" y elige cómo obtenerlo: escanear (convierte varias fotos en un PDF automáticamente), tomar foto, o seleccionar un archivo PDF ya guardado.' },
-      { icono: '🔁', titulo: 'Documento rechazado', desc: 'Si un documento aparece como "Rechazado", vuelve a subirlo — tu asesor te indicará qué corregir.' },
-      { icono: '👁️', titulo: 'Ver un documento subido', desc: 'Toca cualquier documento de la lista para abrirlo y revisar que se vea bien.' },
+      { icono: 'clipboard', titulo: 'Ver tu checklist', desc: 'En la pestaña Documentos verás la lista de documentos requeridos y su estado: Pendiente, Recibido o Rechazado.' },
+      { icono: 'cloud-upload', titulo: 'Subir un documento', desc: 'Toca "Subir documento" y elige cómo obtenerlo: escanear (convierte varias fotos en un PDF automáticamente), tomar foto, o seleccionar un archivo PDF ya guardado.' },
+      { icono: 'repeat', titulo: 'Documento rechazado', desc: 'Si un documento aparece como "Rechazado", vuelve a subirlo — tu asesor te indicará qué corregir.' },
+      { icono: 'eye', titulo: 'Ver un documento subido', desc: 'Toca cualquier documento de la lista para abrirlo y revisar que se vea bien.' },
     ],
   },
   {
     id: 'cuenta',
-    icono: '👤',
+    icono: 'person',
     titulo: 'Mi Cuenta',
     subtitulo: 'Gestiona tu información personal',
     pasos: [
-      { icono: '✏️', titulo: 'Editar tus datos', desc: 'En Mi Cuenta toca "Editar" para actualizar tu nombre, teléfono, CURP o NSS. Toca "Guardar" cuando termines.' },
-      { icono: '📸', titulo: 'Foto de perfil', desc: 'Toca tu foto y elige "Tomar foto" o "Elegir de galería" para actualizarla.' },
-      { icono: '🔑', titulo: 'Cambiar contraseña', desc: 'Abre la sección "Contraseña" e ingresa tu contraseña actual y la nueva dos veces.' },
-      { icono: '🔒', titulo: 'Face ID / huella', desc: 'Si activaste el acceso rápido con Face ID o huella, puedes eliminar esas credenciales en cualquier momento desde "Eliminar credenciales".' },
-      { icono: '🗑️', titulo: 'Cancelar mi cuenta', desc: 'Al final de Mi Cuenta puedes solicitar la cancelación y eliminación de tus datos, según nuestra política de privacidad.' },
+      { icono: 'create', titulo: 'Editar tus datos', desc: 'En Mi Cuenta toca "Editar" para actualizar tu nombre, teléfono, CURP o NSS. Toca "Guardar" cuando termines.' },
+      { icono: 'camera', titulo: 'Foto de perfil', desc: 'Toca tu foto y elige "Tomar foto" o "Elegir de galería" para actualizarla.' },
+      { icono: 'key', titulo: 'Cambiar contraseña', desc: 'Abre la sección "Contraseña" e ingresa tu contraseña actual y la nueva dos veces.' },
+      { icono: 'lock-closed', titulo: 'Face ID / huella', desc: 'Si activaste el acceso rápido con Face ID o huella, puedes eliminar esas credenciales en cualquier momento desde "Eliminar credenciales".' },
+      { icono: 'trash', titulo: 'Cancelar mi cuenta', desc: 'Al final de Mi Cuenta puedes solicitar la cancelación y eliminación de tus datos, según nuestra política de privacidad.' },
     ],
   },
   {
     id: 'offline',
-    icono: '📶',
+    icono: 'cellular',
     titulo: 'Modo sin internet',
     subtitulo: 'Puedes seguir usando la app sin señal',
     pasos: [
-      { icono: '📱', titulo: 'Consultar tu trámite', desc: 'Aunque no tengas señal, puedes ver el estado de tu trámite, tus documentos con la última información descargada.' },
-      { icono: '📄', titulo: 'Subir documentos sin señal', desc: 'Puedes escanear o seleccionar documentos aunque no tengas internet — se guardan en tu dispositivo y se suben solos en cuanto recuperes la conexión.' },
-      { icono: '📸', titulo: 'Foto de perfil protegida', desc: 'Si actualizas tu foto de perfil con señal débil, no se pierde: se sube sola en cuanto haya mejor conexión.' },
+      { icono: 'phone-portrait', titulo: 'Consultar tu trámite', desc: 'Aunque no tengas señal, puedes ver el estado de tu trámite, tus documentos con la última información descargada.' },
+      { icono: 'document-text', titulo: 'Subir documentos sin señal', desc: 'Puedes escanear o seleccionar documentos aunque no tengas internet — se guardan en tu dispositivo y se suben solos en cuanto recuperes la conexión.' },
+      { icono: 'camera', titulo: 'Foto de perfil protegida', desc: 'Si actualizas tu foto de perfil con señal débil, no se pierde: se sube sola en cuanto haya mejor conexión.' },
     ],
   },
 ];
@@ -95,7 +98,7 @@ export default function AyudaAcreditadoScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backIcon}>←</Text>
+          <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Centro de Ayuda</Text>
         <View style={{ width: 40 }} />
@@ -108,7 +111,7 @@ export default function AyudaAcreditadoScreen() {
       >
         {/* Banner */}
         <View style={styles.banner}>
-          <Text style={styles.bannerEmoji}>❓</Text>
+          <Ionicons name="help-circle" size={40} color={Colors.gold[400]} />
           <View style={styles.bannerTexto}>
             <Text style={styles.bannerTitulo}>Guía de uso</Text>
             <Text style={styles.bannerSub}>Toca cada sección para ver los pasos detallados.</Text>
@@ -124,13 +127,13 @@ export default function AyudaAcreditadoScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.seccionLeft}>
-                <Text style={styles.seccionEmoji}>{s.icono}</Text>
+                <Ionicons name={s.icono as IconName} size={26} color={Colors.gold[400]} />
                 <View>
                   <Text style={styles.seccionTitulo}>{s.titulo}</Text>
                   <Text style={styles.seccionSub}>{s.subtitulo}</Text>
                 </View>
               </View>
-              <Text style={[styles.chevron, abiertos[s.id] && styles.chevronAbierto]}>›</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.dark[400]} />
             </TouchableOpacity>
 
             {abiertos[s.id] && (
@@ -138,7 +141,7 @@ export default function AyudaAcreditadoScreen() {
                 {s.pasos.map((p, i) => (
                   <View key={i} style={styles.paso}>
                     <View style={styles.pasoBadge}>
-                      <Text style={styles.pasoEmoji}>{p.icono}</Text>
+                      <Ionicons name={p.icono as IconName} size={22} color={Colors.gold[400]} />
                     </View>
                     <View style={styles.pasoTexto}>
                       <View style={styles.pasoTituloRow}>

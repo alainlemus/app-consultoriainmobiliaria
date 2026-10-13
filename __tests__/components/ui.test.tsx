@@ -126,18 +126,17 @@ describe('Input', () => {
   });
 
   it('muestra botón ojo cuando secureTextEntry=true', () => {
-    const { queryAllByText } = render(<Input secureTextEntry />);
-    // El botón ojo con emoji '👁' debe estar presente
-    const eyeButtons = queryAllByText('👁');
+    const { queryAllByLabelText } = render(<Input secureTextEntry />);
+    // El botón del ojo (icono) debe estar presente
+    const eyeButtons = queryAllByLabelText('Mostrar contraseña');
     expect(eyeButtons.length).toBeGreaterThan(0);
   });
 
   it('toggle visibilidad al presionar botón ojo', () => {
-    const { getByText, queryByText } = render(<Input secureTextEntry />);
-    const eyeBtn = getByText('👁');
-    fireEvent.press(eyeBtn);
-    // Ahora debe mostrar el ícono de ocultar
-    expect(getByText('🙈')).toBeTruthy();
+    const { getByLabelText } = render(<Input secureTextEntry />);
+    fireEvent.press(getByLabelText('Mostrar contraseña'));
+    // Ahora debe ofrecer ocultarla
+    expect(getByLabelText('Ocultar contraseña')).toBeTruthy();
   });
 
   it('llama onChangeText cuando el usuario escribe', () => {
@@ -214,14 +213,14 @@ describe('Header', () => {
 
   it('muestra flecha atrás y llama onBack', () => {
     const onBack = jest.fn();
-    const { getByText } = render(<Header title="Detalle" onBack={onBack} />);
-    fireEvent.press(getByText('←'));
+    const { getByLabelText } = render(<Header title="Detalle" onBack={onBack} />);
+    fireEvent.press(getByLabelText('Atrás'));
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
   it('no muestra flecha atrás si no se provee onBack', () => {
-    const { queryByText } = render(<Header title="Sin back" />);
-    expect(queryByText('←')).toBeNull();
+    const { queryByLabelText } = render(<Header title="Sin back" />);
+    expect(queryByLabelText('Atrás')).toBeNull();
   });
 
   it('renderiza rightElement', () => {

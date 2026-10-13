@@ -429,15 +429,15 @@ export default function RegistrarContratoScreen() {
               </Text>
               {ocrDisponible() && (
                 <Text style={s.tipReflejo}>
-                  💡 La INE es de plástico brillante — inclínala un poco o aléjate de luces directas para
+                  <Ionicons name="bulb" size={16} color={Colors.gold[500]} />{' '}La INE es de plástico brillante — inclínala un poco o aléjate de luces directas para
                   evitar reflejos sobre el nombre y el CURP, si no el reconocimiento puede fallar ahí.
                 </Text>
               )}
 
               <View style={{ gap: Spacing.sm, marginTop: Spacing.xl, alignSelf: 'stretch' }}>
-                <Button label="📸 Tomar foto" onPress={tomarFoto} fullWidth />
-                <Button label="🖼 Elegir de galería" onPress={elegirGaleria} variant="outline" fullWidth />
-                <Button label="✍️ Capturar datos manualmente" onPress={capturarManual} variant="ghost" fullWidth />
+                <Button label="Tomar foto" onPress={tomarFoto} fullWidth />
+                <Button label="Elegir de galería" onPress={elegirGaleria} variant="outline" fullWidth />
+                <Button label="Capturar datos manualmente" onPress={capturarManual} variant="ghost" fullWidth />
               </View>
             </>
           )}
@@ -493,7 +493,7 @@ export default function RegistrarContratoScreen() {
                 style={s.fotoPreview}
                 resizeMode="contain"
               />
-              <Button label="🔄 Volver a tomar foto" onPress={volverACaptura} variant="ghost" size="sm" />
+              <Button label="Volver a tomar foto" onPress={volverACaptura} variant="ghost" size="sm" />
             </View>
           )}
 

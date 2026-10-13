@@ -169,7 +169,7 @@ export default function DetalleProspectoScreen() {
         // Sin internet: encolar la actualización — fotos no se pueden asociar sin red
         await encolar('actualizar_contacto', payload);
         Alert.alert(
-          '📋 Guardado sin conexión',
+          'Guardado sin conexión',
           'Los cambios se guardarán en el CRM cuando recuperes internet. Las fotos se podrán agregar al reconectarte.',
           [{ text: 'OK' }],
         );
@@ -186,7 +186,7 @@ export default function DetalleProspectoScreen() {
         if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
           await encolar('actualizar_contacto', payload);
           Alert.alert(
-            '📋 Guardado sin conexión',
+            'Guardado sin conexión',
             'Los cambios se guardarán en el CRM cuando recuperes internet.',
             [{ text: 'OK' }],
           );
@@ -272,8 +272,6 @@ export default function DetalleProspectoScreen() {
 
   // ── Vista detalle ────────────────────────────────────────────────────────
   if (!editing) {
-    const fotoUri = contacto.foto_url ?? null;
-
     return (
       <View style={styles.flex}>
         <TopBar
@@ -298,15 +296,11 @@ export default function DetalleProspectoScreen() {
               <Text style={styles.cacheText}>Datos guardados en el dispositivo</Text>
             </View>
           )}
-          {/* Foto + badges */}
+          {/* Icono + estado */}
           <View style={styles.heroRow}>
-            {fotoUri ? (
-              <Image source={{ uri: fotoUri }} style={styles.fotoHero} />
-            ) : (
-              <View style={[styles.fotoHero, styles.fotoHeroPlaceholder]}>
-                <Text style={{ fontSize: 36 }}>👤</Text>
-              </View>
-            )}
+            <View style={[styles.fotoHero, styles.fotoHeroPlaceholder]}>
+              <Ionicons name="person" size={40} color={Colors.dark[500]} />
+            </View>
             <View style={styles.heroBadges}>
               <Badge
                 label={contacto.estado_prospecto}
@@ -334,7 +328,7 @@ export default function DetalleProspectoScreen() {
                   })}
                 >
                   <Text style={styles.ubicacionPillText}>
-                    📍 {[ultimaVisita.municipio, ultimaVisita.estado].filter(Boolean).join(', ') || 'Ver en mapa'}
+                    <Ionicons name="location" size={16} color={Colors.dark[500]} />{' '}{[ultimaVisita.municipio, ultimaVisita.estado].filter(Boolean).join(', ') || 'Ver en mapa'}
                   </Text>
                 </TouchableOpacity>
               ) : null}
@@ -821,7 +815,7 @@ function TopBar({ title, subtitle, onBack, insetTop, rightElement }: {
   return (
     <View style={[tb.wrap, { paddingTop: insetTop + 8 }]}>
       <TouchableOpacity style={tb.back} onPress={onBack}>
-        <Text style={tb.backIcon}>←</Text>
+        <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} />
       </TouchableOpacity>
       <View style={tb.mid}>
         {subtitle ? <Text style={tb.sub}>{subtitle}</Text> : null}
@@ -870,7 +864,7 @@ function ActionRow({ icon, label, sublabel, onPress, border }: { icon: React.Com
         <Text style={styles.actionLabel}>{label}</Text>
         {sublabel ? <Text style={{ fontSize: 12, color: Colors.dark[400], marginTop: 1 }}>{sublabel}</Text> : null}
       </View>
-      <Text style={styles.chevron}>›</Text>
+      <Ionicons name="chevron-forward" size={16} color={Colors.dark[400]} style={styles.chevron} />
     </TouchableOpacity>
   );
 }

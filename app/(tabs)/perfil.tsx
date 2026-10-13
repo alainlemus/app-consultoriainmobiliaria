@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, TextInput, Image,
@@ -137,7 +138,7 @@ export default function PerfilScreen() {
         if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
           // Red débil → queda en la cola para reintento automático
           Alert.alert(
-            '📋 Foto guardada',
+            'Foto guardada',
             'La foto se subirá automáticamente cuando tengas mejor señal.',
           );
         } else {
@@ -217,7 +218,7 @@ export default function PerfilScreen() {
             )}
             {/* Badge cámara */}
             <View style={s.cameraBadge}>
-              <Text style={s.cameraBadgeText}>📷</Text>
+              <Ionicons name="camera" size={20} color={Colors.dark[500]} style={s.cameraBadgeText} />
             </View>
           </TouchableOpacity>
 
@@ -279,9 +280,9 @@ export default function PerfilScreen() {
           {/* ── Ayuda ── */}
           <Card title="Ayuda" subtitle="Soporte" style={s.card}>
             <TouchableOpacity style={s.ayudaBtn} onPress={() => router.push('/ayuda')}>
-              <Text style={s.ayudaIcon}>❓</Text>
+              <Ionicons name="help-circle" size={20} color={Colors.dark[500]} style={s.ayudaIcon} />
               <Text style={s.ayudaText}>Ver guía de uso</Text>
-              <Text style={s.ayudaChevron}>›</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.dark[400]} style={s.ayudaChevron} />
             </TouchableOpacity>
           </Card>
 
@@ -303,9 +304,9 @@ export default function PerfilScreen() {
               style={s.legalItem}
               onPress={() => Linking.openURL('https://consultoriainmobiliaria.com.mx/aviso-de-privacidad')}
             >
-              <Text style={s.legalIcon}>🔒</Text>
+              <Ionicons name="lock-closed" size={20} color={Colors.dark[500]} style={s.legalIcon} />
               <Text style={s.legalText}>Aviso de Privacidad</Text>
-              <Text style={s.legalChevron}>›</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.dark[400]} style={s.legalChevron} />
             </TouchableOpacity>
           </Card>
 

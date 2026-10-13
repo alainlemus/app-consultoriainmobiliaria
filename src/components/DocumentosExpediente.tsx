@@ -3,12 +3,13 @@
  * ver, reemplazar y eliminar.
  */
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Colors, Radius, Spacing, Typography } from '../theme';
-import { deleteDocumento, getDocumentosExpediente, getDocumentoUrl } from '../services/api';
+import { deleteDocumento, getDocumentosExpediente, getDocumentoUrl, rechazarDocumento, validarDocumento } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { useSyncContext } from '../contexts/SyncContext';
 import type { Documento } from '../types';
 
@@ -26,9 +27,13 @@ const fechaCorta = (iso?: string) =>
 export default function DocumentosExpediente({ expedienteId }: { expedienteId: number }) {
   const router = useRouter();
   const { online, pendientes } = useSyncContext();
+  const { isSuperAdmin } = useAuth();   // solo un administrador valida o rechaza
   const [docs, setDocs]         = useState<Documento[]>([]);
   const [cargando, setCargando] = useState(true);
   const [abriendo, setAbriendo] = useState<number | null>(null);
+  const [aRechazar, setARechazar] = useState<Documento | null>(null);
+  const [motivo, setMotivo]       = useState('');
+  const [enviando, setEnviando]   = useState(false);
 
   // Se recarga al volver de subir/reemplazar y cuando la cola offline se vacía.
   useFocusEffect(
@@ -62,6 +67,31 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
       pathname: '/expedientes/subir-documento',
       params: { expedienteId: String(expedienteId), reemplazarId: String(doc.id), tipoLabel: nombreLegible(doc) },
     });
+  };
+
+  const validar = async (doc: Documento) => {
+    if (!doc.id) return;
+    try {
+      const nuevo = await validarDocumento(expedienteId, doc.id);
+      setDocs(prev => prev.map(d => (d.id === doc.id ? { ...d, ...nuevo, tiene_archivo: true } : d)));
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo validar');
+    }
+  };
+
+  const confirmarRechazo = async () => {
+    if (!aRechazar?.id || !motivo.trim()) return;
+    setEnviando(true);
+    try {
+      const nuevo = await rechazarDocumento(expedienteId, aRechazar.id, motivo.trim());
+      setDocs(prev => prev.map(d => (d.id === aRechazar.id ? { ...d, ...nuevo, tiene_archivo: true } : d)));
+      setARechazar(null);
+      setMotivo('');
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo rechazar');
+    } finally {
+      setEnviando(false);
+    }
   };
 
   const eliminar = (doc: Documento) => {
@@ -118,6 +148,7 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.titulo} numberOfLines={2}>{nombreLegible(doc)}</Text>
+                  <Insignia validacion={doc.validacion ?? 'en_revision'} />
                   <Text style={styles.sub}>Subido el {fechaCorta(doc.created_at)}</Text>
                   {doc.notas ? (
                     <View style={styles.notaFila}>
@@ -127,6 +158,13 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
                   ) : null}
                 </View>
               </View>
+
+              {doc.validacion === 'rechazado' && doc.motivo_rechazo ? (
+                <View style={styles.rechazoBox}>
+                  <Ionicons name="close-circle" size={20} color={Colors.crimson[600]} />
+                  <Text style={styles.rechazoTexto}>{doc.motivo_rechazo}</Text>
+                </View>
+              ) : null}
 
               <View style={styles.acciones}>
                 <TouchableOpacity style={[styles.accion, styles.accionVer]} onPress={() => ver(doc)} activeOpacity={0.8}>
@@ -141,15 +179,98 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
                   <View style={styles.accionFila}><Ionicons name="trash-outline" size={16} color={Colors.crimson[600]} /><Text style={[styles.accionText, styles.accionEliminar]}>Eliminar</Text></View>
                 </TouchableOpacity>
               </View>
+
+              {isSuperAdmin ? (
+                <View style={[styles.acciones, { marginTop: Spacing.xs }]}>
+                  {doc.validacion !== 'validado' ? (
+                    <TouchableOpacity style={[styles.accion, styles.accionValidar]} onPress={() => validar(doc)} activeOpacity={0.8}>
+                      <View style={styles.accionFila}>
+                        <Ionicons name="checkmark-circle" size={16} color={Colors.white} />
+                        <Text style={styles.accionValidarText}>Validar</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : null}
+                  {doc.validacion !== 'rechazado' ? (
+                    <TouchableOpacity style={styles.accion} onPress={() => { setMotivo(''); setARechazar(doc); }} activeOpacity={0.8}>
+                      <View style={styles.accionFila}>
+                        <Ionicons name="close-circle-outline" size={16} color={Colors.crimson[600]} />
+                        <Text style={[styles.accionText, styles.accionEliminar]}>Rechazar</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ) : null}
             </View>
           ))}
         </>
       )}
+
+      {/* Motivo del rechazo (solo administradores) */}
+      <Modal visible={!!aRechazar} transparent animationType="fade" onRequestClose={() => setARechazar(null)}>
+        <View style={styles.modalFondo}>
+          <View style={styles.modalCard}>
+            <Ionicons name="close-circle" size={44} color={Colors.crimson[600]} style={{ alignSelf: 'center' }} />
+            <Text style={styles.modalTitulo}>Rechazar documento</Text>
+            <Text style={styles.modalTexto}>Escribe qué debe corregirse. Se guarda con el documento.</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={motivo}
+              onChangeText={setMotivo}
+              placeholder="Ej: El estado de cuenta tiene más de 3 meses"
+              placeholderTextColor={Colors.dark[400]}
+              multiline
+              autoFocus
+            />
+            <TouchableOpacity
+              style={[styles.modalBtn, (!motivo.trim() || enviando) && { opacity: 0.5 }]}
+              onPress={confirmarRechazo}
+              disabled={!motivo.trim() || enviando}
+            >
+              {enviando ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.modalBtnText}>Rechazar documento</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancelar} onPress={() => setARechazar(null)}>
+              <Text style={styles.modalCancelarText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const INSIGNIAS = {
+  en_revision: { texto: 'En revisión', icono: 'time',             fondo: '#fffbeb', color: '#b45309' },
+  validado:    { texto: 'Validado',    icono: 'checkmark-circle', fondo: '#f0fdf4', color: '#15803d' },
+  rechazado:   { texto: 'Rechazado',   icono: 'close-circle',     fondo: '#fef2f2', color: '#b91c1c' },
+} as const;
+
+/** Estado de validación: lo decide un administrador. */
+function Insignia({ validacion }: { validacion: keyof typeof INSIGNIAS }) {
+  const i = INSIGNIAS[validacion];
+  return (
+    <View style={[styles.insignia, { backgroundColor: i.fondo }]}>
+      <Ionicons name={i.icono} size={15} color={i.color} />
+      <Text style={[styles.insigniaTexto, { color: i.color }]}>{i.texto}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  insignia:      { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.full, marginTop: 4 },
+  insigniaTexto: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold },
+  rechazoBox:    { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start', marginTop: Spacing.sm, backgroundColor: '#fef2f2', borderRadius: Radius.md, padding: Spacing.sm },
+  rechazoTexto:  { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.crimson[700], lineHeight: 20, fontWeight: Typography.fontWeight.medium },
+  accionValidar:     { backgroundColor: Colors.success, borderColor: Colors.success },
+  accionValidarText: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, color: Colors.white },
+  modalFondo:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: Spacing.lg },
+  modalCard:    { width: '100%', backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.xl },
+  modalTitulo:  { fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900], textAlign: 'center', marginTop: Spacing.sm },
+  modalTexto:   { fontSize: Typography.fontSize.sm, color: Colors.dark[500], textAlign: 'center', marginTop: Spacing.xs, marginBottom: Spacing.md },
+  modalInput:   { backgroundColor: Colors.white, borderWidth: 1.5, borderColor: Colors.dark[300], borderRadius: Radius.md, padding: Spacing.md, minHeight: 90, fontSize: Typography.fontSize.base, color: Colors.dark[900], textAlignVertical: 'top' },
+  modalBtn:     { marginTop: Spacing.md, backgroundColor: Colors.crimson[600], borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
+  modalBtnText: { color: Colors.white, fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
+  modalCancelar:     { paddingVertical: Spacing.md, alignItems: 'center' },
+  modalCancelarText: { color: Colors.dark[500], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
     backgroundColor: Colors.dark[900], borderRadius: Radius.md,

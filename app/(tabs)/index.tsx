@@ -131,7 +131,7 @@ export default function DashboardScreen() {
           {isSuperAdmin && (
             <View style={styles.superAdminBanner}>
               <Text style={styles.superAdminBannerText}>
-                👑 Vista de administrador — mostrando datos de todos los asesores
+                <Ionicons name="ribbon" size={16} color={Colors.gold[400]} />{' '}Vista de administrador — mostrando datos de todos los asesores
               </Text>
             </View>
           )}
@@ -209,7 +209,7 @@ export default function DashboardScreen() {
                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                      <Text style={styles.recentNombre}>{c.nombre}</Text>
                      {c.estado_prospecto === 'en_tramite' && (
-                       <Text style={{ fontSize: 14 }}>📂</Text>
+                       <Ionicons name="folder-open" size={16} color={Colors.dark[500]} />
                      )}
                    </View>
                    <Text style={styles.recentSub}>{c.email ?? c.telefono ?? '—'}</Text>

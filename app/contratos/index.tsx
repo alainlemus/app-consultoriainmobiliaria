@@ -54,7 +54,7 @@ export default function ContratosHubScreen() {
   async function handleSincronizar() {
     setSyncMsg(null);
     const res = await sync();
-    setSyncMsg(res.errores > 0 ? 'Sincronizado con algunos errores.' : 'Contrato actualizado ✓');
+    setSyncMsg(res.errores > 0 ? 'Sincronizado con algunos errores.' : 'Contrato actualizado');
   }
 
   return (
@@ -71,7 +71,7 @@ export default function ContratosHubScreen() {
           <View style={{ gap: Spacing.sm }}>
             {!online && (
               <View style={styles.offlineBanner}>
-                <Text style={styles.offlineBannerText}>📴 Sin conexión — puedes registrar contratos, pero sincronizar requiere internet.</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="cloud-offline" size={16} color={Colors.dark[500]} /><Text style={[styles.offlineBannerText, { flexShrink: 1 }]}>Sin conexión — puedes registrar contratos, pero sincronizar requiere internet.</Text></View>
               </View>
             )}
 
