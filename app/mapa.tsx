@@ -103,7 +103,6 @@ export default function MapaScreen() {
 
   // ── Anuncios ───────────────────────────────────────────────────────────────
   const [anuncios,        setAnuncios]        = useState<Anuncio[]>([]);
-  const [mostrarAnuncios, setMostrarAnuncios] = useState(true);
   const [detalleAnuncio,  setDetalleAnuncio]  = useState<Anuncio | null>(null);
 
   // ── Filtro por asesor (solo super_admin) ───────────────────────────────────
@@ -152,17 +151,69 @@ export default function MapaScreen() {
   const [busqMapa, setBusqMapa]           = useState('');
   const [busqVisible, setBusqVisible]     = useState(false);
   const [searchExpanded, setSearchExpanded] = useState(false);
+  // ── Filtro único: Todos | Cliente | Propiedad | Escuela | Anuncios ───────────
+  // Cada opción muestra solo lo suyo; "Todos" muestra visitas y anuncios.
+  const visitasFiltradas = useMemo(
+    () => ubicaciones.filter(u =>
+      u.latitud != null && u.longitud != null && (filtro === 'todos' || filtro === u.tipo),
+    ),
+    [ubicaciones, filtro],
+  );
+  const anunciosFiltrados = useMemo(
+    () => (filtro === 'todos' || filtro === 'anuncios')
+      ? anuncios.filter(a => a.latitud != null && a.longitud != null
+          && (!asesorFiltrado || a.asesor_id == null || a.asesor_id === asesorFiltrado.id))
+      : [],
+    [anuncios, filtro, asesorFiltrado],
+  );
+  const cuenta = useMemo(() => {
+    const conCoords = ubicaciones.filter(u => u.latitud != null && u.longitud != null);
+    const anunciosAsesor = anuncios.filter(a => !asesorFiltrado || a.asesor_id == null || a.asesor_id === asesorFiltrado.id);
+    return {
+      todos:          conCoords.length + anunciosAsesor.length,
+      visita_cliente: conCoords.filter(u => u.tipo === 'visita_cliente').length,
+      propiedad:      conCoords.filter(u => u.tipo === 'propiedad').length,
+      escuela:        conCoords.filter(u => u.tipo === 'escuela').length,
+      anuncios:       anunciosAsesor.length,
+    } as Record<string, number>;
+  }, [ubicaciones, anuncios, asesorFiltrado]);
+
+  // Al cambiar de filtro, el mapa se ajusta a lo que quedó visible
+  const primerFiltro = useRef(true);
+  useEffect(() => {
+    if (primerFiltro.current) { primerFiltro.current = false; return; }
+    const coords = [
+      ...visitasFiltradas.map(u => ({ latitude: u.latitud as number, longitude: u.longitud as number })),
+      ...anunciosFiltrados.map(a => ({ latitude: a.latitud, longitude: a.longitud })),
+    ];
+    if (coords.length === 0) return;
+    if (coords.length === 1) {
+      mapRef.current?.animateToRegion({ ...coords[0], latitudeDelta: 0.02, longitudeDelta: 0.02 }, 500);
+    } else {
+      mapRef.current?.fitToCoordinates(coords, { edgePadding: { top: 120, right: 50, bottom: 120, left: 50 }, animated: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtro]);
+
+  // Los marcadores personalizados se redibujan un momento al cambiar el contenido (evita pines vacíos)
+  const [redibujar, setRedibujar] = useState(true);
+  useEffect(() => {
+    setRedibujar(true);
+    const t = setTimeout(() => setRedibujar(false), 900);
+    return () => clearTimeout(t);
+  }, [filtro, ubicaciones, anuncios, asesorFiltrado]);
+
   const resultadosBusq = useMemo(() => {
     if (busqMapa.trim().length < 2) return [];
     const q = busqMapa.toLowerCase();
-    return ubicaciones.filter(u =>
+    return visitasFiltradas.filter(u =>
       u.contacto?.toLowerCase().includes(q) ||
       u.nombre_lugar?.toLowerCase().includes(q) ||
       u.direccion?.toLowerCase().includes(q) ||
       u.municipio?.toLowerCase().includes(q) ||
       u.estado?.toLowerCase().includes(q)
     ).slice(0, 8);
-  }, [busqMapa, ubicaciones]);
+  }, [busqMapa, visitasFiltradas]);
 
   // ── Navegación externa ─────────────────────────────────────────────────────
   const abrirNavegacion = async (lat: number, lng: number, app: 'google' | 'waze' | 'apple') => {
@@ -524,10 +575,6 @@ export default function MapaScreen() {
     }
   };
 
-  const marcadores = filtro === 'todos'
-    ? ubicaciones
-    : ubicaciones.filter(u => u.tipo === filtro);
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={s.container}>
@@ -538,7 +585,7 @@ export default function MapaScreen() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Mapa de visitas</Text>
-          <Text style={s.headerSub}>{ubicaciones.filter(u => !u._pendiente_sync).length} registros{desdeCache ? ' · sin conexión' : ''}</Text>
+          <Text style={s.headerSub}>{visitasFiltradas.length + anunciosFiltrados.length} en el mapa{desdeCache ? ' · sin conexión' : ''}</Text>
         </View>
       </View>
 
@@ -551,22 +598,28 @@ export default function MapaScreen() {
 
       {/* Filtros */}
       <View style={s.filtrosCont}>
-        {(['todos', 'visita_cliente', 'propiedad', 'escuela'] as const).map(f => (
-          <Pressable key={f} style={[s.chip, filtro === f && s.chipActivo, { flexDirection: 'row', alignItems: 'center', gap: 5 }]} onPress={() => setFiltro(f)}>
-            {f !== 'todos' && <Ionicons name={TIPO_ICON[f]} size={15} color={filtro === f ? Colors.dark[900] : Colors.dark[500]} />}
-            <Text style={[s.chipText, filtro === f && s.chipTextActivo]}>
-              {f === 'todos' ? 'Todos' : TIPO_LABEL[f]}
-            </Text>
-          </Pressable>
-        ))}
-        <Pressable
-          style={[s.chip, mostrarAnuncios && s.chipAnuncioActivo]}
-          onPress={() => setMostrarAnuncios(v => !v)}
-        >
-          <Text style={[s.chipText, mostrarAnuncios && s.chipTextActivo]}>
-            <Ionicons name="megaphone" size={16} color={Colors.dark[600]} />{' '}Anuncios {anuncios.length > 0 ? `(${anuncios.filter(a => a.estado !== 'retirado').length})` : ''}
-          </Text>
-        </Pressable>
+        {(['todos', 'visita_cliente', 'propiedad', 'escuela', 'anuncios'] as const).map(f => {
+          const activo = filtro === f;
+          const color  = f === 'anuncios' ? '#f97316' : Colors.gold[400];
+          return (
+            <Pressable
+              key={f}
+              style={[s.chip, activo && { backgroundColor: color, borderColor: color }, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}
+              onPress={() => setFiltro(f)}
+            >
+              {f !== 'todos' && (
+                <Ionicons
+                  name={f === 'anuncios' ? 'megaphone' : TIPO_ICON[f]}
+                  size={15}
+                  color={activo ? Colors.dark[900] : Colors.dark[500]}
+                />
+              )}
+              <Text style={[s.chipText, activo && s.chipTextActivo]}>
+                {f === 'todos' ? 'Todos' : f === 'anuncios' ? 'Anuncios' : TIPO_LABEL[f]} ({cuenta[f] ?? 0})
+              </Text>
+            </Pressable>
+          );
+        })}
         {/* Filtro por asesor — solo super_admin */}
         {isSuperAdmin && (
           <Pressable
@@ -574,7 +627,7 @@ export default function MapaScreen() {
             onPress={() => setModalAsesores(true)}
           >
             <Text style={[s.chipText, asesorFiltrado ? s.chipTextActivo : null]} numberOfLines={1}>
-              <Ionicons name="person" size={16} color={Colors.dark[500]} />{' '}{asesorFiltrado ? asesorFiltrado.name : 'Todos'}
+              <Ionicons name="person" size={16} color={Colors.dark[500]} />{' '}{asesorFiltrado ? asesorFiltrado.name : 'Todos los asesores'}
             </Text>
           </Pressable>
         )}
@@ -589,7 +642,7 @@ export default function MapaScreen() {
         )}
 
         <MapView ref={mapRef} style={s.map} initialRegion={REGION_CDMX} showsUserLocation={locationPermission} showsMyLocationButton={false} googleRenderer="LEGACY">
-          {marcadores.filter(u => u.latitud != null && u.longitud != null).map((u, i) => {
+          {visitasFiltradas.map((u, i) => {
             const semaforoColor = u.tipo === 'escuela' && u.semaforo
               ? SEMAFORO_COLOR[u.semaforo as SemaforoEscuela]
               : null;
@@ -598,6 +651,7 @@ export default function MapaScreen() {
                 key={u.id ?? u._local_id ?? `l-${i}`}
                 coordinate={{ latitude: u.latitud ?? 0, longitude: u.longitud ?? 0 }}
                 pinColor={TIPO_COLOR[u.tipo]}
+                tracksViewChanges={redibujar}
                 onPress={() => setDetalle(u)}
               >
                 <View style={[
@@ -623,10 +677,11 @@ export default function MapaScreen() {
           })}
 
           {/* Marcadores de anuncios */}
-          {mostrarAnuncios && anuncios.map((a, i) => (
+          {anunciosFiltrados.map((a, i) => (
             <Marker
               key={`anuncio-${a.id ?? i}`}
               coordinate={{ latitude: a.latitud, longitude: a.longitud }}
+              tracksViewChanges={redibujar}
               onPress={() => setDetalleAnuncio(a)}
             >
               <View style={[
@@ -1380,7 +1435,6 @@ const s = StyleSheet.create({
     borderRadius: Radius.full, borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-  chipAnuncioActivo: { backgroundColor: '#f97316', borderColor: '#f97316' },
   chipAsesorActivo:  { backgroundColor: Colors.gold[600], borderColor: Colors.gold[600] },
   chipActivo: { backgroundColor: Colors.gold[400], borderColor: Colors.gold[400] },
   chipText: { fontSize: Typography.fontSize.xs, color: '#ffffff' },
