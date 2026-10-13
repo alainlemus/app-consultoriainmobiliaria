@@ -10,7 +10,6 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
-import DocumentosProspecto from '../../src/components/DocumentosProspecto';
 import EstadoSelectModal from '../../src/components/ui/EstadoSelectModal';
 import { getContacto, updateContacto, uploadFotoContacto, uploadSimuladorScreenshot, getUbicacionesMapa } from '../../src/services/api';
 import { getCacheContacto, getCacheContactos, encolarFotos, desencolarFotos } from '../../src/services/offline';
@@ -388,10 +387,6 @@ export default function DetalleProspectoScreen() {
             <InfoRow label="Servicio"  value={SERVICIO_LABEL[contacto.servicio ?? ''] ?? contacto.servicio ?? '—'} last />
           </Card>
 
-          {/* Documentos: escanear o subir. El expediente lo crea el servidor. */}
-          <SectionLabel>Documentos</SectionLabel>
-          <DocumentosProspecto contactoId={contacto.id} />
-
           {contacto.notas ? (
             <>
               <SectionLabel>Notas</SectionLabel>
@@ -492,11 +487,29 @@ export default function DetalleProspectoScreen() {
           {/* Acciones rápidas */}
           <SectionLabel>Acciones</SectionLabel>
           <View style={styles.actionsCard}>
+            {contacto.expediente_activo ? (
+              <ActionRow
+                icon="📂"
+                label={`Ver expediente${contacto.expediente_activo.folio ? ` ${contacto.expediente_activo.folio}` : ''}`}
+                onPress={() => router.push(`/expedientes/${contacto.expediente_activo!.id}`)}
+              />
+            ) : (
+              <ActionRow
+                icon="📁"
+                label="Iniciar expediente"
+                sublabel="Cuando ya es cliente"
+                onPress={() => router.push({
+                  pathname: '/expedientes/nuevo',
+                  params: { contacto_id: String(contacto.id), contacto_nombre: contacto.nombre },
+                })}
+              />
+            )}
             <ActionRow
               icon="🔎"
               label="Precalificar"
               sublabel="Simulador FOVISSSTE"
               onPress={() => Linking.openURL('https://inscripcioncontinua.fovissste.gob.mx/simulador/')}
+              border
             />
             {ultimaVisita ? (
               <ActionRow

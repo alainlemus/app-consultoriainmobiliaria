@@ -64,7 +64,9 @@ export default function RootLayout() {
           expediente_id?: number;
           contacto_id?: number;
         };
-        if (data?.contacto_id) {
+        if (data?.expediente_id) {
+          router.push(`/expedientes/${data.expediente_id}`);
+        } else if (data?.contacto_id) {
           router.push(`/prospectos/${data.contacto_id}`);
         }
       },

@@ -37,8 +37,7 @@ import type { ContratoGeneradoUploadParams } from '../services/api';
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
 interface DocParams {
-  expedienteId?: number;
-  contactoId?:   number;
+  expedienteId: number;
   uri:          string;
   tipo:         string;
   seccion?:     string;

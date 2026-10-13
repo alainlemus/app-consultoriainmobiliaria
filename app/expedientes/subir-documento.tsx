@@ -1,6 +1,6 @@
 /**
- * Pantalla: Subir / Escanear Documento de un prospecto
- * Ruta: /prospectos/subir-documento?contactoId=X
+ * Pantalla: Subir / Escanear Documento de un expediente
+ * Ruta: /expedientes/subir-documento?expedienteId=X
  *
  * Flujo primario:  DocumentScanner nativo → N imágenes → PDF → preview → subir
  * Flujo secundario: Archivo → PDF u otro archivo → preview → subir
@@ -52,7 +52,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { uploadDocumentoContacto } from '../../src/services/api';
+import { uploadDocumento } from '../../src/services/api';
 import { persistirDocumento } from '../../src/utils/comprimirFoto';
 import { Colors, Radius, Spacing, Typography } from '../../src/theme';
 import { useSyncContext } from '../../src/contexts/SyncContext';
@@ -81,7 +81,7 @@ const toFileUri = (path: string) =>
 
 export default function SubirDocumentoScreen() {
   const insets = useSafeAreaInsets();
-  const { contactoId } = useLocalSearchParams<{ contactoId: string }>();
+  const { expedienteId } = useLocalSearchParams<{ expedienteId: string }>();
 
   const [tipo,  setTipo]  = useState<TipoDocumento>('ine');
   const [notas, setNotas] = useState('');
@@ -151,7 +151,7 @@ export default function SubirDocumentoScreen() {
 
   // ── Subir ─────────────────────────────────────────────────────────────────────
   const subir = async () => {
-    if (!resultUri || !contactoId) return;
+    if (!resultUri || !expedienteId) return;
     setUploading(true);
     try {
       // Determinar nombre de archivo con extensión correcta
@@ -166,7 +166,7 @@ export default function SubirDocumentoScreen() {
 
       const encolarYVolver = async () => {
         await encolarDoc({
-          contactoId: Number(contactoId),
+          expedienteId: Number(expedienteId),
           uri:        uriPersistida,
           tipo:       etiqueta,
           seccion,
@@ -187,8 +187,8 @@ export default function SubirDocumentoScreen() {
 
       // Con red: intentar subir directo
       try {
-        await uploadDocumentoContacto(
-          Number(contactoId),
+        await uploadDocumento(
+          Number(expedienteId),
           uriPersistida,
           etiqueta,
           notas || undefined,

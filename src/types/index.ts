@@ -78,7 +78,6 @@ export interface Contacto {
   // Campos para gestión offline local
   _local_id?:       string;
   _pendiente_sync?: boolean;
-  documentos_count?: number;
 }
 
 export type EstadoExpediente =
@@ -125,6 +124,7 @@ export interface Expediente {
   documentos_pendientes_total?:  number;
   _local_id?:        string;
   _pendiente_sync?:  boolean;
+  documentos_count?: number;
 }
 
 export interface Documento {
@@ -259,7 +259,6 @@ export interface PaginatedResponse<T> {
     current_page: number;
     last_page:    number;
     per_page:     number;
-    con_documentos?: number;   // solo en /contactos: prospectos con al menos un documento
   };
 }
 

@@ -47,7 +47,17 @@ const SECCIONES: Seccion[] = [
       { icono: '➕', titulo: 'Agregar prospecto', desc: 'En la pestaña Prospectos toca "＋ Nuevo" (o desde Inicio → "Nuevo prospecto"). Solo necesitas el nombre; teléfono, correo y notas son opcionales.' },
       { icono: '➕', titulo: 'Más datos', desc: 'Si los tienes a la mano, toca "Más datos (opcional)" para agregar CURP, foto, escuela y los datos de precalificación FOVISSSTE (estado y municipio donde usará el crédito, régimen pensionario, captura del simulador).' },
       { icono: '🔄', titulo: 'Actualizar estado', desc: 'Desde el detalle del prospecto cambia su estado entre Nuevo y Precalificado.' },
-      { icono: '📄', titulo: 'Escanear documentos', desc: 'En el detalle del prospecto, sección Documentos, toca "Escanear o subir documento". Elige el tipo (INE, CURP, acta, comprobante…) y toca "Escanear documento": puedes capturar varias páginas y la app las convierte en un PDF. Requiere el build de producción.' },
+      { icono: '📁', titulo: 'Pasar a cliente', desc: 'Un prospecto es alguien a quien aún estás evaluando. Cuando se confirma como cliente, entra a su detalle y toca "Iniciar expediente": pasa a la pestaña Expedientes y deja de aparecer en Prospectos.' },
+    ],
+  },
+  {
+    id: 'expedientes',
+    icono: '📁',
+    titulo: 'Expedientes',
+    subtitulo: 'Los documentos de tus clientes',
+    pasos: [
+      { icono: '📋', titulo: 'Ver tus expedientes', desc: 'En la pestaña Expedientes verás los de tus clientes, con cuántos documentos tiene cada uno.' },
+      { icono: '📄', titulo: 'Escanear documentos', desc: 'Entra al expediente, toca "Escanear o subir documento", elige el tipo (INE, CURP, comprobantes…) y toca "Escanear documento": puedes capturar varias páginas y la app las convierte en un PDF. Requiere el build de producción.' },
       { icono: '🖼️', titulo: 'Subir un archivo o foto', desc: 'En la misma pantalla toca "Archivo" para adjuntar un PDF o una foto de tu galería. Puedes subir varios documentos del mismo tipo.' },
       { icono: '👁️', titulo: 'Ver y eliminar', desc: 'Toca un documento de la lista para abrirlo (con un enlace temporal válido 5 min) o toca 🗑️ para eliminarlo. Tu administrador recibe los documentos en el panel para capturarlos.' },
     ],
@@ -71,7 +81,7 @@ const SECCIONES: Seccion[] = [
     subtitulo: 'La app funciona aunque no tengas señal',
     pasos: [
       { icono: '🔴', titulo: 'Barra de estado', desc: 'En la parte superior de todos los tabs verás una barra de color. Roja = sin internet. Azul = sincronizando. Si no hay barra, todo está sincronizado.' },
-      { icono: '📱', titulo: 'Datos en el dispositivo', desc: 'Sin conexión, los prospectos muestran los datos de tu última visita al CRM con el aviso "📴 Sin conexión — datos guardados". Puedes consultar toda la información aunque estés en zona sin señal.' },
+      { icono: '📱', titulo: 'Datos en el dispositivo', desc: 'Sin conexión, los prospectos y expedientes muestran los datos de tu última visita al CRM con el aviso "📴 Sin conexión — datos guardados". Puedes consultar toda la información aunque estés en zona sin señal.' },
       { icono: '✏️', titulo: 'Crear y editar sin conexión', desc: 'Puedes crear y editar prospectos, registrar visitas y anuncios aunque no tengas internet. Los cambios se guardan en tu dispositivo y muestran el mensaje "Se enviará cuando recuperes internet".' },
       { icono: '📄', titulo: 'Documentos sin conexión', desc: 'También puedes escanear o seleccionar documentos estando offline. Se guardan en cola y el botón cambia a "Guardar (sin conexión)".' },
       { icono: '📸', titulo: 'Fotos protegidas', desc: 'Las fotos de anuncios, visitas y contactos se guardan en tu dispositivo desde antes de intentar subirlas. Si tienes señal débil (2G) o te mueves justo después de guardar, la foto no se pierde: se sube sola en cuanto haya mejor conexión.' },
@@ -111,7 +121,7 @@ const SECCIONES: Seccion[] = [
     titulo: 'Rutas y rastreo GPS',
     subtitulo: 'Supervisión de tu actividad en campo',
     pasos: [
-      { icono: '🟢', titulo: 'Activar rastreo', desc: 'En Inicio, activa el switch "📍 Rastreo de ubicación" para que la app registre tu recorrido mientras trabajas en campo. Puedes apagarlo cuando quieras desde el mismo switch.' },
+      { icono: '🟢', titulo: 'Activar rastreo', desc: 'En Inicio, activa el switch "📍 Ruta" para que la app registre tu recorrido mientras trabajas en campo. Puedes apagarlo cuando quieras desde el mismo switch.' },
       { icono: '🗺️', titulo: 'Ver tu historial', desc: 'Toca "Rutas" en Inicio para ver el mapa de tus recorridos por día, con el trazo de la ruta y los puntos registrados.' },
       { icono: '📶', titulo: 'Puntos pendientes', desc: 'Si guardaste puntos de ruta sin conexión, verás cuántos faltan por sincronizar. Se suben solos al recuperar internet.' },
     ],

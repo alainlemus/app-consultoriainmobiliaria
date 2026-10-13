@@ -386,14 +386,10 @@ export function uploadDocumento(expedienteId: number, uri: string, tipo: string,
   return postDocumento(`/expedientes/${expedienteId}/documentos`, uri, tipo, notas, mimeType, seccion);
 }
 
-/** Sube un documento al prospecto; el servidor crea su expediente la primera vez. */
-export function uploadDocumentoContacto(contactoId: number, uri: string, tipo: string, notas?: string, mimeType?: string, seccion?: string): Promise<Documento> {
-  return postDocumento(`/contactos/${contactoId}/documentos`, uri, tipo, notas, mimeType, seccion);
-}
-
-/** Documentos ya subidos del prospecto (expediente_id es null si todavía no sube ninguno). */
-export async function getDocumentosContacto(contactoId: number): Promise<{ data: Documento[]; expediente_id: number | null }> {
-  return apiFetch<{ data: Documento[]; expediente_id: number | null }>(`/contactos/${contactoId}/documentos`);
+/** Documentos ya subidos del expediente (sin los renglones de checklist vacíos). */
+export async function getDocumentosExpediente(expedienteId: number): Promise<Documento[]> {
+  const res = await apiFetch<{ data: Documento[] }>(`/expedientes/${expedienteId}/documentos`);
+  return res.data.filter(d => d.tiene_archivo);
 }
 
 export async function deleteDocumento(expedienteId: number, documentoId: number): Promise<void> {

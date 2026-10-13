@@ -1,36 +1,34 @@
 /**
- * Documentos de un prospecto: botones para escanear/subir y la lista de lo ya subido.
- * El expediente no se ve en la app; el servidor lo crea con el primer documento.
+ * Documentos de un expediente: botón para escanear/subir y la lista de lo ya subido.
  */
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Colors, Radius, Spacing, Typography } from '../theme';
-import { deleteDocumento, getDocumentosContacto, getDocumentoUrl } from '../services/api';
+import { deleteDocumento, getDocumentosExpediente, getDocumentoUrl } from '../services/api';
 import { useSyncContext } from '../contexts/SyncContext';
 import type { Documento } from '../types';
 
-export default function DocumentosProspecto({ contactoId }: { contactoId: number }) {
+export default function DocumentosExpediente({ expedienteId }: { expedienteId: number }) {
   const router = useRouter();
   const { online, pendientes } = useSyncContext();
   const [docs, setDocs]               = useState<Documento[]>([]);
-  const [expedienteId, setExpedienteId] = useState<number | null>(null);
   const [cargando, setCargando]       = useState(true);
 
   // Se recarga al volver de subir un documento y cuando la cola offline se vacía.
   useFocusEffect(
     useCallback(() => {
       if (!online) { setCargando(false); return; }
-      getDocumentosContacto(contactoId)
-        .then(res => { setDocs(res.data); setExpedienteId(res.expediente_id); })
+      getDocumentosExpediente(expedienteId)
+        .then(setDocs)
         .catch(() => {})
         .finally(() => setCargando(false));
-    }, [contactoId, online, pendientes]),
+    }, [expedienteId, online, pendientes]),
   );
 
   const abrir = async (doc: Documento) => {
-    if (!expedienteId || !doc.id) return;
+    if (!doc.id) return;
     try {
       Linking.openURL(await getDocumentoUrl(expedienteId, doc.id));
     } catch {
@@ -39,7 +37,7 @@ export default function DocumentosProspecto({ contactoId }: { contactoId: number
   };
 
   const eliminar = (doc: Documento) => {
-    if (!expedienteId || !doc.id) return;
+    if (!doc.id) return;
     Alert.alert('Eliminar documento', `¿Eliminar "${doc.nombre ?? doc.tipo}"?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -61,7 +59,7 @@ export default function DocumentosProspecto({ contactoId }: { contactoId: number
       <TouchableOpacity
         style={styles.addBtn}
         activeOpacity={0.85}
-        onPress={() => router.push({ pathname: '/prospectos/subir-documento', params: { contactoId: String(contactoId) } })}
+        onPress={() => router.push({ pathname: '/expedientes/subir-documento', params: { expedienteId: String(expedienteId) } })}
       >
         <Text style={styles.addIcon}>📄</Text>
         <View style={{ flex: 1 }}>

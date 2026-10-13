@@ -18,6 +18,7 @@ const TAB_CONFIG: {
 }[] = [
   { name: 'index',       title: 'Inicio',      icon: 'home-outline',    iconActive: 'home'    },
   { name: 'prospectos',  title: 'Prospectos',  icon: 'people-outline',  iconActive: 'people'  },
+  { name: 'expedientes', title: 'Expedientes', icon: 'folder-outline',  iconActive: 'folder'  },
   { name: 'perfil',      title: 'Perfil',      icon: 'person-outline',  iconActive: 'person'  },
 ];
 
@@ -241,6 +242,7 @@ export default function TabsLayout() {
       >
         <Tabs.Screen name="index"       options={{ title: 'Inicio'      }} />
         <Tabs.Screen name="prospectos"  options={{ title: 'Prospectos'  }} />
+        <Tabs.Screen name="expedientes" options={{ title: 'Expedientes' }} />
         <Tabs.Screen name="perfil"      options={{ title: 'Perfil'      }} />
       </Tabs>
     </View>

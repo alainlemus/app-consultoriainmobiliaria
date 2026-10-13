@@ -9,15 +9,14 @@ import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
-import { getContactos, getMe, logout } from '../../src/services/api';
+import { getContactos, getExpedientes, getMe, logout } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useRouteTracking } from '../../src/hooks/useRouteTracking';
 import type { User, Contacto } from '../../src/types';
 
 interface Stats {
   totalProspectos:  number;
-  conDocumentos:    number;
-  sinDocumentos:    number;
+  totalExpedientes: number;
 }
 
 export default function DashboardScreen() {
@@ -48,16 +47,15 @@ export default function DashboardScreen() {
 
   async function load() {
     try {
-      const [me, prospectos] = await Promise.all([
+      const [me, prospectos, expedientes] = await Promise.all([
         getMe(),
         getContactos({ page: 1 }),
+        getExpedientes(),
       ]);
       setUser(me);
-      const conDocumentos = prospectos.meta.con_documentos ?? 0;
       setStats({
-        totalProspectos: prospectos.meta.total,
-        conDocumentos,
-        sinDocumentos:   Math.max(prospectos.meta.total - conDocumentos, 0),
+        totalProspectos:  prospectos.meta.total,
+        totalExpedientes: expedientes.meta.total,
       });
       setRecientes(prospectos.data.slice(0, 5));
     } catch {
@@ -139,8 +137,7 @@ export default function DashboardScreen() {
           {/* ── KPI cards ── */}
           <View style={styles.kpiGrid}>
             <KpiCard label="Prospectos"  value={stats?.totalProspectos  ?? '—'} icon="👥" accent={Colors.gold[400]}    />
-            <KpiCard label="Con docs" value={stats?.conDocumentos ?? '—'} icon="📎" accent={Colors.success}      />
-            <KpiCard label="Sin docs" value={stats?.sinDocumentos ?? '—'} icon="📭" accent={Colors.crimson[500]} />
+            <KpiCard label="Expedientes" value={stats?.totalExpedientes ?? '—'} icon="📁" accent={Colors.dark[500]} />
           </View>
 
           {/* ── Acciones rápidas ── */}
@@ -148,6 +145,7 @@ export default function DashboardScreen() {
           <View style={styles.actionsGrid}>
             <ActionTile icon="➕" label="Nuevo prospecto" onPress={() => router.push('/prospectos/nuevo')} primary />
             <ActionTile icon="👥" label="Prospectos"      onPress={() => router.push('/(tabs)/prospectos')} />
+            <ActionTile icon="📁" label="Expedientes"     onPress={() => router.push('/(tabs)/expedientes')} />
             {isSuperAdmin && (
               <ActionTile icon="🖋️" label="Contratos" onPress={() => router.push('/contratos')} />
             )}
@@ -162,7 +160,7 @@ export default function DashboardScreen() {
             <View style={styles.trackingCard}>
               <View style={styles.trackingRow}>
                 <View style={styles.trackingInfo}>
-                  <Text style={styles.trackingLabel}>📍 Rastreo de ubicación</Text>
+                  <Text style={styles.trackingLabel}>📍 Ruta</Text>
                   <Text style={styles.trackingSub}>
                      {estaActivo
                        ? routePendientes > 0
@@ -170,7 +168,7 @@ export default function DashboardScreen() {
                          : 'Registrando ruta'
                        : iniciando
                          ? 'Activando...'
-                         : 'Registra tu ruta para supervisión'}
+                         : 'Captura tu ruta conforme a las ubicaciones registradas'}
                   </Text>
                 </View>
                 {iniciando ? (

@@ -26,7 +26,7 @@ const SLIDES: Slide[] = [
     id: '1',
     emoji: '👋',
     titulo: 'Bienvenido a\nConsultoría Inmobiliaria',
-    descripcion: 'La plataforma que te ayuda a registrar tus prospectos y capturar sus documentos desde tu celular.',
+    descripcion: 'La plataforma que te ayuda a registrar tus prospectos y los documentos de tus clientes desde tu celular.',
     detalle: 'Todo en un solo lugar, disponible 24/7.',
   },
   {
@@ -39,8 +39,8 @@ const SLIDES: Slide[] = [
   {
     id: '3',
     emoji: '📄',
-    titulo: 'Escanea\nDocumentos',
-    descripcion: 'Escanea o sube los documentos de cada prospecto directamente desde tu cámara.',
+    titulo: 'Documentos del\nExpediente',
+    descripcion: 'Cuando un prospecto se vuelve cliente, abre su expediente y escanea o sube sus documentos desde tu cámara.',
     detalle: 'INE, CURP, comprobantes y más — tu equipo los recibe en el panel al instante.',
   },
   {
