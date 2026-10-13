@@ -303,7 +303,6 @@ export default function SubirDocumentoScreen() {
               </Pressable>
             ))}
           </View>
-        <RequisitosCard tipo={tipo} />
           <RequisitosCard tipo={tipo} />
 
           <Text style={s.sectionLabel}>Notas · opcional (escribe aquí)</Text>
@@ -402,6 +401,7 @@ export default function SubirDocumentoScreen() {
             </Pressable>
           ))}
         </View>
+        <RequisitosCard tipo={tipo} />
 
         <Text style={s.sectionLabel}>Notas · opcional (escribe aquí)</Text>
         <TextInput

@@ -13,6 +13,12 @@ import type { Documento } from '../types';
 
 const esPdf = (doc: Documento) => (doc.ruta_archivo ?? '').toLowerCase().endsWith('.pdf');
 
+// Los documentos viejos se guardaron con el nombre del archivo (doc_123.jpg): se muestran como "Documento".
+const nombreLegible = (doc: Documento) => {
+  const nombre = doc.nombre ?? doc.tipo ?? '';
+  return /^doc_\d+|\.(jpe?g|png|pdf|heic|webp)$/i.test(nombre) ? 'Documento' : nombre;
+};
+
 const fechaCorta = (iso?: string) =>
   iso ? new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
@@ -53,13 +59,13 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
     }
     router.push({
       pathname: '/expedientes/subir-documento',
-      params: { expedienteId: String(expedienteId), reemplazarId: String(doc.id), tipoLabel: doc.nombre ?? doc.tipo },
+      params: { expedienteId: String(expedienteId), reemplazarId: String(doc.id), tipoLabel: nombreLegible(doc) },
     });
   };
 
   const eliminar = (doc: Documento) => {
     if (!doc.id) return;
-    Alert.alert('Eliminar documento', `¿Eliminar "${doc.nombre ?? doc.tipo}"? Esta acción no se puede deshacer.`, [
+    Alert.alert('Eliminar documento', `¿Eliminar "${nombreLegible(doc)}"? Esta acción no se puede deshacer.`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar', style: 'destructive',
@@ -109,7 +115,7 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
                   <Text style={styles.tileText}>{esPdf(doc) ? 'PDF' : 'FOTO'}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.titulo} numberOfLines={2}>{doc.nombre ?? doc.tipo}</Text>
+                  <Text style={styles.titulo} numberOfLines={2}>{nombreLegible(doc)}</Text>
                   <Text style={styles.sub}>Subido el {fechaCorta(doc.created_at)}</Text>
                   {doc.notas ? <Text style={styles.notas} numberOfLines={2}>{doc.notas}</Text> : null}
                 </View>
@@ -119,13 +125,13 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
                 <TouchableOpacity style={[styles.accion, styles.accionVer]} onPress={() => ver(doc)} activeOpacity={0.8}>
                   {abriendo === doc.id
                     ? <ActivityIndicator size="small" color={Colors.dark[900]} />
-                    : <Text style={styles.accionVerText}>👁  Ver</Text>}
+                    : <Text style={styles.accionVerText}>Ver</Text>}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.accion} onPress={() => reemplazar(doc)} activeOpacity={0.8}>
-                  <Text style={styles.accionText}>🔄  Reemplazar</Text>
+                  <Text style={styles.accionText}>Reemplazar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.accion} onPress={() => eliminar(doc)} activeOpacity={0.8}>
-                  <Text style={[styles.accionText, styles.accionEliminar]}>🗑  Eliminar</Text>
+                  <Text style={[styles.accionText, styles.accionEliminar]}>Eliminar</Text>
                 </TouchableOpacity>
               </View>
             </View>
