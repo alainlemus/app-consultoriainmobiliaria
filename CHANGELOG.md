@@ -9,6 +9,7 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 - Expedientes: lista simple con el número de documentos y un detalle con la lista de documentos (escanear o subir PDF/foto, ver y eliminar; se pueden subir varios del mismo tipo).
 - Nuevo prospecto: solo el nombre es obligatorio y los demás campos (CURP, estado y precalificación) están a la vista como opcionales; ya no se pide escuela ni foto. Campos de texto en caja con borde y listas con flecha. Al guardar sale un aviso, en línea o sin conexión. El servicio queda fijo en FOVISSSTE.
 - Inicio muestra prospectos y expedientes; "Rastreo de ubicación" ahora es "Ruta" (captura la ruta conforme a las ubicaciones registradas). Perfil ya no pide banco ni CLABE.
+- Documentos: cada uno muestra su validación (En revisión, Validado o Rechazado con el motivo); solo un administrador valida o rechaza. Se pueden subir varios del mismo tipo y la nota los identifica. Antes de subir sale un aviso con los requisitos del documento. Los expedientes ya no llevan foto y todos los emojis se cambiaron por iconos.
 - App del acreditado: su trámite aparece "En revisión"; se quitan la barra de etapas y la pestaña Seguimiento.
 
 Solo cambia JavaScript (llega como actualización automática). Requiere el servidor con los cambios de documentos por expediente: desplegar el backend antes.

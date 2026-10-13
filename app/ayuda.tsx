@@ -62,6 +62,7 @@ const SECCIONES: Seccion[] = [
       { icono: 'clipboard', titulo: 'Ver tus expedientes', desc: 'En la pestaña Expedientes verás los de tus clientes, con cuántos documentos tiene cada uno.' },
       { icono: 'document-text', titulo: 'Escanear documentos', desc: 'Entra al expediente, toca "Escanear o subir documento", elige el tipo (INE, CURP, comprobantes…) y toca "Escanear documento": puedes capturar varias páginas y la app las convierte en un PDF. Requiere el build de producción.' },
       { icono: 'image', titulo: 'Subir un archivo o foto', desc: 'En la misma pantalla toca "Archivo" para adjuntar un PDF o una foto de tu galería. Puedes subir varios documentos del mismo tipo.' },
+      { icono: 'shield-checkmark', titulo: 'Validación', desc: 'Cada documento muestra su estado: En revisión (recién subido), Validado o Rechazado con el motivo. Solo un administrador valida o rechaza; si te lo rechazan, usa Reemplazar para subir el correcto.' },
       { icono: 'eye', titulo: 'Ver y eliminar', desc: 'Toca un documento de la lista para abrirlo (con un enlace temporal válido 5 min) o toca Eliminar para quitarlo. Tu administrador recibe los documentos en el panel para capturarlos.' },
     ],
   },
