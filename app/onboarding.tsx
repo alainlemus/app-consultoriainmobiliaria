@@ -34,15 +34,15 @@ const SLIDES: Slide[] = [
     id: '2',
     icono: 'people',
     titulo: 'Registra tus\nProspectos',
-    descripcion: 'Agrega nuevos clientes interesados en créditos FOVISSSTE o INFONAVIT y haz seguimiento de cada uno.',
-    detalle: 'Usa el simulador de precalificación para saber si califican antes de iniciar el trámite.',
+    descripcion: 'Registra a las personas que estás evaluando para un crédito FOVISSSTE. Solo el nombre es obligatorio; lo demás es opcional.',
+    detalle: 'Cuando se confirman como clientes, abre su expediente desde su ficha.',
   },
   {
     id: '3',
     icono: 'document-text',
     titulo: 'Documentos del\nExpediente',
     descripcion: 'Cuando un prospecto se vuelve cliente, abre su expediente y escanea o sube sus documentos desde tu cámara.',
-    detalle: 'INE, CURP, comprobantes y más — tu equipo los recibe en el panel al instante.',
+    detalle: 'Te diremos qué revisar antes de subir cada documento, y un administrador los valida.',
   },
   {
     id: '4',

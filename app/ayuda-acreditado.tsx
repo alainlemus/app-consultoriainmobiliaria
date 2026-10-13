@@ -31,6 +31,17 @@ interface Seccion {
 
 const SECCIONES: Seccion[] = [
   {
+    id: 'novedades',
+    icono: 'sparkles',
+    titulo: 'Novedades',
+    subtitulo: 'Lo nuevo y lo que ya no está',
+    pasos: [
+      { icono: 'time', titulo: 'Nuevo: Tu trámite "En revisión"', desc: 'Ahora tu trámite aparece "En revisión" mientras tu asesor y su equipo revisan tus documentos. Si necesitan algo más, tu asesor se pone en contacto contigo.' },
+      { icono: 'shield-checkmark', titulo: 'Nuevo: Documentos revisados', desc: 'Un administrador revisa cada documento. Si alguno se rechaza verás el motivo para que suba el correcto.' },
+      { icono: 'close-circle', titulo: 'Ya no está: Etapas y Seguimiento', desc: 'Se quitaron la barra de etapas, las fechas del trámite y la pestaña Seguimiento. Tu asesor te mantiene al tanto.' },
+    ],
+  },
+  {
     id: 'inicio',
     icono: 'home',
     titulo: 'Mi Trámite',
@@ -40,7 +51,6 @@ const SECCIONES: Seccion[] = [
       { icono: 'stats-chart', titulo: 'Estado del trámite', desc: 'Una vez que tu trámite inicia, verás que está "En revisión" mientras tu asesor revisa tus documentos.' },
       { icono: 'information-circle', titulo: '¿Qué está pasando?', desc: 'Esta tarjeta te explica, en palabras simples, en qué punto está tu trámite.' },
       { icono: 'call', titulo: 'Tu asesor', desc: 'Al final de la pantalla verás los datos de tu asesor asignado — puedes llamarle, escribirle por WhatsApp o enviarle un correo directamente desde ahí.' },
-      { icono: 'calendar', titulo: 'Fechas importantes', desc: 'Cuando estén definidas, verás la fecha de firma ante notario y la fecha esperada de pago.' },
     ],
   },
   {
@@ -49,7 +59,7 @@ const SECCIONES: Seccion[] = [
     titulo: 'Documentos',
     subtitulo: 'Sube los documentos que te piden',
     pasos: [
-      { icono: 'clipboard', titulo: 'Ver tu checklist', desc: 'En la pestaña Documentos verás la lista de documentos requeridos y su estado: Pendiente, Recibido o Rechazado.' },
+      { icono: 'clipboard', titulo: 'Ver tu checklist', desc: 'En la pestaña Documentos verás la lista de documentos requeridos y su estado: Pendiente, Recibido o Rechazado (con el motivo para corregirlo).' },
       { icono: 'cloud-upload', titulo: 'Subir un documento', desc: 'Toca "Subir documento" y elige cómo obtenerlo: escanear (convierte varias fotos en un PDF automáticamente), tomar foto, o seleccionar un archivo PDF ya guardado.' },
       { icono: 'repeat', titulo: 'Documento rechazado', desc: 'Si un documento aparece como "Rechazado", vuelve a subirlo — tu asesor te indicará qué corregir.' },
       { icono: 'eye', titulo: 'Ver un documento subido', desc: 'Toca cualquier documento de la lista para abrirlo y revisar que se vea bien.' },

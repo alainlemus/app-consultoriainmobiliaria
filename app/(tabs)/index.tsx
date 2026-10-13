@@ -13,6 +13,7 @@ import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
 import { getContactos, getExpedientes, getMe, logout } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useRouteTracking } from '../../src/hooks/useRouteTracking';
+import AvisoRuta from '../../src/components/AvisoRuta';
 import type { User, Contacto } from '../../src/types';
 
 interface Stats {
@@ -39,6 +40,7 @@ export default function DashboardScreen() {
   // El botón de rutas se muestra para super_admin y asesores.
   // Usamos authLoading para no mostrar el botón hasta saber el rol real.
   const mostrarRutas = !authLoading && (isSuperAdmin || isAsesor);
+  const [avisoRuta, setAvisoRuta] = useState(false);   // aviso antes de activar la ruta
   const { estaActivo, pendientes: routePendientes, iniciando, error: routeError, activar, desactivar } = useRouteTracking(isAsesor);
 
   // Usar el user del AuthContext si está disponible (evita llamar getMe() de nuevo)
@@ -178,7 +180,7 @@ export default function DashboardScreen() {
                 ) : (
                   <Switch
                     value={estaActivo}
-                    onValueChange={(val) => val ? activar() : desactivar()}
+                    onValueChange={(val) => val ? setAvisoRuta(true) : desactivar()}
                     trackColor={{ false: Colors.cream[300], true: Colors.gold[400] }}
                     thumbColor={estaActivo ? Colors.dark[800] : Colors.cream[50]}
                   />
@@ -189,6 +191,12 @@ export default function DashboardScreen() {
               )}
             </View>
           )}
+
+          <AvisoRuta
+            visible={avisoRuta}
+            onCancelar={() => setAvisoRuta(false)}
+            onActivar={() => { setAvisoRuta(false); activar(); }}
+          />
 
           {/* ── Prospectos recientes ── */}
           <SectionHeader title="Recientes" action={{ label: 'Ver todos', onPress: () => router.push('/(tabs)/prospectos') }} />
