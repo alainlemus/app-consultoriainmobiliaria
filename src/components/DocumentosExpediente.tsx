@@ -119,7 +119,12 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
                 <View style={{ flex: 1 }}>
                   <Text style={styles.titulo} numberOfLines={2}>{nombreLegible(doc)}</Text>
                   <Text style={styles.sub}>Subido el {fechaCorta(doc.created_at)}</Text>
-                  {doc.notas ? <Text style={styles.notas} numberOfLines={2}>{doc.notas}</Text> : null}
+                  {doc.notas ? (
+                    <View style={styles.notaFila}>
+                      <Ionicons name="pricetag" size={15} color={Colors.gold[600]} />
+                      <Text style={styles.notas} numberOfLines={2}>{doc.notas}</Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
 
@@ -171,7 +176,9 @@ const styles = StyleSheet.create({
   tileText: { fontSize: 11, fontWeight: Typography.fontWeight.bold, color: Colors.dark[700] },
   titulo:   { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   sub:      { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2 },
-  notas:    { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2, fontStyle: 'italic' },
+  // La nota identifica rápido el documento (ej. "INE del dueño de la casa")
+  notaFila: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, backgroundColor: Colors.gold[50], borderRadius: Radius.sm, paddingHorizontal: 6, paddingVertical: 3, alignSelf: 'flex-start' },
+  notas:    { flexShrink: 1, fontSize: Typography.fontSize.sm, color: Colors.gold[700], fontWeight: Typography.fontWeight.semibold },
 
   acciones: { flexDirection: 'row', gap: Spacing.xs, marginTop: Spacing.md },
   accion: {

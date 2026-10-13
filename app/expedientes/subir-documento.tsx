@@ -308,16 +308,17 @@ export default function SubirDocumentoScreen() {
           </View>
           <RequisitosCard tipo={tipo} />
 
-          <Text style={s.sectionLabel}>Notas · opcional (escribe aquí)</Text>
+          <Text style={s.sectionLabel}>Nota para identificarlo</Text>
           <TextInput
             style={s.input}
-            placeholder="Descripción del documento…"
+            placeholder="Ej: INE del dueño de la casa"
             placeholderTextColor={Colors.dark[400]}
             value={notas}
             onChangeText={setNotas}
             multiline
             numberOfLines={3}
           />
+          <Text style={s.notaAyuda}>Puedes subir varios del mismo tipo (por ejemplo, otra INE). Anota de quién es para identificarlo rápido.</Text>
 
           <Pressable
             style={[s.btnSubir, uploading && s.btnDisabled]}
@@ -390,16 +391,17 @@ export default function SubirDocumentoScreen() {
         </View>
         <RequisitosCard tipo={tipo} />
 
-        <Text style={s.sectionLabel}>Notas · opcional (escribe aquí)</Text>
+        <Text style={s.sectionLabel}>Nota para identificarlo</Text>
         <TextInput
           style={s.input}
-          placeholder="Ej: INE vigente, anverso y reverso"
+          placeholder="Ej: INE del dueño de la casa"
           placeholderTextColor={Colors.dark[400]}
           value={notas}
           onChangeText={setNotas}
           multiline
           numberOfLines={3}
         />
+        <Text style={s.notaAyuda}>Puedes subir varios del mismo tipo (por ejemplo, otra INE). Anota de quién es para identificarlo rápido.</Text>
 
         <View style={s.actions}>
           <Pressable style={s.btnEscanear} onPress={escanear}>
@@ -521,6 +523,7 @@ function AvisoRequisitos({ visible, tipo, accion, onCancelar, onAceptar }: {
 // ── Estilos ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
+  notaAyuda: { fontSize: Typography.fontSize.sm, color: Colors.dark[500], marginTop: Spacing.xs, lineHeight: 20 },
   chipBloqueado: { opacity: 0.35 },
   requisitos: {
     marginTop: Spacing.md, backgroundColor: Colors.gold[50], borderRadius: Radius.md,
