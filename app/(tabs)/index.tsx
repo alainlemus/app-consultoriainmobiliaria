@@ -139,8 +139,8 @@ export default function DashboardScreen() {
           {/* ── KPI cards ── */}
           <View style={styles.kpiGrid}>
             <KpiCard label="Prospectos"  value={stats?.totalProspectos  ?? '—'} icon="👥" accent={Colors.gold[400]}    />
-            <KpiCard label="Con documentos" value={stats?.conDocumentos ?? '—'} icon="📎" accent={Colors.success}      />
-            <KpiCard label="Sin documentos" value={stats?.sinDocumentos ?? '—'} icon="📭" accent={Colors.crimson[500]} />
+            <KpiCard label="Con docs" value={stats?.conDocumentos ?? '—'} icon="📎" accent={Colors.success}      />
+            <KpiCard label="Sin docs" value={stats?.sinDocumentos ?? '—'} icon="📭" accent={Colors.crimson[500]} />
           </View>
 
           {/* ── Acciones rápidas ── */}
@@ -255,7 +255,7 @@ function KpiCard({ label, value, icon, accent }: { label: string; value: number 
     <View style={[styles.kpiCard, { borderTopColor: accent }]}>
       <Text style={styles.kpiIcon}>{icon}</Text>
       <Text style={[styles.kpiValue, { color: accent }]}>{value}</Text>
-      <Text style={styles.kpiLabel}>{label}</Text>
+      <Text style={styles.kpiLabel} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -340,7 +340,8 @@ const styles = StyleSheet.create({
   // Acciones — tiles más altas para área táctil cómoda
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.xs },
   actionTile: {
-    width:           '47.5%',
+    flexBasis:       '47.5%',
+    flexGrow:        1,   // si queda un mosaico solo en la última fila, ocupa todo el ancho
     backgroundColor: Colors.white,
     borderRadius:    Radius.md,
     paddingVertical: Spacing.xl,   // antes lg — más espacio vertical
