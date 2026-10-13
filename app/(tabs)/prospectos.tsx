@@ -248,6 +248,7 @@ export default function ProspectosScreen() {
                 <Text style={styles.detalle} numberOfLines={1}>
                   {c.servicio ? `${c.servicio} · ` : ''}
                   {c.email ?? c.telefono ?? '—'}
+                  {c.documentos_count ? `  ·  📎 ${c.documentos_count}` : ''}
                 </Text>
                 {c._pendiente_sync && (
                   <Text style={styles.pendienteSyncText}>⏳ Pendiente de sincronizar</Text>

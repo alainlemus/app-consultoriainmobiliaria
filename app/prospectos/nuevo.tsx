@@ -25,15 +25,6 @@ const ESTADOS: { value: EstadoP; label: string }[] = [
   { value: 'precalificado', label: 'Precalificado' },
 ];
 
-const SERVICIOS: { value: ServicioProspecto; label: string }[] = [
-  { value: 'FOVISSSTE',              label: 'FOVISSSTE' },
-  { value: 'INFONAVIT',              label: 'INFONAVIT' },
-  { value: 'AVALUO',                 label: 'Avalúo' },
-  { value: 'ESCRITURACION',          label: 'Escrituración' },
-  { value: 'ASESORIA_PERSONALIZADA', label: 'Asesoría\npersonalizada' },
-  { value: 'OTRO',                   label: 'Otro' },
-];
-
 const REGIMENES: { value: string; label: string }[] = [
   { value: 'decimo_transitorio', label: 'Décimo Transitorio' },
   { value: 'cuenta_individual',  label: 'Cuenta Individual' },
@@ -53,7 +44,7 @@ export default function NuevoProspectoScreen() {
     nss:              '',
     notas:            '',
     estado_prospecto: 'nuevo' as EstadoP,
-    servicio:         '' as ServicioProspecto,
+    servicio:         'FOVISSSTE' as ServicioProspecto,  // por ahora solo FOVISSSTE
     // Precalificación compartida
     estado_uso_credito:    '',
     municipio_uso_credito: '',
@@ -87,6 +78,7 @@ export default function NuevoProspectoScreen() {
   const [errors,  setErrors]  = useState<Partial<Record<keyof typeof form, string>>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [masDatos, setMasDatos] = useState(false);
 
   function set(key: keyof typeof form) {
     return (val: string) => setForm(f => ({ ...f, [key]: val }));
@@ -95,7 +87,6 @@ export default function NuevoProspectoScreen() {
   function validate(): boolean {
     const e: Partial<Record<keyof typeof form, string>> = {};
     if (!form.nombre.trim()) e.nombre   = 'El nombre es requerido';
-    if (!form.servicio)      e.servicio = 'Selecciona un tipo de servicio';
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -281,6 +272,88 @@ export default function NuevoProspectoScreen() {
           </View>
         )}
 
+        {/* ── Datos personales ──────────────────────────────────────── */}
+        <Text style={styles.sectionLabel}>Datos del prospecto</Text>
+        <View style={styles.section}>
+          <Input
+            label="Nombre completo *"
+            value={form.nombre}
+            onChangeText={set('nombre')}
+            error={errors.nombre}
+            placeholder="Ej. Juan Pérez García"
+            autoCapitalize="words"
+          />
+          <Input
+            label="Teléfono"
+            value={form.telefono}
+            onChangeText={set('telefono')}
+            keyboardType="phone-pad"
+            placeholder="55 1234 5678"
+          />
+          <Input
+            label="Correo electrónico"
+            value={form.email}
+            onChangeText={set('email')}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            placeholder="correo@ejemplo.com"
+          />
+        </View>
+
+        {/* ── Notas ────────────────────────────────────────────────── */}
+        <Text style={styles.sectionLabel}>Notas</Text>
+        <View style={styles.section}>
+          <Input
+            value={form.notas}
+            onChangeText={set('notas')}
+            multiline
+            numberOfLines={3}
+            placeholder="Información adicional sobre el prospecto…"
+          />
+        </View>
+
+        {/* ── Más datos (plegado) ────────────────────────────────────── */}
+        <TouchableOpacity
+          style={styles.masDatosBtn}
+          onPress={() => setMasDatos(v => !v)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.masDatosText}>{masDatos ? '▾  Menos datos' : '▸  Más datos (opcional)'}</Text>
+        </TouchableOpacity>
+
+        {masDatos ? (
+          <>
+        {/* ── Estado del prospecto ─────────────────────────────────── */}
+        <Text style={styles.sectionLabel}>Estado del prospecto</Text>
+        <View style={styles.section}>
+          <View style={styles.estadoGrid}>
+            {ESTADOS.map(e => (
+              <TouchableOpacity
+                key={e.value}
+                style={[styles.estadoChip, form.estado_prospecto === e.value && styles.estadoChipActive]}
+                onPress={() => setForm(f => ({ ...f, estado_prospecto: e.value }))}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.estadoChipText, form.estado_prospecto === e.value && styles.estadoChipTextActive]}>
+                  {e.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <Text style={styles.sectionLabel}>CURP</Text>
+        <View style={styles.section}>
+          <Input
+            label="CURP (opcional)"
+            value={form.curp}
+            onChangeText={(v) => set('curp')(v.toUpperCase())}
+            autoCapitalize="characters"
+            placeholder="LOHA850101HDFPLN02"
+            maxLength={18}
+          />
+        </View>
+
         {/* ── Foto del prospecto ─────────────────────────────────── */}
         <Text style={styles.sectionLabel}>Foto del prospecto</Text>
         <View style={styles.section}>
@@ -308,97 +381,6 @@ export default function NuevoProspectoScreen() {
               )}
             </View>
           </View>
-        </View>
-
-        {/* ── Datos personales ──────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>Datos personales</Text>
-        <View style={styles.section}>
-          <Input
-            label="Nombre completo *"
-            value={form.nombre}
-            onChangeText={set('nombre')}
-            error={errors.nombre}
-            placeholder="Ej. Juan Pérez García"
-            autoCapitalize="words"
-          />
-          <Input
-            label="Teléfono"
-            value={form.telefono}
-            onChangeText={set('telefono')}
-            keyboardType="phone-pad"
-            placeholder="55 1234 5678"
-          />
-          <Input
-            label="Correo electrónico"
-            value={form.email}
-            onChangeText={set('email')}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholder="correo@ejemplo.com"
-          />
-          <Input
-            label="CURP (opcional)"
-            value={form.curp}
-            onChangeText={(v) => set('curp')(v.toUpperCase())}
-            autoCapitalize="characters"
-            placeholder="LOHA850101HDFPLN02"
-            maxLength={18}
-          />
-        </View>
-
-        {/* ── Tipo de servicio ──────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>Tipo de servicio *</Text>
-        <View style={styles.section}>
-          {errors.servicio ? <Text style={styles.fieldError}>{errors.servicio}</Text> : null}
-          <View style={styles.servicioGrid}>
-            {SERVICIOS.map(s => (
-              <TouchableOpacity
-                key={s.value}
-                style={[styles.servicioBtn, form.servicio === s.value && styles.servicioBtnActive]}
-                onPress={() => setForm(f => ({ ...f, servicio: s.value }))}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[styles.servicioBtnText, form.servicio === s.value && styles.servicioBtnTextActive]}
-                  numberOfLines={2}
-                  textBreakStrategy="simple"
-                >
-                  {s.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* ── Estado del prospecto ─────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>Estado del prospecto</Text>
-        <View style={styles.section}>
-          <View style={styles.estadoGrid}>
-            {ESTADOS.map(e => (
-              <TouchableOpacity
-                key={e.value}
-                style={[styles.estadoChip, form.estado_prospecto === e.value && styles.estadoChipActive]}
-                onPress={() => setForm(f => ({ ...f, estado_prospecto: e.value }))}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.estadoChipText, form.estado_prospecto === e.value && styles.estadoChipTextActive]}>
-                  {e.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* ── Notas ────────────────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>Notas</Text>
-        <View style={styles.section}>
-          <Input
-            value={form.notas}
-            onChangeText={set('notas')}
-            multiline
-            numberOfLines={3}
-            placeholder="Información adicional sobre el prospecto…"
-          />
         </View>
 
         {/* ── Escuela vinculada (solo FOVISSSTE) ─────────────────────── */}
@@ -642,6 +624,9 @@ export default function NuevoProspectoScreen() {
           </>
         ) : null}
 
+          </>
+        ) : null}
+
         {/* ── Guardar ───────────────────────────────────────────────── */}
         <TouchableOpacity
           style={[styles.saveBtn, loading && { opacity: 0.6 }]}
@@ -662,6 +647,9 @@ export default function NuevoProspectoScreen() {
 // ── Estilos ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  masDatosBtn:  { marginTop: Spacing.base, paddingVertical: Spacing.md, alignItems: 'center', borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[300], backgroundColor: Colors.white },
+  masDatosText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[700] },
+
   flex: { flex: 1 },
 
   topBar: {
@@ -731,22 +719,6 @@ const styles = StyleSheet.create({
   fotoRemoveBtnText: { fontSize: Typography.fontSize.xs, color: Colors.dark[400] },
 
   // ── Servicios ───────────────────────────────────────────────────────────────
-  servicioGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  servicioBtn: {
-    width:           '30%',
-    flexGrow:        1,
-    paddingVertical: Spacing.md,
-    borderRadius:    Radius.md,
-    borderWidth:     1.5,
-    borderColor:     Colors.cream[300],
-    alignItems:      'center',
-    justifyContent:  'center',
-    backgroundColor: Colors.cream[50],
-    minHeight:       56,
-  },
-  servicioBtnActive:     { borderColor: Colors.gold[400], backgroundColor: Colors.gold[50] },
-  servicioBtnText:       { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, color: Colors.dark[500], textAlign: 'center' },
-  servicioBtnTextActive: { color: Colors.gold[600] },
 
   // ── Estado prospecto ────────────────────────────────────────────────────────
   estadoGrid:           { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },

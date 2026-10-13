@@ -26,7 +26,7 @@ const SLIDES: Slide[] = [
     id: '1',
     emoji: '👋',
     titulo: 'Bienvenido a\nConsultoría Inmobiliaria',
-    descripcion: 'La plataforma que te ayuda a gestionar tus clientes, expedientes y comisiones desde tu celular.',
+    descripcion: 'La plataforma que te ayuda a registrar tus prospectos y capturar sus documentos desde tu celular.',
     detalle: 'Todo en un solo lugar, disponible 24/7.',
   },
   {
@@ -38,10 +38,10 @@ const SLIDES: Slide[] = [
   },
   {
     id: '3',
-    emoji: '📁',
-    titulo: 'Gestiona\nExpedientes',
-    descripcion: 'Sube documentos directamente desde tu cámara. Consulta el estado de cada trámite en tiempo real.',
-    detalle: 'INE, CURP, comprobantes de ingresos y más — todo organizado por cliente.',
+    emoji: '📄',
+    titulo: 'Escanea\nDocumentos',
+    descripcion: 'Escanea o sube los documentos de cada prospecto directamente desde tu cámara.',
+    detalle: 'INE, CURP, comprobantes y más — tu equipo los recibe en el panel al instante.',
   },
   {
     id: '4',
@@ -52,13 +52,6 @@ const SLIDES: Slide[] = [
   },
   {
     id: '5',
-    emoji: '💰',
-    titulo: 'Consulta tus\nComisiones',
-    descripcion: 'Ve el estado de cada comisión: pendiente, aprobada o pagada. Revisa tu resumen mensual de ingresos.',
-    detalle: 'Asegúrate de tener tu CLABE correcta en tu perfil para recibir pagos sin problema.',
-  },
-  {
-    id: '6',
     emoji: '🎉',
     titulo: '¡Todo listo!',
     descripcion: 'Ya conoces lo esencial. Empieza registrando tu primer prospecto o completando tu perfil.',

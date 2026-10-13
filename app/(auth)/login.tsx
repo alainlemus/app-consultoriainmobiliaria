@@ -247,7 +247,7 @@ export default function LoginScreen() {
               </View>
               <View style={styles.selectorText}>
                 <Text style={styles.selectorTitle}>Soy Asesor</Text>
-                <Text style={styles.selectorDesc}>Gestiona prospectos, expedientes y comisiones</Text>
+                <Text style={styles.selectorDesc}>Registra prospectos y sube sus documentos</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={Colors.dark[400]} />
             </TouchableOpacity>

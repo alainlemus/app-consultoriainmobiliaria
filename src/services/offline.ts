@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { v4 as uuidv4 } from 'uuid';
 
-import { syncBatch, uploadDocumento, registrarAnuncio, subirFotosAnuncio, registrarUbicacion, subirFotosVisita, uploadFotoContacto, uploadSimuladorScreenshot, subirFotoPerfil, getContratoPrestacionServiciosConfig, uploadContratoGenerado, type ContratoGeneradoUploadParams } from './api';
+import { syncBatch, uploadDocumento, uploadDocumentoContacto, registrarAnuncio, subirFotosAnuncio, registrarUbicacion, subirFotosVisita, uploadFotoContacto, uploadSimuladorScreenshot, subirFotoPerfil, getContratoPrestacionServiciosConfig, uploadContratoGenerado, type ContratoGeneradoUploadParams } from './api';
 import { subirFotoAcreditado, subirDocumentoAcreditado } from './acreditadoApi';
 import { limpiarArchivoLocal } from '../utils/comprimirFoto';
 import { marcarContratoSincronizado } from './contratosGenerados';
@@ -52,7 +52,8 @@ export interface OperacionPendiente extends OperacionSync {
 /** Un documento escaneado que no pudo subirse por falta de conexión */
 export interface DocumentoPendiente {
   id_local:     string;
-  expedienteId: number;
+  expedienteId?: number;  // documentos viejos en cola, de cuando se subían a un expediente
+  contactoId?:   number;  // documentos nuevos: se suben al prospecto
   uri:          string;   // file:// URI del PDF/imagen guardada en el dispositivo
   tipo:         string;   // tipo de documento (nombre del checklist)
   seccion?:     string;   // sección del checklist (acreditado, vendedor, vivienda, otros)
@@ -354,7 +355,8 @@ export async function limpiarQueue(): Promise<void> {
  * Úsalo cuando el usuario escanea/selecciona un archivo estando offline.
  */
 export async function encolarDocumento(params: {
-  expedienteId: number;
+  expedienteId?: number;
+  contactoId?:   number;
   uri:          string;
   tipo:         string;
   seccion?:     string;
@@ -364,6 +366,7 @@ export async function encolarDocumento(params: {
   const doc: DocumentoPendiente = {
     id_local:     uuidv4(),
     expedienteId: params.expedienteId,
+    contactoId:   params.contactoId,
     uri:          params.uri,
     tipo:         params.tipo,
     seccion:      params.seccion,
@@ -760,14 +763,13 @@ export async function sincronizar(): Promise<{ ok: number; errores: number }> {
 
       for (const doc of docsQueue) {
         try {
-          await uploadDocumento(
-            doc.expedienteId,
-            doc.uri,
-            doc.tipo,
-            doc.notas,
-            doc.mimeType,
-            doc.seccion,
-          );
+          if (doc.contactoId) {
+            await uploadDocumentoContacto(doc.contactoId, doc.uri, doc.tipo, doc.notas, doc.mimeType, doc.seccion);
+          } else if (doc.expedienteId) {
+            await uploadDocumento(doc.expedienteId, doc.uri, doc.tipo, doc.notas, doc.mimeType, doc.seccion);
+          } else {
+            throw new Error('Documento en cola sin destino');
+          }
           // Limpiar archivo local tras upload exitoso
           await limpiarArchivoLocal(doc.uri);
           ok++;

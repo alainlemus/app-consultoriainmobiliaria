@@ -1,6 +1,6 @@
 /**
- * Pantalla: Subir / Escanear Documento
- * Ruta: /expedientes/documentos/subir?expedienteId=X
+ * Pantalla: Subir / Escanear Documento de un prospecto
+ * Ruta: /prospectos/subir-documento?contactoId=X
  *
  * Flujo primario:  DocumentScanner nativo → N imágenes → PDF → preview → subir
  * Flujo secundario: Archivo → PDF u otro archivo → preview → subir
@@ -52,19 +52,20 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { uploadDocumento } from '../../../src/services/api';
-import { persistirDocumento } from '../../../src/utils/comprimirFoto';
-import { Colors, Radius, Spacing, Typography } from '../../../src/theme';
-import { useSyncContext } from '../../../src/contexts/SyncContext';
+import { uploadDocumentoContacto } from '../../src/services/api';
+import { persistirDocumento } from '../../src/utils/comprimirFoto';
+import { Colors, Radius, Spacing, Typography } from '../../src/theme';
+import { useSyncContext } from '../../src/contexts/SyncContext';
 
+// El servidor guarda la etiqueta como nombre del documento (es lo que se ve en el panel).
 const TIPOS_DOCUMENTO = [
-  { value: 'identificacion_oficial', label: 'Identificación oficial' },
-  { value: 'curp',                   label: 'CURP' },
-  { value: 'comprobante_domicilio',  label: 'Comprobante domicilio' },
-  { value: 'estado_cuenta',         label: 'Estado de cuenta' },
-  { value: 'comprobante_ingresos',  label: 'Comprobante ingresos' },
+  { value: 'ine',                   label: 'INE' },
+  { value: 'curp',                  label: 'CURP' },
   { value: 'acta_nacimiento',       label: 'Acta de nacimiento' },
-  { value: 'poder_notarial',        label: 'Poder notarial' },
+  { value: 'comprobante_domicilio', label: 'Comprobante de domicilio' },
+  { value: 'talon_pago',            label: 'Talón de pago' },
+  { value: 'constancia_fiscal',     label: 'Constancia de situación fiscal' },
+  { value: 'estado_cuenta',         label: 'Estado de cuenta' },
   { value: 'otro',                  label: 'Otro' },
 ] as const;
 
@@ -80,13 +81,9 @@ const toFileUri = (path: string) =>
 
 export default function SubirDocumentoScreen() {
   const insets = useSafeAreaInsets();
-  const { expedienteId, tipo: tipoParam, seccion: seccionParam } = useLocalSearchParams<{
-    expedienteId: string;
-    tipo?: string;
-    seccion?: string;
-  }>();
+  const { contactoId } = useLocalSearchParams<{ contactoId: string }>();
 
-  const [tipo,  setTipo]  = useState<TipoDocumento>((tipoParam as TipoDocumento) ?? 'identificacion_oficial');
+  const [tipo,  setTipo]  = useState<TipoDocumento>('ine');
   const [notas, setNotas] = useState('');
   const { online, encolarDoc } = useSyncContext();
 
@@ -134,7 +131,7 @@ export default function SubirDocumentoScreen() {
   const seleccionarGaleria = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf'],
+        type: ['application/pdf', 'image/*'],
         copyToCacheDirectory: true,
       });
       if (result.canceled || !result.assets[0]) return;
@@ -154,12 +151,14 @@ export default function SubirDocumentoScreen() {
 
   // ── Subir ─────────────────────────────────────────────────────────────────────
   const subir = async () => {
-    if (!resultUri || !expedienteId) return;
+    if (!resultUri || !contactoId) return;
     setUploading(true);
     try {
       // Determinar nombre de archivo con extensión correcta
       const ext       = mimeType === 'application/pdf' ? 'pdf' : 'jpg';
       const nombre    = `doc_${tipo}_${Date.now()}.${ext}`;
+      const etiqueta  = TIPOS_DOCUMENTO.find(t => t.value === tipo)?.label ?? 'Otro';
+      const seccion   = tipo === 'otro' ? 'otros' : undefined;
 
       // Persistir en documentDirectory ANTES de encolar o subir
       // Esto garantiza que la URI sobrevive reinicios de app en Android e iOS
@@ -167,16 +166,16 @@ export default function SubirDocumentoScreen() {
 
       const encolarYVolver = async () => {
         await encolarDoc({
-          expedienteId: Number(expedienteId),
-          uri:          uriPersistida,
-          tipo,
-          seccion:      seccionParam || undefined,
+          contactoId: Number(contactoId),
+          uri:        uriPersistida,
+          tipo:       etiqueta,
+          seccion,
           mimeType,
           notas:        notas || undefined,
         });
         Alert.alert(
           '📋 Guardado sin conexión',
-          'El documento se enviará al expediente automáticamente cuando recuperes internet.',
+          'El documento se enviará automáticamente cuando recuperes internet.',
           [{ text: 'Entendido', onPress: () => router.back() }],
         );
       };
@@ -188,13 +187,13 @@ export default function SubirDocumentoScreen() {
 
       // Con red: intentar subir directo
       try {
-        await uploadDocumento(
-          Number(expedienteId),
+        await uploadDocumentoContacto(
+          Number(contactoId),
           uriPersistida,
-          tipo,
+          etiqueta,
           notas || undefined,
           mimeType,
-          seccionParam || undefined,
+          seccion,
         );
         Alert.alert('✓ Listo', 'Documento subido correctamente.', [
           { text: 'OK', onPress: () => router.back() },
@@ -283,27 +282,19 @@ export default function SubirDocumentoScreen() {
           )}
 
           <Text style={s.sectionLabel}>Tipo de documento</Text>
-          {tipoParam ? (
-            /* Tipo fijado desde el checklist — no se puede cambiar para garantizar que el
-               documento quede ligado correctamente al requerido del expediente */
-            <View style={s.tipoFijo}>
-              <Text style={s.tipoFijoText}>{tipoParam}</Text>
-            </View>
-          ) : (
-            <View style={s.chipWrap}>
-              {TIPOS_DOCUMENTO.map(t => (
-                <Pressable
-                  key={t.value}
-                  style={[s.chip, tipo === t.value && s.chipActivo]}
-                  onPress={() => setTipo(t.value)}
-                >
-                  <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
-                    {t.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+          <View style={s.chipWrap}>
+            {TIPOS_DOCUMENTO.map(t => (
+              <Pressable
+                key={t.value}
+                style={[s.chip, tipo === t.value && s.chipActivo]}
+                onPress={() => setTipo(t.value)}
+              >
+                <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
+                  {t.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
 
           <Text style={s.sectionLabel}>Notas (opcional)</Text>
           <TextInput
@@ -331,7 +322,7 @@ export default function SubirDocumentoScreen() {
 
           {!online && (
             <Text style={s.offlineHint}>
-              Sin internet — el documento quedará guardado en tu dispositivo y se enviará al expediente cuando recuperes señal.
+              Sin internet — el documento quedará guardado en tu dispositivo y se enviará cuando recuperes señal.
             </Text>
           )}
 
@@ -363,25 +354,19 @@ export default function SubirDocumentoScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={s.sectionLabel}>Tipo de documento</Text>
-        {tipoParam ? (
-          <View style={s.tipoFijo}>
-            <Text style={s.tipoFijoText}>{tipoParam}</Text>
-          </View>
-        ) : (
-          <View style={s.chipWrap}>
-            {TIPOS_DOCUMENTO.map(t => (
-              <Pressable
-                key={t.value}
-                style={[s.chip, tipo === t.value && s.chipActivo]}
-                onPress={() => setTipo(t.value)}
-              >
-                <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
-                  {t.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
+        <View style={s.chipWrap}>
+          {TIPOS_DOCUMENTO.map(t => (
+            <Pressable
+              key={t.value}
+              style={[s.chip, tipo === t.value && s.chipActivo]}
+              onPress={() => setTipo(t.value)}
+            >
+              <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
+                {t.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
 
         <Text style={s.sectionLabel}>Notas (opcional)</Text>
         <TextInput
@@ -406,7 +391,7 @@ export default function SubirDocumentoScreen() {
           <Pressable style={s.btnGaleria} onPress={seleccionarGaleria}>
             <Text style={s.btnIcon}>📁</Text>
             <Text style={s.btnLabel}>Archivo</Text>
-            <Text style={s.btnSubLabel}>Seleccionar archivo PDF</Text>
+            <Text style={s.btnSubLabel}>PDF o foto de la galería</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -463,16 +448,6 @@ const s = StyleSheet.create({
   chipText:       { fontSize: Typography.fontSize.xs, color: Colors.dark[700], fontWeight: '500' },
   chipTextActivo: { color: Colors.white, fontWeight: Typography.fontWeight.bold },
 
-  // Tipo fijo (desde el checklist del expediente — no editable)
-  tipoFijo: {
-    backgroundColor: Colors.cream[100], borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.cream[300],
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
-  },
-  tipoFijoText: {
-    fontSize: Typography.fontSize.sm, color: Colors.dark[800],
-    fontWeight: '600',
-  },
 
   input: {
     backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cream[300],

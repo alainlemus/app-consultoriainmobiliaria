@@ -32,8 +32,6 @@ export default function PerfilScreen() {
   // Campos editables
   const [nombre,   setNombre]   = useState('');
   const [telefono, setTelefono] = useState('');
-  const [banco,    setBanco]    = useState('');
-  const [clabe,    setClabe]    = useState('');
 
   const cargarUsuario = useCallback(async () => {
     try {
@@ -41,8 +39,6 @@ export default function PerfilScreen() {
       setUser(u);
       setNombre(u?.name     ?? '');
       setTelefono(u?.telefono ?? '');
-      setBanco(u?.banco     ?? '');
-      setClabe(u?.clabe     ?? '');
     } catch {}
   }, []);
 
@@ -85,8 +81,6 @@ export default function PerfilScreen() {
       const updated = await updatePerfil({
         name:     nombre.trim(),
         telefono: telefono.trim() || undefined,
-        banco:    banco.trim()    || undefined,
-        clabe:    clabe.trim()    || undefined,
       });
       // Preservar foto_perfil_url del estado actual por si la URL firmada
       // de la respuesta difiere o viene sin resolver
@@ -106,8 +100,6 @@ export default function PerfilScreen() {
   function handleCancelar() {
     setNombre(user?.name     ?? '');
     setTelefono(user?.telefono ?? '');
-    setBanco(user?.banco     ?? '');
-    setClabe(user?.clabe     ?? '');
     setEditando(false);
   }
 
@@ -249,9 +241,7 @@ export default function PerfilScreen() {
             {editando ? (
               <>
                 <Field label="Nombre"   value={nombre}   onChangeText={setNombre}   placeholder="Tu nombre completo" />
-                <Field label="Teléfono" value={telefono} onChangeText={setTelefono} placeholder="10 dígitos" keyboardType="phone-pad" />
-                <Field label="Banco"    value={banco}    onChangeText={setBanco}    placeholder="Ej: BBVA, Banamex..." />
-                <Field label="CLABE"    value={clabe}    onChangeText={setClabe}    placeholder="18 dígitos" keyboardType="number-pad" last />
+                <Field label="Teléfono" value={telefono} onChangeText={setTelefono} placeholder="10 dígitos" keyboardType="phone-pad" last />
 
                 <View style={s.btnRow}>
                   <TouchableOpacity
@@ -277,9 +267,7 @@ export default function PerfilScreen() {
               <>
                 <InfoRow label="Nombre"   value={user?.name     ?? '—'} />
                 <InfoRow label="Correo"   value={user?.email    ?? '—'} />
-                <InfoRow label="Teléfono" value={user?.telefono ?? '—'} />
-                <InfoRow label="Banco"    value={user?.banco    ?? '—'} />
-                <InfoRow label="CLABE"    value={user?.clabe    ?? '—'} last />
+                <InfoRow label="Teléfono" value={user?.telefono ?? '—'} last />
 
                 <TouchableOpacity style={s.editBtn} onPress={() => setEditando(true)}>
                   <Text style={s.editBtnText}>Editar datos</Text>

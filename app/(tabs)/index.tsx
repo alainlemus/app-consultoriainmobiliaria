@@ -9,16 +9,15 @@ import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
-import { getContactos, getExpedientes, getMe, logout } from '../../src/services/api';
+import { getContactos, getMe, logout } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useRouteTracking } from '../../src/hooks/useRouteTracking';
 import type { User, Contacto } from '../../src/types';
 
 interface Stats {
   totalProspectos:  number;
-  totalExpedientes: number;
-  enTramite:        number;
-  cerrados:         number;
+  conDocumentos:    number;
+  sinDocumentos:    number;
 }
 
 export default function DashboardScreen() {
@@ -49,19 +48,16 @@ export default function DashboardScreen() {
 
   async function load() {
     try {
-      const [me, prospectos, expedientes] = await Promise.all([
+      const [me, prospectos] = await Promise.all([
         getMe(),
         getContactos({ page: 1 }),
-        getExpedientes(),
       ]);
       setUser(me);
+      const conDocumentos = prospectos.meta.con_documentos ?? 0;
       setStats({
-        totalProspectos:  prospectos.meta.total,
-        totalExpedientes: expedientes.meta.total,
-        enTramite: expedientes.data.filter(e =>
-          ['en_proceso','documentacion','en_catastro','pre_avaluo','cuv_generada','avaluo_cerrado','en_notaria'].includes(e.estado)
-        ).length,
-        cerrados: expedientes.data.filter(e => e.estado === 'cerrado').length,
+        totalProspectos: prospectos.meta.total,
+        conDocumentos,
+        sinDocumentos:   Math.max(prospectos.meta.total - conDocumentos, 0),
       });
       setRecientes(prospectos.data.slice(0, 5));
     } catch {
@@ -143,9 +139,8 @@ export default function DashboardScreen() {
           {/* ── KPI cards ── */}
           <View style={styles.kpiGrid}>
             <KpiCard label="Prospectos"  value={stats?.totalProspectos  ?? '—'} icon="👥" accent={Colors.gold[400]}    />
-            <KpiCard label="Expedientes" value={stats?.totalExpedientes ?? '—'} icon="📁" accent={Colors.dark[500]}    />
-            <KpiCard label="En trámite"  value={stats?.enTramite        ?? '—'} icon="⚙️" accent={Colors.crimson[500]} />
-            <KpiCard label="Cerrados"    value={stats?.cerrados         ?? '—'} icon="✅" accent={Colors.success}      />
+            <KpiCard label="Con documentos" value={stats?.conDocumentos ?? '—'} icon="📎" accent={Colors.success}      />
+            <KpiCard label="Sin documentos" value={stats?.sinDocumentos ?? '—'} icon="📭" accent={Colors.crimson[500]} />
           </View>
 
           {/* ── Acciones rápidas ── */}
@@ -153,7 +148,6 @@ export default function DashboardScreen() {
           <View style={styles.actionsGrid}>
             <ActionTile icon="➕" label="Nuevo prospecto" onPress={() => router.push('/prospectos/nuevo')} primary />
             <ActionTile icon="👥" label="Prospectos"      onPress={() => router.push('/(tabs)/prospectos')} />
-            <ActionTile icon="📁" label="Expedientes"     onPress={() => router.push('/(tabs)/expedientes')} />
             {isSuperAdmin && (
               <ActionTile icon="🖋️" label="Contratos" onPress={() => router.push('/contratos')} />
             )}

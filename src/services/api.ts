@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
-import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Comision, ResumenComisiones, Escuela, SemaforoEscuela, Anuncio, EstadoAnuncio, RutaAsesor, RutaDia, RutaPunto } from '../types';
+import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Escuela, SemaforoEscuela, Anuncio, EstadoAnuncio, RutaAsesor, RutaDia, RutaPunto } from '../types';
 
 // Selecciona la URL según plataforma en desarrollo
 // iOS simulador  → 127.0.0.1:8080
@@ -168,8 +168,6 @@ export async function getMe(): Promise<AuthState['user']> {
 export async function updatePerfil(data: {
   name?: string;
   telefono?: string;
-  banco?: string;
-  clabe?: string;
 }): Promise<AuthState['user']> {
   const res = await apiFetch<{ message: string; data: AuthState['user'] }>('/auth/perfil', {
     method: 'PUT',
@@ -355,7 +353,8 @@ export async function updateContratoPrestacionServiciosConfig(
 
 // ── Documentos ─────────────────────────────────────────────────────────────
 
-export async function uploadDocumento(expedienteId: number, uri: string, tipo: string, notas?: string, mimeType?: string, seccion?: string): Promise<Documento> {
+/** POST multipart de un documento; la ruta decide si va a un expediente o a un prospecto. */
+async function postDocumento(path: string, uri: string, tipo: string, notas?: string, mimeType?: string, seccion?: string): Promise<Documento> {
   const token = await getToken();
   const mime = mimeType ?? 'image/jpeg';
   const ext  = mime === 'application/pdf' ? 'pdf' : mime.split('/')[1] ?? 'jpg';
@@ -365,7 +364,7 @@ export async function uploadDocumento(expedienteId: number, uri: string, tipo: s
   if (seccion) formData.append('seccion', seccion);
   if (notas)   formData.append('notas', notas);
 
-  const response = await fetch(`${API_BASE}/expedientes/${expedienteId}/documentos`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     method:  'POST',
     headers: {
       'Accept':        'application/json',
@@ -381,6 +380,20 @@ export async function uploadDocumento(expedienteId: number, uri: string, tipo: s
   const res = await response.json();
   const doc: Documento = res.data;
   return { ...doc, url: resolveStorageUrl(doc.url) };
+}
+
+export function uploadDocumento(expedienteId: number, uri: string, tipo: string, notas?: string, mimeType?: string, seccion?: string): Promise<Documento> {
+  return postDocumento(`/expedientes/${expedienteId}/documentos`, uri, tipo, notas, mimeType, seccion);
+}
+
+/** Sube un documento al prospecto; el servidor crea su expediente la primera vez. */
+export function uploadDocumentoContacto(contactoId: number, uri: string, tipo: string, notas?: string, mimeType?: string, seccion?: string): Promise<Documento> {
+  return postDocumento(`/contactos/${contactoId}/documentos`, uri, tipo, notas, mimeType, seccion);
+}
+
+/** Documentos ya subidos del prospecto (expediente_id es null si todavía no sube ninguno). */
+export async function getDocumentosContacto(contactoId: number): Promise<{ data: Documento[]; expediente_id: number | null }> {
+  return apiFetch<{ data: Documento[]; expediente_id: number | null }>(`/contactos/${contactoId}/documentos`);
 }
 
 export async function deleteDocumento(expedienteId: number, documentoId: number): Promise<void> {
@@ -672,24 +685,6 @@ export async function registrarDispositivo(fcmToken: string, plataforma: 'ios' |
     method: 'POST',
     body:   JSON.stringify({ fcm_token: fcmToken, plataforma }),
   });
-}
-
-// ── Comisiones ─────────────────────────────────────────────────────────────
-
-export async function getComisiones(params?: {
-  estado?: 'pagada' | 'pendiente';
-  page?: number;
-}): Promise<{ data: Comision[]; current_page: number; last_page: number; total: number }> {
-  const p: Record<string, string> = {};
-  if (params?.estado) p['estado'] = params.estado;
-  if (params?.page)   p['page']   = String(params.page);
-  const qs = new URLSearchParams(p).toString();
-  return apiFetch(`/comisiones${qs ? `?${qs}` : ''}`);
-}
-
-export async function getResumenComisiones(): Promise<ResumenComisiones> {
-  const res = await apiFetch<ApiResponse<ResumenComisiones>>('/comisiones/resumen');
-  return res.data;
 }
 
 // ── Route Points ───────────────────────────────────────────────────────────────
