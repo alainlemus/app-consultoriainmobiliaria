@@ -34,8 +34,8 @@ const SECCIONES: Seccion[] = [
     subtitulo: 'Consulta el estado de tu crédito',
     pasos: [
       { icono: '🙋', titulo: 'Sin trámite activo', desc: 'Si aún no tienes un trámite, elige el servicio que necesitas (FOVISSSTE, INFONAVIT, Avalúo, etc.) y toca "Solicitar asesoría". Un asesor se pondrá en contacto contigo.' },
-      { icono: '📊', titulo: 'Progreso del trámite', desc: 'Una vez que tu trámite inicia, verás una barra con las etapas del proceso y en cuál vas actualmente.' },
-      { icono: 'ℹ️', titulo: '¿Qué está pasando?', desc: 'Esta tarjeta te explica, en palabras simples, qué significa la etapa actual de tu trámite.' },
+      { icono: '📊', titulo: 'Estado del trámite', desc: 'Una vez que tu trámite inicia, verás que está "En revisión" mientras tu asesor revisa tus documentos.' },
+      { icono: 'ℹ️', titulo: '¿Qué está pasando?', desc: 'Esta tarjeta te explica, en palabras simples, en qué punto está tu trámite.' },
       { icono: '📞', titulo: 'Tu asesor', desc: 'Al final de la pantalla verás los datos de tu asesor asignado — puedes llamarle, escribirle por WhatsApp o enviarle un correo directamente desde ahí.' },
       { icono: '📅', titulo: 'Fechas importantes', desc: 'Cuando estén definidas, verás la fecha de firma ante notario y la fecha esperada de pago.' },
     ],
@@ -50,16 +50,6 @@ const SECCIONES: Seccion[] = [
       { icono: '📤', titulo: 'Subir un documento', desc: 'Toca "Subir documento" y elige cómo obtenerlo: escanear (convierte varias fotos en un PDF automáticamente), tomar foto, o seleccionar un archivo PDF ya guardado.' },
       { icono: '🔁', titulo: 'Documento rechazado', desc: 'Si un documento aparece como "Rechazado", vuelve a subirlo — tu asesor te indicará qué corregir.' },
       { icono: '👁️', titulo: 'Ver un documento subido', desc: 'Toca cualquier documento de la lista para abrirlo y revisar que se vea bien.' },
-    ],
-  },
-  {
-    id: 'seguimiento',
-    icono: '⏱️',
-    titulo: 'Seguimiento',
-    subtitulo: 'Historial de tu trámite',
-    pasos: [
-      { icono: '🕓', titulo: 'Línea de tiempo', desc: 'En la pestaña Seguimiento verás, en orden, cada cambio de etapa, llamada, nota o documento que tu asesor registra sobre tu trámite.' },
-      { icono: '📭', titulo: 'Sin actividad', desc: 'Si aún no hay movimientos verás el mensaje "Sin actividad registrada aún" — es normal al inicio del proceso.' },
     ],
   },
   {
@@ -81,7 +71,7 @@ const SECCIONES: Seccion[] = [
     titulo: 'Modo sin internet',
     subtitulo: 'Puedes seguir usando la app sin señal',
     pasos: [
-      { icono: '📱', titulo: 'Consultar tu trámite', desc: 'Aunque no tengas señal, puedes ver el estado de tu trámite, tus documentos y tu seguimiento con la última información descargada.' },
+      { icono: '📱', titulo: 'Consultar tu trámite', desc: 'Aunque no tengas señal, puedes ver el estado de tu trámite, tus documentos con la última información descargada.' },
       { icono: '📄', titulo: 'Subir documentos sin señal', desc: 'Puedes escanear o seleccionar documentos aunque no tengas internet — se guardan en tu dispositivo y se suben solos en cuanto recuperes la conexión.' },
       { icono: '📸', titulo: 'Foto de perfil protegida', desc: 'Si actualizas tu foto de perfil con señal débil, no se pierde: se sube sola en cuanto haya mejor conexión.' },
     ],

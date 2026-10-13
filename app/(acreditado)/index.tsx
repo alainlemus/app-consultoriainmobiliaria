@@ -14,6 +14,7 @@ import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
 import type { ExpedienteAcreditado, ServicioTramite } from '@/src/types';
 
 const ESTADO_COLOR: Record<string, string> = {
+  en_revision: '#1d4ed8',
   en_proceso: '#1d4ed8',
   pausado:    '#b45309',
   aprobado:   '#15803d',
@@ -23,6 +24,7 @@ const ESTADO_COLOR: Record<string, string> = {
 };
 
 const ESTADO_LABEL: Record<string, string> = {
+  en_revision: 'En revisión',
   en_proceso: 'En proceso',
   pausado:    'Pausado',
   aprobado:   'Aprobado',
@@ -223,9 +225,6 @@ export default function MiTramiteScreen() {
     );
   }
 
-  const etapaOrden = expediente?.etapa.orden ?? 0;
-  const etapaTotal = expediente?.etapa.total ?? 7;
-
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -260,36 +259,6 @@ export default function MiTramiteScreen() {
               {expediente.tipo_tramite && (
                 <Text style={styles.tipoTramite}>{expediente.tipo_tramite}</Text>
               )}
-            </View>
-
-            {/* Stepper de progreso */}
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>PROGRESO DEL TRÁMITE</Text>
-              <View style={styles.stepperRow}>
-                {Array.from({ length: etapaTotal }).map((_, i) => {
-                  const n = i + 1;
-                  const done    = n < etapaOrden;
-                  const current = n === etapaOrden;
-                  return (
-                    <React.Fragment key={n}>
-                      <View style={[
-                        styles.stepDot,
-                        done    && styles.stepDotDone,
-                        current && styles.stepDotCurrent,
-                      ]}>
-                        {done
-                          ? <Ionicons name="checkmark" size={10} color="#fff" />
-                          : <Text style={[styles.stepNum, current && styles.stepNumCurrent]}>{n}</Text>
-                        }
-                      </View>
-                      {n < etapaTotal && (
-                        <View style={[styles.stepLine, done && styles.stepLineDone]} />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </View>
-              <Text style={styles.etapaNombre}>{expediente.etapa.nombre}</Text>
             </View>
 
             {/* Guía del paso actual */}
@@ -394,15 +363,6 @@ const styles = StyleSheet.create({
   estadoText: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, color: '#fff' },
   tipoTramite:{ fontSize: Typography.fontSize.sm, color: Colors.dark[400], marginTop: Spacing.xs },
 
-  stepperRow:    { flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.base },
-  stepDot:       { width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.dark[600], alignItems: 'center', justifyContent: 'center' },
-  stepDotDone:   { backgroundColor: Colors.gold[400] },
-  stepDotCurrent:{ backgroundColor: '#1d4ed8', borderWidth: 2, borderColor: '#93c5fd' },
-  stepNum:       { fontSize: 10, color: Colors.dark[400] },
-  stepNumCurrent:{ color: '#fff', fontWeight: 'bold' },
-  stepLine:      { flex: 1, height: 2, backgroundColor: Colors.dark[600] },
-  stepLineDone:  { backgroundColor: Colors.gold[400] },
-  etapaNombre:   { fontSize: Typography.fontSize.sm, color: Colors.cream[200], fontWeight: Typography.fontWeight.semibold, textAlign: 'center' },
 
   guiaCard:   { borderLeftWidth: 3, borderLeftColor: Colors.gold[400] },
   guiaHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },

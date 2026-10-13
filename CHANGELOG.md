@@ -10,6 +10,8 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 - El detalle del prospecto tiene la sección Documentos (escanear o subir PDF/foto, ver y eliminar). Se pueden subir varios del mismo tipo.
 - Inicio muestra prospectos con y sin documentos; Perfil ya no pide banco ni CLABE.
 
+- App del acreditado: su trámite aparece "En revisión"; se quitan la barra de etapas y la pestaña Seguimiento.
+
 Solo cambia JavaScript (llega como actualización automática). Requiere el servidor con `POST /contactos/{id}/documentos`: desplegar el backend antes.
 
 ## [2.2.1] - 2026-09-29

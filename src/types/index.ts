@@ -356,12 +356,6 @@ export interface DocumentoAcreditado {
   notas?:                 string;
 }
 
-export interface SeguimientoAcreditado {
-  tipo:        string;
-  descripcion: string;
-  fecha:       string;
-}
-
 export interface ServicioTramite {
   id:     number;
   nombre: string;
