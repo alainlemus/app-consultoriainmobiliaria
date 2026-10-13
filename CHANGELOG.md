@@ -4,6 +4,8 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+## [2.3.0] - 2026-10-13
+
 ### Cambiado
 - Flujo simplificado: el prospecto es quien se está evaluando y el expediente es del cliente. El asesor registra prospectos y, al volverse cliente, abre su expediente y sube o escanea ahí los documentos. Se quita la pestaña Comisiones y en los expedientes ya no hay estado, etapa, checklist por secciones ni rechazo de documentos.
 - Expedientes: lista simple con el número de documentos y un detalle con la lista de documentos (escanear o subir PDF/foto, ver y eliminar; se pueden subir varios del mismo tipo).
