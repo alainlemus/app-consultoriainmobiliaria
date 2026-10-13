@@ -319,7 +319,7 @@ describe('MapaScreen', () => {
     const { getByText } = render(<MapaScreen />);
     await waitFor(() => {
       // El encabezado o sección del mapa debe estar presente
-      expect(getByText(/Mapa|mapa|visita/i)).toBeTruthy();
+      expect(getByText('Mapa de visitas')).toBeTruthy();
     });
   });
 
