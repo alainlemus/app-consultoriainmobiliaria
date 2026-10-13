@@ -531,7 +531,7 @@ export default function RutasScreen() {
                       <Text style={s.pasoHora}>{p.hora.slice(0, 5)}</Text>
                     </View>
                     <Text style={s.pasoSub} numberOfLines={1}>
-                      {p.tipo !== 'gps' ? `${TIPO_LABEL[p.tipo]} · ` : ''}
+                      {p.tipo !== 'gps' && p.nombre_lugar ? `${TIPO_LABEL[p.tipo]} · ` : ''}
                       {verTodos && p.asesor_nombre ? `${p.asesor_nombre} · ` : ''}
                       {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
                     </Text>
