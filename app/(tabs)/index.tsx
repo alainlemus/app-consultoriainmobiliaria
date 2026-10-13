@@ -147,7 +147,8 @@ export default function DashboardScreen() {
           <SectionHeader title="Acciones" />
           <View style={styles.actionsGrid}>
             <ActionTile icon="person-add" label="Nuevo prospecto" onPress={() => router.push('/prospectos/nuevo')} primary />
-            {isSuperAdmin && (
+            {/* Contratos: disponible para todos los asesores y el administrador */}
+            {(isSuperAdmin || isAsesor) && (
               <ActionTile icon="document-text" label="Contratos" onPress={() => router.push('/contratos')} />
             )}
             <ActionTile icon="map" label="Mapa"            onPress={() => router.push('/mapa')} />

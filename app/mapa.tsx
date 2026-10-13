@@ -602,7 +602,8 @@ export default function MapaScreen() {
               >
                 <View style={[
                   s.pin,
-                  { borderColor: semaforoColor ?? TIPO_COLOR[u.tipo] },
+                  // Círculo del color del tipo con el icono en blanco; el semáforo de escuelas es el borde
+                  { backgroundColor: TIPO_COLOR[u.tipo], borderColor: semaforoColor ?? Colors.white },
                   semaforoColor ? { borderWidth: 3 } : {},
                   u._pendiente_sync ? { opacity: 0.6, borderStyle: 'dashed' } : {},
                 ]}>
@@ -630,7 +631,7 @@ export default function MapaScreen() {
             >
               <View style={[
                 s.pin,
-                { borderColor: '#f97316', backgroundColor: '#fff7ed' },
+                { borderColor: Colors.white, backgroundColor: '#f97316' },
                 a.estado === 'retirado' ? { opacity: 0.45 } : {},
               ]}>
                 <Ionicons name={ANUNCIO_TIPO_ICONO[a.tipo] as IconName} size={18} color={Colors.white} />

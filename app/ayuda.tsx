@@ -42,6 +42,7 @@ const SECCIONES: Seccion[] = [
       { icono: 'pricetag', titulo: 'Nuevo: Varios del mismo tipo', desc: 'Puedes subir más de un documento del mismo tipo (por ejemplo la INE del acreditado y la del dueño de la casa). La nota que escribas los identifica rápido.' },
       { icono: 'navigate', titulo: 'Nuevo: Ruta', desc: 'El rastreo ahora se llama Ruta: al activarla te explicamos qué va a pasar. La pantalla Mi ruta se renovó con resumen, mapa y línea de tiempo del recorrido.' },
       { icono: 'checkmark-circle', titulo: 'Nuevo: Aviso al guardar', desc: 'Al guardar un prospecto aparece un aviso que te dice si se guardó en el servidor o en tu teléfono (si no tienes internet).' },
+      { icono: 'document-text', titulo: 'Nuevo: Contratos para todos', desc: 'Ahora todos los asesores pueden generar contratos desde Inicio → Contratos. Ven su propio historial; el administrador ve todos.' },
       { icono: 'close-circle', titulo: 'Ya no está: Comisiones', desc: 'Se quitó la pestaña Comisiones y sus avisos. En Perfil ya no se piden banco ni CLABE.' },
       { icono: 'close-circle', titulo: 'Ya no está: Estado y etapas', desc: 'Los expedientes ya no tienen estado, etapas ni lista de documentos obligatorios por sección: solo los documentos que subes.' },
       { icono: 'close-circle', titulo: 'Ya no está: Foto y escuela', desc: 'Al registrar un prospecto ya no se pide foto ni escuela, y los expedientes no llevan foto.' },
@@ -55,7 +56,7 @@ const SECCIONES: Seccion[] = [
     pasos: [
       { icono: 'lock-closed', titulo: 'Inicia sesión', desc: 'Usa el correo y contraseña que te dio tu administrador. Si la olvidaste, pídele que la restablezca.' },
       { icono: 'apps', titulo: 'Las 4 pestañas', desc: 'Inicio (resumen y acciones), Prospectos (personas que estás evaluando), Expedientes (clientes con sus documentos) y Perfil.' },
-      { icono: 'home', titulo: 'Inicio', desc: 'Muestra cuántos prospectos y expedientes tienes (tócalos para abrirlos), el botón Nuevo prospecto, el Mapa, las Rutas y el interruptor de Ruta.' },
+      { icono: 'home', titulo: 'Inicio', desc: 'Muestra cuántos prospectos y expedientes tienes (tócalos para abrirlos), el botón Nuevo prospecto, Contratos, el Mapa, las Rutas y el interruptor de Ruta.' },
       { icono: 'person', titulo: 'Perfil', desc: 'Ahí editas tu nombre y teléfono, cambias tu foto de perfil, ves esta guía y cierras sesión.' },
     ],
   },
@@ -103,13 +104,14 @@ const SECCIONES: Seccion[] = [
   {
     id: 'contratos',
     icono: 'create',
-    titulo: 'Contratos (solo administradores)',
-    subtitulo: 'Genera el Contrato de Prestación de Servicios',
+    titulo: 'Contratos',
+    subtitulo: 'Todos los asesores pueden generarlos',
     pasos: [
-      { icono: 'id-card', titulo: 'Registrar contrato', desc: 'Desde Inicio → Contratos → Registrar contrato. Escanea la INE del acreditado (y del obligado solidario si aplica) para leer sus datos automáticamente.' },
+      { icono: 'id-card', titulo: 'Registrar contrato', desc: 'Desde Inicio → Contratos → Registrar contrato (disponible para todos los asesores). Escanea la INE del acreditado (y del obligado solidario si aplica) para leer sus datos automáticamente.' },
       { icono: 'eye', titulo: 'Revisar datos', desc: 'Confirma que los datos leídos de la INE sean correctos antes de continuar. Puedes corregirlos a mano.' },
       { icono: 'document-text', titulo: 'Generar el PDF', desc: 'Elige el tipo de trámite y el tamaño de hoja, y toca Generar contrato. Queda en el historial de Contratos para consultarlo o compartirlo.' },
       { icono: 'cloud-offline', titulo: 'Funciona sin conexión', desc: 'Puedes registrar contratos sin internet; se guardan en tu dispositivo y se suben al recuperar la señal.' },
+      { icono: 'people', titulo: 'Quién los ve', desc: 'Cada asesor ve en su historial los contratos que generó; el administrador ve todos. Solo el administrador puede editar el texto de la plantilla.' },
     ],
   },
   {
