@@ -995,7 +995,7 @@ let unsubscribeNetInfo: (() => void) | null = null;
 export function iniciarSyncAutomatico(): void {
   if (unsubscribeNetInfo) return;
   unsubscribeNetInfo = NetInfo.addEventListener(state => {
-    if (state.isConnected && state.isInternetReachable) {
+    if (state.isConnected) {
       sincronizar();
     }
   });

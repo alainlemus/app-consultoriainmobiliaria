@@ -36,6 +36,14 @@ import type { ContratoGeneradoUploadParams } from '../services/api';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
+/**
+ * Hay red si el dispositivo está conectado (wifi o datos). NO se usa isInternetReachable:
+ * esa prueba de NetInfo contra un sitio externo falla en el simulador y en algunas redes
+ * y dejaba la app siempre "sin internet". Si una petición falla de verdad, cada flujo
+ * ya guarda lo pendiente y lo reenvía solo (cola offline).
+ */
+const hayRed = (state: { isConnected: boolean | null }) => state.isConnected !== false;
+
 interface DocParams {
   expedienteId: number;
   uri:          string;
@@ -112,12 +120,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Estado inicial (no esperar el primer evento)
     NetInfo.fetch().then(state => {
-      setOnline(state.isConnected !== false && state.isInternetReachable !== false);
+      setOnline(hayRed(state));
     });
 
     const unsub = NetInfo.addEventListener(state => {
-      // isInternetReachable puede ser null (aún sin saber): solo cuenta como sin red si es false.
-      const conectado = state.isConnected !== false && state.isInternetReachable !== false;
+      const conectado = hayRed(state);
       setOnline(conectado);
       // Sincronizar automáticamente al recuperar conexión
       if (conectado) {
