@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
 import EstadoSelectModal from '../../src/components/ui/EstadoSelectModal';
-import { getContacto, updateContacto, uploadFotoContacto, uploadSimuladorScreenshot, getUbicacionesMapa } from '../../src/services/api';
+import { getContacto, updateContacto, uploadSimuladorScreenshot, getUbicacionesMapa } from '../../src/services/api';
 import { getCacheContacto, getCacheContactos, encolarFotos, desencolarFotos } from '../../src/services/offline';
 import { useSyncContext } from '../../src/contexts/SyncContext';
 import { comprimirFoto, persistirDocumento, limpiarArchivoLocal } from '../../src/utils/comprimirFoto';
@@ -58,7 +58,6 @@ export default function DetalleProspectoScreen() {
   const [notas,    setNotas]    = useState('');
   const [servicio, setServicio] = useState<ServicioProspecto>('');
   const [estado,   setEstado]   = useState<EstadoProspecto>('nuevo');
-  const [fotoAsset, setFotoAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
 
   // Campos precalificación (FOVISSSTE + INFONAVIT)
   const [nss,                 setNss]                 = useState('');
@@ -123,7 +122,6 @@ export default function DetalleProspectoScreen() {
     setServicio((c.servicio as ServicioProspecto) ?? '');
     // Simplificar: si el estado actual no es 'precalificado', mostrar como 'nuevo'
     setEstado(c.estado_prospecto === 'precalificado' ? 'precalificado' : 'nuevo');
-    setFotoAsset(null);
     // Precalificación
     setNss(c.nss ?? '');
     setEstadoUsoCredito(c.estado_uso_credito ?? '');
@@ -199,23 +197,6 @@ export default function DetalleProspectoScreen() {
 
       let finalContacto: Contacto = updated;
 
-      // ── Subir foto en background ──────────────────────────────────────────────
-      // Se encola ANTES de intentar subir (no solo si falla): con señal
-      // lenta el proceso puede suspenderse a media subida y perder la foto
-      // sin dejar rastro si solo se encolara en el catch.
-      if (fotoAsset && updated.id) {
-        const foto = await comprimirFoto(fotoAsset.uri, 'foto_contacto');
-        const contactoId = updated.id;
-        encolarFotos({ entidad: 'contacto_foto', entidad_id: contactoId, fotos: [foto] }).then(idLocal =>
-          uploadFotoContacto(contactoId, foto)
-            .then(c => {
-              finalContacto = c;
-              return Promise.all([limpiarArchivoLocal(foto.uri), desencolarFotos(idLocal)]);
-            })
-            .catch(() => {}),
-        );
-      }
-
       // ── Subir screenshot en background ────────────────────────────────────────
       if (screenshotAsset && updated.id) {
         const uri = await persistirDocumento(
@@ -250,25 +231,6 @@ export default function DetalleProspectoScreen() {
   function handleCancelEdit() {
     if (contacto) poblarFormulario(contacto);
     setEditing(false);
-  }
-
-  async function seleccionarFoto(origen: 'camara' | 'galeria') {
-    const permisos = origen === 'camara'
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (permisos.status !== 'granted') {
-      Alert.alert('Permiso requerido', `Activa el acceso a ${origen === 'camara' ? 'la cámara' : 'la galería'} en Configuración.`);
-      return;
-    }
-
-    const result = origen === 'camara'
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true, aspect: [1, 1] })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true, aspect: [1, 1] });
-
-    if (!result.canceled && result.assets[0]) {
-      setFotoAsset(result.assets[0]);
-    }
   }
 
   async function seleccionarScreenshot() {
@@ -538,8 +500,6 @@ export default function DetalleProspectoScreen() {
   }
 
   // ── Formulario edición ───────────────────────────────────────────────────
-  const fotoPreviewUri = fotoAsset?.uri ?? contacto.foto_url ?? null;
-
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -565,33 +525,6 @@ export default function DetalleProspectoScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Foto */}
-        <SectionLabel>Foto del prospecto</SectionLabel>
-        <View style={styles.formCard}>
-          <View style={styles.fotoEditRow}>
-            {fotoPreviewUri ? (
-              <Image source={{ uri: fotoPreviewUri }} style={styles.fotoEdit} />
-            ) : (
-              <View style={[styles.fotoEdit, styles.fotoEditPlaceholder]}>
-                <Text style={{ fontSize: 28 }}>👤</Text>
-              </View>
-            )}
-            <View style={{ flex: 1, gap: Spacing.xs }}>
-              <TouchableOpacity style={styles.fotoBtn} onPress={() => seleccionarFoto('camara')}>
-                <Text style={styles.fotoBtnText}>📷  Cámara</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.fotoBtn} onPress={() => seleccionarFoto('galeria')}>
-                <Text style={styles.fotoBtnText}>🖼️  Galería</Text>
-              </TouchableOpacity>
-              {fotoAsset && (
-                <TouchableOpacity onPress={() => setFotoAsset(null)}>
-                  <Text style={styles.fotoRemoveBtnText}>Quitar foto nueva</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
-
         <SectionLabel>Datos personales</SectionLabel>
         <View style={styles.formCard}>
           <FormField label="Nombre completo *">
@@ -1024,23 +957,25 @@ const styles = StyleSheet.create({
     marginBottom:      Spacing.xs,
     paddingHorizontal: Spacing.md,
   },
-  formField:       { paddingVertical: Spacing.sm },
-  formFieldBorder: { borderTopWidth: 1, borderTopColor: Colors.cream[200] },
-  formLabel:       { fontSize: Typography.fontSize.xs, color: Colors.dark[500], fontWeight: Typography.fontWeight.semibold, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  formField:       { marginBottom: Spacing.md },
+  formFieldBorder: {},
+  formLabel:       { fontSize: Typography.fontSize.sm, color: Colors.dark[700], fontWeight: Typography.fontWeight.semibold, marginBottom: Spacing.xs, },
+  // Campo de texto: caja blanca con borde
   input: {
-    fontSize:        Typography.fontSize.sm,
-    color:           Colors.dark[900],
-    paddingVertical: Spacing.xs,
+    backgroundColor:   Colors.white,
+    borderWidth:       1.5,
+    borderColor:       Colors.dark[300],
+    borderRadius:      Radius.md,
+    minHeight:         50,
+    paddingHorizontal: Spacing.base,
+    fontSize:          Typography.fontSize.base,
+    color:             Colors.dark[900],
   },
   inputMultiline: {
     minHeight: 80,
     padding:   Spacing.md,
   },
 
-  // Foto en edición
-  fotoEditRow:         { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.md },
-  fotoEdit:            { width: 72, height: 72, borderRadius: 36, overflow: 'hidden' },
-  fotoEditPlaceholder: { backgroundColor: Colors.cream[200], alignItems: 'center', justifyContent: 'center' },
   fotoBtn: {
     borderWidth:       1,
     borderColor:       Colors.cream[300],

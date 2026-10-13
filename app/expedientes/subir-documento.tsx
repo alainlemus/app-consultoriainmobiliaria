@@ -281,7 +281,7 @@ export default function SubirDocumentoScreen() {
             <Image source={{ uri: resultUri! }} style={s.previewImg} resizeMode="contain" />
           )}
 
-          <Text style={s.sectionLabel}>Tipo de documento</Text>
+          <Text style={s.sectionLabel}>Tipo de documento · elige uno</Text>
           <View style={s.chipWrap}>
             {TIPOS_DOCUMENTO.map(t => (
               <Pressable
@@ -296,7 +296,7 @@ export default function SubirDocumentoScreen() {
             ))}
           </View>
 
-          <Text style={s.sectionLabel}>Notas (opcional)</Text>
+          <Text style={s.sectionLabel}>Notas · opcional (escribe aquí)</Text>
           <TextInput
             style={s.input}
             placeholder="Descripción del documento…"
@@ -353,7 +353,7 @@ export default function SubirDocumentoScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={s.sectionLabel}>Tipo de documento</Text>
+        <Text style={s.sectionLabel}>Tipo de documento · elige uno</Text>
         <View style={s.chipWrap}>
           {TIPOS_DOCUMENTO.map(t => (
             <Pressable
@@ -368,7 +368,7 @@ export default function SubirDocumentoScreen() {
           ))}
         </View>
 
-        <Text style={s.sectionLabel}>Notas (opcional)</Text>
+        <Text style={s.sectionLabel}>Notas · opcional (escribe aquí)</Text>
         <TextInput
           style={s.input}
           placeholder="Ej: INE vigente, anverso y reverso"
@@ -440,8 +440,8 @@ const s = StyleSheet.create({
 
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   chip: {
-    paddingHorizontal: Spacing.md, paddingVertical: 7,
-    borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.cream[300],
+    paddingHorizontal: Spacing.md, paddingVertical: 10,
+    borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.dark[300],
     backgroundColor: Colors.white,
   },
   chipActivo:     { backgroundColor: Colors.dark[900], borderColor: Colors.dark[900] },
@@ -450,9 +450,9 @@ const s = StyleSheet.create({
 
 
   input: {
-    backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cream[300],
+    backgroundColor: Colors.white, borderWidth: 1.5, borderColor: Colors.dark[300],
     borderRadius: Radius.md, padding: Spacing.md, color: Colors.dark[900],
-    fontSize: Typography.fontSize.sm, textAlignVertical: 'top', minHeight: 80,
+    fontSize: Typography.fontSize.base, textAlignVertical: 'top', minHeight: 80,
   },
 
   // ── Botones selector ──

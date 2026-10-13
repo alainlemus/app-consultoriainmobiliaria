@@ -18,7 +18,7 @@ interface Props {
  * Uso:
  *   <EstadoSelectModal value={estadoUso} onChange={setEstadoUso} placeholder="Ej: Hidalgo" />
  */
-export default function EstadoSelectModal({ value, onChange, placeholder = 'Seleccionar estado' }: Props) {
+export default function EstadoSelectModal({ value, onChange, placeholder = 'Elegir estado' }: Props) {
   const [open,  setOpen]  = useState(false);
   const [query, setQuery] = useState('');
 
@@ -99,15 +99,30 @@ export default function EstadoSelectModal({ value, onChange, placeholder = 'Sele
 }
 
 const styles = StyleSheet.create({
+  // Se ve como lista desplegable: fondo tintado y una flecha en su propio recuadro.
   trigger: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.xs,
+    flexDirection:   'row',
+    alignItems:      'stretch',
+    minHeight:       50,
+    backgroundColor: Colors.cream[100],
+    borderWidth:     1.5,
+    borderColor:     Colors.dark[300],
+    borderRadius:    Radius.md,
+    overflow:        'hidden',
   },
-  triggerText: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[900] },
+  triggerText: { flex: 1, alignSelf: 'center', paddingHorizontal: Spacing.base, fontSize: Typography.fontSize.base, color: Colors.dark[900] },
   placeholder: { color: Colors.dark[400] },
-  arrow:       { fontSize: 13, color: Colors.dark[400], marginLeft: 4 },
+  arrow: {
+    width:           44,
+    textAlign:       'center',
+    textAlignVertical: 'center',
+    lineHeight:      50,
+    fontSize:        16,
+    color:           Colors.dark[600],
+    backgroundColor: Colors.cream[200],
+    borderLeftWidth: 1.5,
+    borderLeftColor: Colors.dark[300],
+  },
 
   sheet:  { flex: 1, backgroundColor: Colors.white },
   header: {

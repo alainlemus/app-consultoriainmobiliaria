@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
   KeyboardAvoidingView, Platform, TouchableOpacity,
-  Image, Alert, ActivityIndicator, Switch, TextInput as RNTextInput,
+  Image, Alert, Modal, ActivityIndicator, Switch, TextInput as RNTextInput,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Linking from 'expo-linking';
@@ -11,11 +11,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, Radius } from '../../src/theme';
 import Input from '../../src/components/ui/Input';
 import EstadoSelectModal from '../../src/components/ui/EstadoSelectModal';
-import { createContacto, uploadFotoContacto, uploadSimuladorScreenshot, getEscuelas } from '../../src/services/api';
+import { createContacto, uploadSimuladorScreenshot } from '../../src/services/api';
 import { useSyncContext } from '../../src/contexts/SyncContext';
 import { upsertCacheContacto, encolarFotos, desencolarFotos } from '../../src/services/offline';
-import { comprimirFoto, persistirDocumento, limpiarArchivoLocal } from '../../src/utils/comprimirFoto';
-import type { ServicioProspecto, Escuela } from '../../src/types';
+import { persistirDocumento, limpiarArchivoLocal } from '../../src/utils/comprimirFoto';
+import type { ServicioProspecto } from '../../src/types';
 import { SERVICIO_LABEL } from '../../src/types';
 
 type EstadoP = 'nuevo' | 'precalificado';
@@ -53,31 +53,12 @@ export default function NuevoProspectoScreen() {
     regimen_pensionario:   '',
   });
   const [tieneDiscapacidad, setTieneDiscapacidad] = useState(false);
-  const [fotoAsset,         setFotoAsset]         = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [screenshotAsset,   setScreenshotAsset]   = useState<ImagePicker.ImagePickerAsset | null>(null);
-
-  // ── Escuela vinculada ──────────────────────────────────────────────────────
-  const [escuelaSeleccionada, setEscuelaSeleccionada] = useState<Escuela | null>(null);
-  const [busqEscuela,         setBusqEscuela]         = useState('');
-  const [escuelasResultados,  setEscuelasResultados]  = useState<Escuela[]>([]);
-  const [buscandoEscuela,     setBuscandoEscuela]     = useState(false);
-
-  const buscarEscuelas = useCallback(async (q: string) => {
-    if (q.trim().length < 2) { setEscuelasResultados([]); return; }
-    setBuscandoEscuela(true);
-    try {
-      const data = await getEscuelas(q);
-      setEscuelasResultados(data);
-    } catch {
-      setEscuelasResultados([]);
-    } finally {
-      setBuscandoEscuela(false);
-    }
-  }, []);
 
   const [errors,  setErrors]  = useState<Partial<Record<keyof typeof form, string>>>({});
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  // Aviso al terminar: guardado en el servidor o solo en el dispositivo (sin internet)
+  const [aviso, setAviso] = useState<{ offline: boolean } | null>(null);
   const [masDatos, setMasDatos] = useState(false);
 
   function set(key: keyof typeof form) {
@@ -91,23 +72,6 @@ export default function NuevoProspectoScreen() {
     return Object.keys(e).length === 0;
   }
 
-  // ── Imagen: foto de perfil ─────────────────────────────────────────────────
-  async function seleccionarFoto(origen: 'camara' | 'galeria') {
-    const permisos = origen === 'camara'
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (permisos.status !== 'granted') {
-      Alert.alert('Permiso requerido', `Activa el acceso a ${origen === 'camara' ? 'la cámara' : 'la galería'} en Configuración.`);
-      return;
-    }
-    const result = origen === 'camara'
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true, aspect: [1, 1] })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true, aspect: [1, 1] });
-
-    if (!result.canceled && result.assets[0]) setFotoAsset(result.assets[0]);
-  }
-
   // ── Imagen: captura del simulador ──────────────────────────────────────────
   async function seleccionarScreenshot() {
     const permisos = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -117,6 +81,11 @@ export default function NuevoProspectoScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
     if (!result.canceled && result.assets[0]) setScreenshotAsset(result.assets[0]);
+  }
+
+  function irAProspectos() {
+    setAviso(null);
+    router.replace({ pathname: '/(tabs)/prospectos', params: { refresh: Date.now() } });
   }
 
   // ── Guardar ────────────────────────────────────────────────────────────────
@@ -133,10 +102,6 @@ export default function NuevoProspectoScreen() {
         estado_prospecto:      form.estado_prospecto,
         servicio:              form.servicio              || undefined,
         origen:                'app_movil' as const,
-        // Escuela vinculada (solo FOVISSSTE)
-        ...(form.servicio === 'FOVISSSTE' && escuelaSeleccionada
-          ? { escuela_id: escuelaSeleccionada.id }
-          : {}),
         // Precalificación FOVISSSTE
         ...(form.servicio === 'FOVISSSTE' ? {
           estado_uso_credito:    form.estado_uso_credito    || undefined,
@@ -168,14 +133,7 @@ export default function NuevoProspectoScreen() {
           notas:            payload.notas,
           created_at:       new Date().toISOString(),
         });
-        // Las fotos no se pueden asociar aún (sin id del servidor) — se encolan
-        // cuando el sync reciba el id_servidor del contacto creado.
-        // Por ahora simplemente avisamos al usuario que se guardará sin fotos.
-        Alert.alert(
-          '📋 Guardado sin conexión',
-          'El prospecto se registró en tu dispositivo. Las fotos se podrán agregar cuando recuperes internet.',
-          [{ text: 'Entendido', onPress: () => router.replace({ pathname: '/(tabs)/prospectos', params: { refresh: Date.now() } }) }],
-        );
+        setAviso({ offline: true });
         return;
       }
 
@@ -195,11 +153,7 @@ export default function NuevoProspectoScreen() {
             estado_prospecto: payload.estado_prospecto as any ?? 'nuevo',
             notas: payload.notas, created_at: new Date().toISOString(),
           });
-          Alert.alert(
-            '📋 Guardado sin conexión',
-            'El prospecto se registró en tu dispositivo y se enviará al CRM cuando recuperes internet.',
-            [{ text: 'Entendido', onPress: () => router.replace({ pathname: '/(tabs)/prospectos', params: { refresh: Date.now() } }) }],
-          );
+          setAviso({ offline: true });
           return;
         }
         throw e;
@@ -207,18 +161,8 @@ export default function NuevoProspectoScreen() {
 
       // ── Contacto creado → subir imágenes en background ───────────────────────
       // Se encolan ANTES de intentar subir (no solo si falla): con señal
-      // lenta el proceso puede suspenderse a media subida y perder la foto
+      // lenta el proceso puede suspenderse a media subida y perder la imagen
       // sin dejar rastro si solo se encolara en el catch.
-      if (fotoAsset && contacto.id) {
-        const foto = await comprimirFoto(fotoAsset.uri, 'foto_contacto');
-        const contactoId = contacto.id;
-        encolarFotos({ entidad: 'contacto_foto', entidad_id: contactoId, fotos: [foto] }).then(idLocal =>
-          uploadFotoContacto(contactoId, foto)
-            .then(() => Promise.all([limpiarArchivoLocal(foto.uri), desencolarFotos(idLocal)]))
-            .catch(() => {}),
-        );
-      }
-
       if (screenshotAsset && contacto.id) {
         const screenshot = await persistirDocumento(
           screenshotAsset.uri,
@@ -237,8 +181,7 @@ export default function NuevoProspectoScreen() {
         );
       }
 
-      setSuccess(true);
-      setTimeout(() => router.replace({ pathname: '/(tabs)/prospectos', params: { refresh: Date.now() } }), 900);
+      setAviso({ offline: false });
     } catch (e: unknown) {
       setErrors({ nombre: e instanceof Error ? e.message : 'Error al guardar.' });
     } finally {
@@ -266,11 +209,6 @@ export default function NuevoProspectoScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {success && (
-          <View style={styles.successBanner}>
-            <Text style={styles.successText}>✓  Prospecto guardado</Text>
-          </View>
-        )}
 
         {/* ── Datos personales ──────────────────────────────────────── */}
         <Text style={styles.sectionLabel}>Datos del prospecto</Text>
@@ -354,104 +292,6 @@ export default function NuevoProspectoScreen() {
           />
         </View>
 
-        {/* ── Foto del prospecto ─────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>Foto del prospecto</Text>
-        <View style={styles.section}>
-          <View style={styles.fotoRow}>
-            <View style={styles.fotoPreviewWrap}>
-              {fotoAsset ? (
-                <Image source={{ uri: fotoAsset.uri }} style={styles.fotoPreview} />
-              ) : (
-                <View style={styles.fotoPlaceholder}>
-                  <Text style={styles.fotoPlaceholderIcon}>👤</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.fotoBtns}>
-              <TouchableOpacity style={styles.fotoBtn} onPress={() => seleccionarFoto('camara')}>
-                <Text style={styles.fotoBtnText}>📷  Cámara</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.fotoBtn, { marginTop: Spacing.xs }]} onPress={() => seleccionarFoto('galeria')}>
-                <Text style={styles.fotoBtnText}>🖼️  Galería</Text>
-              </TouchableOpacity>
-              {fotoAsset && (
-                <TouchableOpacity onPress={() => setFotoAsset(null)} style={styles.fotoRemoveBtn}>
-                  <Text style={styles.fotoRemoveBtnText}>Quitar foto</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
-
-        {/* ── Escuela vinculada (solo FOVISSSTE) ─────────────────────── */}
-        {form.servicio === 'FOVISSSTE' ? (
-          <>
-            <Text style={styles.sectionLabel}>Escuela del maestro</Text>
-            <Text style={styles.sectionHint}>Vincula a este prospecto con su escuela para el seguimiento del semáforo.</Text>
-            <View style={styles.section}>
-              {escuelaSeleccionada ? (
-                <View style={styles.escuelaSeleccionada}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.escuelaNombre}>{escuelaSeleccionada.nombre_lugar ?? 'Escuela sin nombre'}</Text>
-                    {(escuelaSeleccionada.municipio || escuelaSeleccionada.estado) ? (
-                      <Text style={styles.escuelaUbicacion}>
-                        📍 {[escuelaSeleccionada.municipio, escuelaSeleccionada.estado].filter(Boolean).join(', ')}
-                      </Text>
-                    ) : null}
-                    <Text style={styles.escuelaSemaforo}>
-                      {({ verde: '🟢 Hay maestros clientes', amarillo: '🟡 Sin clientes aún', rojo: '🔴 Acceso denegado' }[escuelaSeleccionada.semaforo]) ?? '🟡'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={() => { setEscuelaSeleccionada(null); setBusqEscuela(''); setEscuelasResultados([]); }}>
-                    <Text style={{ color: Colors.dark[400], fontSize: 18, paddingLeft: Spacing.sm }}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <>
-                  <View style={styles.escuelaBuscadorWrap}>
-                    <Text style={styles.escuelaBuscadorIco}>🔍</Text>
-                    <RNTextInput
-                      style={styles.escuelaBuscadorInput}
-                      placeholder="Buscar escuela por nombre, municipio…"
-                      placeholderTextColor={Colors.dark[400]}
-                      value={busqEscuela}
-                      onChangeText={t => { setBusqEscuela(t); buscarEscuelas(t); }}
-                      returnKeyType="search"
-                      blurOnSubmit
-                    />
-                    {buscandoEscuela && <ActivityIndicator size="small" color={Colors.gold[400]} style={{ marginLeft: 6 }} />}
-                  </View>
-                  {escuelasResultados.length > 0 && (
-                    <View style={styles.escuelaDropdown}>
-                      {escuelasResultados.map(e => (
-                        <TouchableOpacity
-                          key={e.id}
-                          style={styles.escuelaDropdownItem}
-                          onPress={() => { setEscuelaSeleccionada(e); setBusqEscuela(''); setEscuelasResultados([]); }}
-                        >
-                          <Text style={styles.escuelaDropdownNombre} numberOfLines={1}>
-                            {e.nombre_lugar ?? 'Sin nombre'}
-                          </Text>
-                          <Text style={styles.escuelaDropdownSub} numberOfLines={1}>
-                            {[e.municipio, e.estado].filter(Boolean).join(', ')}
-                            {'  '}
-                            {({ verde: '🟢', amarillo: '🟡', rojo: '🔴' }[e.semaforo]) ?? '🟡'}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                  {busqEscuela.length >= 2 && !buscandoEscuela && escuelasResultados.length === 0 && (
-                    <Text style={styles.escuelaSinResultados}>
-                      Sin resultados — la escuela se puede registrar desde el Mapa de Visitas.
-                    </Text>
-                  )}
-                </>
-              )}
-            </View>
-          </>
-        ) : null}
-
         {/* ── Precalificación FOVISSSTE ─────────────────────────────── */}
         {form.servicio === 'FOVISSSTE' ? (
           <>
@@ -464,11 +304,10 @@ export default function NuevoProspectoScreen() {
                 <EstadoSelectModal
                   value={form.estado_uso_credito}
                   onChange={v => setForm(f => ({ ...f, estado_uso_credito: v }))}
-                  placeholder="Seleccionar estado"
+                  placeholder="Elegir estado"
                 />
               </View>
-              <View style={styles.divider} />
-
+      
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>Municipio donde usará el crédito</Text>
                 <RNTextInput
@@ -480,20 +319,19 @@ export default function NuevoProspectoScreen() {
                   placeholderTextColor={Colors.dark[400]}
                 />
               </View>
-              <View style={styles.divider} />
-
+      
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>Estado de residencia actual</Text>
                 <EstadoSelectModal
                   value={form.estado_residencia}
                   onChange={v => setForm(f => ({ ...f, estado_residencia: v }))}
-                  placeholder="Seleccionar estado"
+                  placeholder="Elegir estado"
                 />
               </View>
-              <View style={styles.divider} />
-
+      
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>Régimen pensionario</Text>
+                <Text style={styles.fieldHint}>Elige una opción</Text>
               </View>
               <View style={styles.regimenRow}>
                 {REGIMENES.map(r => (
@@ -508,9 +346,8 @@ export default function NuevoProspectoScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <View style={styles.divider} />
-
-              <View style={[styles.fieldRow, { alignItems: 'center' }]}>
+      
+              <View style={[styles.fieldRow, styles.switchBox]}>
                 <Text style={[styles.fieldLabel, { marginBottom: 0, flex: 1 }]}>¿Tiene alguna discapacidad?</Text>
                 <View style={styles.switchRow}>
                   <Text style={styles.switchLabel}>{tieneDiscapacidad ? 'Sí' : 'No'}</Text>
@@ -571,18 +408,16 @@ export default function NuevoProspectoScreen() {
                   maxLength={15}
                 />
               </View>
-              <View style={styles.divider} />
-
+      
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>Estado donde usará el crédito</Text>
                 <EstadoSelectModal
                   value={form.estado_uso_credito}
                   onChange={v => setForm(f => ({ ...f, estado_uso_credito: v }))}
-                  placeholder="Seleccionar estado"
+                  placeholder="Elegir estado"
                 />
               </View>
-              <View style={styles.divider} />
-
+      
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>Municipio donde usará el crédito</Text>
                 <RNTextInput
@@ -640,6 +475,25 @@ export default function NuevoProspectoScreen() {
           }
         </TouchableOpacity>
       </ScrollView>
+      {/* Aviso de guardado: en línea o sin conexión */}
+      <Modal visible={aviso !== null} transparent animationType="fade" onRequestClose={irAProspectos}>
+        <View style={styles.avisoBackdrop}>
+          <View style={styles.avisoCard}>
+            <View style={[styles.avisoIcono, aviso?.offline && styles.avisoIconoOffline]}>
+              <Text style={styles.avisoIconoText}>{aviso?.offline ? '📴' : '✓'}</Text>
+            </View>
+            <Text style={styles.avisoTitulo}>Prospecto guardado</Text>
+            <Text style={styles.avisoTexto}>
+              {aviso?.offline
+                ? 'Se guardó en tu dispositivo porque no hay internet. Se enviará automáticamente cuando recuperes la conexión.'
+                : 'El prospecto se guardó correctamente.'}
+            </Text>
+            <TouchableOpacity style={styles.avisoBtn} onPress={irAProspectos} activeOpacity={0.85}>
+              <Text style={styles.avisoBtnText}>Aceptar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -647,6 +501,17 @@ export default function NuevoProspectoScreen() {
 // ── Estilos ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  // Aviso de guardado
+  avisoBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
+  avisoCard:     { width: '100%', backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.xl, alignItems: 'center' },
+  avisoIcono:    { width: 64, height: 64, borderRadius: 32, backgroundColor: Colors.success, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.base },
+  avisoIconoOffline: { backgroundColor: Colors.gold[400] },
+  avisoIconoText:{ fontSize: 30, color: Colors.white, fontWeight: '700' },
+  avisoTitulo:   { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900], marginBottom: Spacing.xs },
+  avisoTexto:    { fontSize: Typography.fontSize.sm, color: Colors.dark[500], textAlign: 'center', lineHeight: 20, marginBottom: Spacing.lg },
+  avisoBtn:      { alignSelf: 'stretch', backgroundColor: Colors.dark[900], borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
+  avisoBtnText:  { color: Colors.gold[400], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
+
   masDatosBtn:  { marginTop: Spacing.base, paddingVertical: Spacing.md, alignItems: 'center', borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[300], backgroundColor: Colors.white },
   masDatosText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[700] },
 
@@ -699,12 +564,6 @@ const styles = StyleSheet.create({
   },
 
   // ── Foto ────────────────────────────────────────────────────────────────────
-  fotoRow:          { flexDirection: 'row', alignItems: 'center', gap: Spacing.base },
-  fotoPreviewWrap:  { width: 80, height: 80, borderRadius: 40, overflow: 'hidden' },
-  fotoPreview:      { width: 80, height: 80 },
-  fotoPlaceholder:  { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.cream[200], alignItems: 'center', justifyContent: 'center' },
-  fotoPlaceholderIcon: { fontSize: 32 },
-  fotoBtns:    { flex: 1 },
   fotoBtn: {
     borderWidth:       1,
     borderColor:       Colors.cream[300],
@@ -728,10 +587,30 @@ const styles = StyleSheet.create({
   estadoChipTextActive: { color: Colors.white },
 
   // ── Campos FOVISSSTE ────────────────────────────────────────────────────────
-  fieldRow:   { paddingVertical: Spacing.sm },
-  fieldLabel: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], fontWeight: Typography.fontWeight.semibold, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  fieldInput: { fontSize: Typography.fontSize.sm, color: Colors.dark[900], paddingVertical: Spacing.xs },
-  divider:    { height: 1, backgroundColor: Colors.cream[200] },
+  fieldRow:   { marginBottom: Spacing.base },
+  fieldLabel: { fontSize: Typography.fontSize.sm, color: Colors.dark[700], fontWeight: Typography.fontWeight.semibold, marginBottom: Spacing.xs },
+  fieldHint:  { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: -2 },
+  // Campo de texto: caja blanca con borde (igual que Input)
+  fieldInput: {
+    backgroundColor:   Colors.white,
+    borderWidth:       1.5,
+    borderColor:       Colors.dark[300],
+    borderRadius:      Radius.md,
+    minHeight:         50,
+    paddingHorizontal: Spacing.base,
+    fontSize:          Typography.fontSize.base,
+    color:             Colors.dark[900],
+  },
+  switchBox: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    backgroundColor:   Colors.cream[100],
+    borderWidth:       1.5,
+    borderColor:       Colors.dark[300],
+    borderRadius:      Radius.md,
+    paddingHorizontal: Spacing.base,
+    paddingVertical:   Spacing.sm,
+  },
 
   // Régimen chips
   regimenRow: { flexDirection: 'row', gap: Spacing.sm, paddingVertical: Spacing.sm, flexWrap: 'wrap' },
@@ -770,57 +649,5 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  successBanner: {
-    backgroundColor: '#f0fdf4',
-    borderWidth:     1,
-    borderColor:     '#bbf7d0',
-    borderRadius:    Radius.md,
-    padding:         Spacing.md,
-    marginBottom:    Spacing.base,
-    alignItems:      'center',
-  },
-  successText: { color: '#15803d', fontWeight: Typography.fontWeight.semibold, fontSize: Typography.fontSize.sm },
 
-  // ── Escuela ──────────────────────────────────────────────────────────────────
-  escuelaSeleccionada: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    backgroundColor: Colors.cream[100],
-    borderRadius:   Radius.md,
-    padding:        Spacing.md,
-    borderWidth:    1,
-    borderColor:    Colors.gold[400],
-  },
-  escuelaNombre:    { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
-  escuelaUbicacion: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
-  escuelaSemaforo:  { fontSize: Typography.fontSize.xs, color: Colors.dark[600], marginTop: 3 },
-  escuelaBuscadorWrap: {
-    flexDirection:    'row',
-    alignItems:       'center',
-    borderWidth:      1,
-    borderColor:      Colors.cream[300],
-    borderRadius:     Radius.md,
-    paddingHorizontal: Spacing.md,
-    minHeight:        46,
-    backgroundColor:  Colors.cream[50],
-  },
-  escuelaBuscadorIco:   { fontSize: 15, marginRight: 8 },
-  escuelaBuscadorInput: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[900], paddingVertical: Spacing.sm },
-  escuelaDropdown: {
-    marginTop:       Spacing.xs,
-    borderWidth:     1,
-    borderColor:     Colors.cream[300],
-    borderRadius:    Radius.md,
-    overflow:        'hidden',
-    backgroundColor: Colors.white,
-  },
-  escuelaDropdownItem: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical:   Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cream[200],
-  },
-  escuelaDropdownNombre: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
-  escuelaDropdownSub:    { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 1 },
-  escuelaSinResultados:  { fontSize: Typography.fontSize.xs, color: Colors.dark[400], fontStyle: 'italic', paddingTop: Spacing.sm, textAlign: 'center' },
 });

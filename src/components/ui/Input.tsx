@@ -49,8 +49,6 @@ const styles = StyleSheet.create({
     fontWeight:   Typography.fontWeight.semibold,
     color:        Colors.dark[700],
     marginBottom: Spacing.xs,
-    letterSpacing: Typography.letterSpacing.wide,
-    textTransform: 'uppercase',
   },
   labelDark: {
     color: Colors.cream[200],
@@ -59,10 +57,11 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   input: {
-    backgroundColor: Colors.cream[100],
-    borderWidth:     1,
-    borderColor:     Colors.cream[300],
-    borderRadius:    Radius.sm,
+    backgroundColor: Colors.white,       // caja blanca con borde: se escribe aquí
+    borderWidth:     1.5,
+    borderColor:     Colors.dark[300],
+    borderRadius:    Radius.md,
+    minHeight:       50,
     paddingHorizontal: Spacing.base,
     paddingVertical:   Spacing.md,
     fontSize:        Typography.fontSize.base,
