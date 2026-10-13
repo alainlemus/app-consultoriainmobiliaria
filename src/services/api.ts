@@ -537,6 +537,11 @@ export async function reemplazarDocumento(expedienteId: number, documentoId: num
   return { ...doc, url: resolveStorageUrl(doc.url) };
 }
 
+/** Solo administradores: envía a su correo el enlace para descargar la carpeta (ZIP) del expediente */
+export async function enviarCarpetaExpediente(expedienteId: number): Promise<{ message: string; email: string }> {
+  return apiFetch<{ message: string; email: string }>(`/expedientes/${expedienteId}/enviar-carpeta`, { method: 'POST' });
+}
+
 /** Solo administradores: da por válido un documento */
 export async function validarDocumento(expedienteId: number, documentoId: number): Promise<Documento> {
   const res = await apiFetch<ApiResponse<Documento>>(`/expedientes/${expedienteId}/documentos/${documentoId}/validar`, { method: 'POST' });

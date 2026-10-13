@@ -3,12 +3,13 @@
  * (escanear o subir, ver, eliminar). Sin etapas ni estados: eso se lleva en el panel.
  */
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius, Spacing, Typography } from '../../src/theme';
-import { getExpediente } from '../../src/services/api';
+import { enviarCarpetaExpediente, getExpediente } from '../../src/services/api';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { getCacheExpediente } from '../../src/services/offline';
 import DocumentosExpediente from '../../src/components/DocumentosExpediente';
 import type { Expediente } from '../../src/types';
@@ -17,6 +18,8 @@ export default function DetalleExpedienteScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { isSuperAdmin, user } = useAuth();
+  const [enviando, setEnviando] = useState(false);
   const [exp, setExp]         = useState<Expediente | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError]     = useState<string | null>(null);
@@ -34,6 +37,32 @@ export default function DetalleExpedienteScreen() {
   }, [id]);
 
   const contacto = exp?.contacto;
+
+  // Solo administradores: la carpeta con todos los documentos llega a su correo (enlace de 72 h)
+  const enviarCarpeta = () => {
+    if (!exp) return;
+    Alert.alert(
+      'Enviar carpeta a mi correo',
+      `Te enviaremos${user?.email ? ` a ${user.email}` : ''} un enlace, válido 72 horas, para descargar en tu computadora la carpeta con todos los documentos de este expediente.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Enviar',
+          onPress: async () => {
+            setEnviando(true);
+            try {
+              const r = await enviarCarpetaExpediente(exp.id);
+              Alert.alert('Carpeta enviada', r.message);
+            } catch (e) {
+              Alert.alert('No se pudo enviar', e instanceof Error ? e.message : 'Inténtalo de nuevo.');
+            } finally {
+              setEnviando(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <View style={styles.flex}>
@@ -69,6 +98,19 @@ export default function DetalleExpedienteScreen() {
             </View>
           ) : null}
 
+          {isSuperAdmin ? (
+            <TouchableOpacity style={styles.carpetaBtn} onPress={enviarCarpeta} disabled={enviando} activeOpacity={0.85}>
+              {enviando
+                ? <ActivityIndicator color={Colors.dark[900]} />
+                : <Ionicons name="mail" size={22} color={Colors.dark[900]} />}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.carpetaTitulo}>Enviar carpeta a mi correo</Text>
+                <Text style={styles.carpetaSub}>ZIP con todos los documentos para tu computadora</Text>
+              </View>
+              <Ionicons name="paper-plane" size={20} color={Colors.dark[900]} />
+            </TouchableOpacity>
+          ) : null}
+
           <Text style={styles.sectionLabel}>Documentos</Text>
           <DocumentosExpediente expedienteId={exp.id} />
         </ScrollView>
@@ -100,6 +142,9 @@ const styles = StyleSheet.create({
   nombre:  { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   sub:     { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
   datos:   { backgroundColor: Colors.white, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[200], padding: Spacing.md, marginTop: Spacing.xs, gap: 6 },
+  carpetaBtn:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.gold[400], borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.md },
+  carpetaTitulo: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
+  carpetaSub:    { fontSize: Typography.fontSize.xs, color: Colors.dark[800], marginTop: 1 },
   datoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   dato:    { fontSize: Typography.fontSize.sm, color: Colors.dark[700] },
   sectionLabel: {

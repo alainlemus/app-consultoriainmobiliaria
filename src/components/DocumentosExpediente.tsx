@@ -73,7 +73,14 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
     if (!doc.id) return;
     try {
       const nuevo = await validarDocumento(expedienteId, doc.id);
-      setDocs(prev => prev.map(d => (d.id === doc.id ? { ...d, ...nuevo, tiene_archivo: true } : d)));
+      const actualizados = docs.map(d => (d.id === doc.id ? { ...d, ...nuevo, tiene_archivo: true } : d));
+      setDocs(actualizados);
+      if (actualizados.length > 0 && actualizados.every(d => d.validacion === 'validado')) {
+        Alert.alert(
+          'Expediente completo',
+          'Validaste todos los documentos. Se avisó al asesor y el expediente ya no aparecerá en la app: lo encuentras en el panel. Si quieres, envía la carpeta a tu correo antes de salir.',
+        );
+      }
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo validar');
     }
