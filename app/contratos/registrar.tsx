@@ -121,7 +121,7 @@ export default function RegistrarContratoScreen() {
   const [montoCredito,         setMontoCredito]         = useState('');
   const [honorariosPorcentaje, setHonorariosPorcentaje] = useState('10');
   const [honorariosMonto,      setHonorariosMonto]      = useState('');
-  const [tamanoPapel,          setTamanoPapel]          = useState<TamanoPapel>('oficio');
+  const [tamanoPapel,          setTamanoPapel]          = useState<TamanoPapel>('carta');
 
   const [pdfUri, setPdfUri] = useState<string | null>(null);
   const [pagareUri, setPagareUri] = useState<string | null>(null);
