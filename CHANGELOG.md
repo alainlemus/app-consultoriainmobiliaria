@@ -5,6 +5,7 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 ## [Sin publicar]
 
 ### Cambiado
+- App del acreditado, Documentos: ahora muestra la lista de documentos que debe subir (acta de nacimiento, INE, CURP, constancia fiscal, comprobante de domicilio, 3 talones y estado de cuenta AFORE) con sus requisitos, dónde obtenerlos y enlaces, los marca como Entregado, incluye avisos importantes y, antes de subir, un aviso para confirmar que el documento cumple.
 - App del acreditado: en los datos del asesor se quita el botón de correo; quedan Llamar y WhatsApp.
 - App del acreditado: si aún no tiene trámite, la pantalla se actualiza sola al volver a la app y cada 20 segundos, y se puede jalar hacia abajo aunque haya poco contenido (en iPhone no se podía jalar), para que el expediente aparezca en cuanto el asesor lo abre.
 - App del acreditado: al jalar hacia abajo la pantalla ahora recarga también cuando aún no tiene trámite, así ve su expediente en cuanto el asesor lo abre (antes no recargaba y seguía mostrando que no tenía trámite).
