@@ -119,6 +119,7 @@ export interface DocAcreditadoPendiente {
   uri:       string;
   tipo:      string;
   mimeType:  string;
+  notas?:    string;
   timestamp: string;
   intentos:  number;
 }
@@ -639,12 +640,14 @@ export async function encolarDocAcreditado(params: {
   uri:      string;
   tipo:     string;
   mimeType: string;
+  notas?:   string;
 }): Promise<string> {
   const item: DocAcreditadoPendiente = {
     id_local:  uuidv4(),
     uri:       params.uri,
     tipo:      params.tipo,
     mimeType:  params.mimeType,
+    notas:     params.notas,
     timestamp: new Date().toISOString(),
     intentos:  0,
   };
@@ -919,7 +922,7 @@ export async function sincronizar(): Promise<{ ok: number; errores: number }> {
       const fallidas: DocAcreditadoPendiente[] = [];
       for (const doc of docsAcreditadoQueue) {
         try {
-          await subirDocumentoAcreditado(doc.uri, doc.tipo, doc.mimeType);
+          await subirDocumentoAcreditado(doc.uri, doc.tipo, doc.mimeType, doc.notas);
           await limpiarArchivoLocal(doc.uri);
           ok++;
         } catch {

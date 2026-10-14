@@ -1,67 +1,25 @@
 /**
  * Pantalla: Documentos del Acreditado
- *
- * Flujo de subida:
- *   1. Escanear con DocumentScanner nativo → PDF automático (EAS Build)
- *   2. Cámara normal → imagen JPEG (fallback)
- *   3. Galería → imagen o PDF
- *   4. Archivo PDF directo
- *
- * Los módulos nativos se cargan condicionalmente igual que en subir.tsx del asesor.
+ * Muestra qué documentos debe subir (con requisitos y dónde obtenerlos) y su estado.
+ * El botón "Subir" abre /subir-documento-acreditado (elegir tipo, nota, escanear o archivo).
  */
 
-// ── Imports nativos condicionales ─────────────────────────────────────────────
-import type DocScannerT  from 'react-native-document-scanner-plugin';
-import type RNImageToPdfT from 'react-native-image-to-pdf';
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-let DocumentScanner: typeof DocScannerT | null = null;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-let RNImageToPdf: typeof RNImageToPdfT | null = null;
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  DocumentScanner = (require('react-native-document-scanner-plugin') as { default: typeof DocScannerT }).default;
-} catch { /* no disponible en Expo Go */ }
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  RNImageToPdf = (require('react-native-image-to-pdf') as { default: typeof RNImageToPdfT }).default;
-} catch { /* no disponible en Expo Go */ }
-
 // ── Resto de imports ──────────────────────────────────────────────────────────
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Alert, RefreshControl, ActivityIndicator, Linking, Modal, ScrollView, Pressable,
+  Alert, RefreshControl, ActivityIndicator, Linking,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import {
   getDocumentosAcreditado,
-  subirDocumentoAcreditado,
   getUrlDocumentoAcreditado,
 } from '@/src/services/acreditadoApi';
-import { encolarDocAcreditado } from '@/src/services/offline';
-import { persistirDocumento } from '@/src/utils/comprimirFoto';
 import type { DocumentoAcreditado } from '@/src/types';
-import { DOCUMENTOS_ACREDITADO, AVISOS_ACREDITADO, REQUISITOS_GENERALES } from '@/src/constants/documentos';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const stripFilePrefix = (uri: string) => uri.replace(/^file:\/\//, '');
-const toFileUri = (path: string) =>
-  path.startsWith('file://') ? path : `file://${path}`;
-
-const TIPOS_DOCUMENTO = [...DOCUMENTOS_ACREDITADO.map(d => d.tipo), 'Otro'];
-
-/** Requisitos de un tipo (los de la lista oficial + los generales). */
-const requisitosDe = (tipo: string) => [
-  ...(DOCUMENTOS_ACREDITADO.find(d => d.tipo === tipo)?.requisitos ?? ['Legible y completo.', 'Que corresponda a tu trámite.']),
-  ...REQUISITOS_GENERALES,
-];
+import { DOCUMENTOS_ACREDITADO, AVISOS_ACREDITADO } from '@/src/constants/documentos';
 
 const ESTADO_COLOR: Record<string, string> = {
   pendiente:  '#b45309',
@@ -79,11 +37,10 @@ const ESTADO_LABEL: Record<string, string> = {
 
 export default function DocumentosScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [documentos, setDocumentos] = useState<DocumentoAcreditado[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [subiendo,   setSubiendo]   = useState(false);
-  const [confirmar,  setConfirmar]  = useState<{ tipo: string; uri: string; mime: string; nombreBase: string } | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -93,7 +50,8 @@ export default function DocumentosScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  useEffect(() => { cargar(); }, []);
+  // Al volver de subir un documento se recarga la lista
+  useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
 
   // ── Ver documento ─────────────────────────────────────────────────────────
   async function handleVerDocumento(doc: DocumentoAcreditado) {
@@ -102,134 +60,6 @@ export default function DocumentosScreen() {
       await Linking.openURL(url);
     } catch {
       Alert.alert('Error', 'No se pudo abrir el documento.');
-    }
-  }
-
-  // ── Selector de origen ────────────────────────────────────────────────────
-  function handleSubirDocumento() {
-    const opciones: { text: string; onPress?: () => void; style?: 'cancel' | 'destructive' }[] = [];
-
-    if (DocumentScanner && RNImageToPdf) {
-      opciones.push({ text: 'Escanear documento', onPress: () => escanear() });
-    } else {
-      opciones.push({ text: 'Tomar foto', onPress: () => subirDesde('camara') });
-    }
-
-    opciones.push(
-      { text: 'Archivo PDF',  onPress: () => subirDesde('archivo') },
-      { text: 'Cancelar', style: 'cancel' },
-    );
-
-    Alert.alert('Subir documento', '¿Cómo quieres obtener el documento?', opciones);
-  }
-
-  // ── Escáner nativo (DocumentScanner + RNImageToPdf) ───────────────────────
-  async function escanear() {
-    if (!DocumentScanner || !RNImageToPdf) return;
-    try {
-      const { scannedImages } = await DocumentScanner.scanDocument({
-        croppedImageQuality: 90,
-        maxNumDocuments: 10,
-      });
-      if (!scannedImages || scannedImages.length === 0) return;
-
-      setSubiendo(true);
-      const nombre = `doc_${Date.now()}`;
-      const { filePath } = await RNImageToPdf.createPDFbyImages({
-        imagePaths: scannedImages.map(stripFilePrefix),
-        name: nombre,
-      });
-
-      await seleccionarTipoYSubir(toFileUri(filePath), 'application/pdf', '');
-    } catch (e: unknown) {
-      Alert.alert('Error al escanear', e instanceof Error ? e.message : 'Error desconocido');
-      setSubiendo(false);
-    }
-  }
-
-  // ── Cámara / galería / archivo ────────────────────────────────────────────
-  async function subirDesde(origen: 'camara' | 'archivo') {
-    let uri   = '';
-    let mime  = 'application/octet-stream';
-    let nombre = '';
-
-    try {
-      if (origen === 'camara') {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (perm.status === 'undetermined') {
-          // Primera vez — el sistema mostrará el diálogo nativo de permisos
-          const second = await ImagePicker.requestCameraPermissionsAsync();
-          if (!second.granted) { Alert.alert('Permiso requerido', 'Activa el acceso a la cámara en Configuración.'); return; }
-        } else if (!perm.granted) {
-          Alert.alert('Permiso requerido', 'Activa el acceso a la cámara en Configuración.');
-          return;
-        }
-        const result = await ImagePicker.launchCameraAsync({
-          quality: 0.9,
-          allowsEditing: false,
-          base64: false,
-        });
-        if (result.canceled) return;
-        uri  = result.assets[0].uri;
-        mime = result.assets[0].mimeType ?? 'image/jpeg';
-
-      } else {
-        const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf'] });
-        if (result.canceled) return;
-        uri    = result.assets[0].uri;
-        mime   = 'application/pdf';
-        nombre = result.assets[0].name?.replace(/\.[^/.]+$/, '') ?? 'Documento';
-      }
-    } catch { return; }
-
-    await seleccionarTipoYSubir(uri, mime, nombre);
-  }
-
-  // ── Preguntar tipo y subir ─────────────────────────────────────────────────
-  async function seleccionarTipoYSubir(uri: string, mime: string, nombreBase: string) {
-    Alert.alert(
-      'Tipo de documento',
-      'Selecciona el tipo de documento:',
-      [
-        ...TIPOS_DOCUMENTO.map(tipo => ({
-          text: tipo,
-          // Antes de subir se muestran los requisitos de ese documento
-          onPress: () => { setSubiendo(false); setConfirmar({ tipo, uri, mime, nombreBase }); },
-        })),
-        { text: 'Cancelar', style: 'cancel' as const, onPress: () => setSubiendo(false) },
-      ],
-    );
-  }
-
-  async function subirConTipo(tipo: string, uri: string, mime: string, nombreBase: string) {
-    setSubiendo(true);
-    try {
-      // Persistir en documentDirectory para que sobreviva reinicios de app
-      const ext        = mime === 'application/pdf' ? 'pdf' : 'jpg';
-      const nombre     = `${tipo}_${Date.now()}.${ext}`;
-      const uriPersist = await persistirDocumento(uri, nombre);
-
-      try {
-        await subirDocumentoAcreditado(uriPersist, nombreBase || tipo, mime);
-        await cargar();
-        Alert.alert('Listo', `${tipo} subido correctamente.`);
-      } catch (e: unknown) {
-        const msg = (e instanceof Error ? e.message : '').toLowerCase();
-        if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
-          // Red débil o nula → encolar para reintento automático
-          await encolarDocAcreditado({ uri: uriPersist, tipo, mimeType: mime });
-          Alert.alert(
-            'Guardado sin conexión',
-            `El documento "${tipo}" se enviará automáticamente cuando tengas mejor señal.`,
-          );
-        } else {
-          Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo subir el documento.');
-        }
-      }
-    } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'No se pudo procesar el documento.');
-    } finally {
-      setSubiendo(false);
     }
   }
 
@@ -252,16 +82,10 @@ export default function DocumentosScreen() {
         <Text style={styles.headerTitle}>Mis Documentos</Text>
         <TouchableOpacity
           style={styles.subirBtn}
-          onPress={handleSubirDocumento}
-          disabled={subiendo}
+          onPress={() => router.push('/subir-documento-acreditado')}
         >
-          {subiendo
-            ? <ActivityIndicator color={Colors.dark[900]} size="small" />
-            : <>
-                <Ionicons name="cloud-upload-outline" size={18} color={Colors.dark[900]} />
-                <Text style={styles.subirBtnText}>Subir</Text>
-              </>
-          }
+          <Ionicons name="cloud-upload-outline" size={18} color={Colors.dark[900]} />
+          <Text style={styles.subirBtnText}>Subir</Text>
         </TouchableOpacity>
       </View>
 
@@ -355,34 +179,6 @@ export default function DocumentosScreen() {
           </TouchableOpacity>
         )}
       />
-      <Modal visible={!!confirmar} transparent animationType="fade" onRequestClose={() => setConfirmar(null)}>
-        <View style={styles.avisoBackdrop}>
-          <View style={styles.avisoCard}>
-            <Ionicons name="warning" size={40} color={Colors.gold[500]} style={{ alignSelf: 'center' }} />
-            <Text style={styles.avisoTitulo}>¡Revisa tu documento!</Text>
-            <Text style={styles.avisoTexto}>
-              Antes de subir <Text style={{ fontWeight: '700' }}>{confirmar?.tipo}</Text>, confirma que:
-            </Text>
-            <ScrollView style={styles.avisoLista} showsVerticalScrollIndicator={false}>
-              {confirmar && requisitosDe(confirmar.tipo).map((r, i) => (
-                <View key={i} style={styles.avisoFila}>
-                  <Ionicons name="checkmark-circle" size={22} color={Colors.success} />
-                  <Text style={styles.avisoItem}>{r}</Text>
-                </View>
-              ))}
-            </ScrollView>
-            <Pressable
-              style={styles.avisoBtn}
-              onPress={() => { const c = confirmar!; setConfirmar(null); subirConTipo(c.tipo, c.uri, c.mime, c.nombreBase); }}
-            >
-              <Text style={styles.avisoBtnText}>Sí, cumple — subir</Text>
-            </Pressable>
-            <Pressable style={styles.avisoCancelar} onPress={() => setConfirmar(null)}>
-              <Text style={styles.avisoCancelarText}>Revisar de nuevo</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

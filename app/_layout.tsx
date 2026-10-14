@@ -87,6 +87,7 @@ export default function RootLayout() {
         <Stack.Screen name="prospectos/nuevo"                 options={{ headerShown: false }} />
         <Stack.Screen name="expedientes/[id]"                 options={{ headerShown: false }} />
         <Stack.Screen name="expedientes/subir-documento"        options={{ headerShown: false }} />
+        <Stack.Screen name="subir-documento-acreditado"         options={{ headerShown: false }} />
         <Stack.Screen name="mapa"                             options={{ headerShown: false }} />
         <Stack.Screen name="ayuda"                            options={{ headerShown: false }} />
         <Stack.Screen name="ayuda-acreditado"                 options={{ headerShown: false }} />
