@@ -1,7 +1,7 @@
 import { APP_VERSION } from '../../src/version';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
+  View, Text, StyleSheet, ScrollView, AppState,
   TouchableOpacity, RefreshControl, Linking, Alert,
   ActivityIndicator, TextInput,
 } from 'react-native';
@@ -90,6 +90,19 @@ export default function MiTramiteScreen() {
     await cargar(true);
   }, [refresh, cargar]);
 
+  // Sin expediente: se revisa sola al volver a la app y cada 20 s, para que aparezca
+  // en cuanto el asesor lo abre sin tener que jalar la pantalla.
+  useEffect(() => {
+    if (loading || expediente) return;
+    const revisar = async () => {
+      await refresh();
+      await cargar(true);
+    };
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') revisar(); });
+    const t = setInterval(revisar, 20_000);
+    return () => { sub.remove(); clearInterval(t); };
+  }, [loading, expediente, refresh, cargar]);
+
   async function handleSolicitarAsesoria(servicio: ServicioTramite) {
     setSolicitandoId(servicio.id);
     try {
@@ -148,6 +161,7 @@ export default function MiTramiteScreen() {
         </View>
         <ScrollView
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={recargar} tintColor={Colors.gold[400]} />}
+          alwaysBounceVertical
           contentContainerStyle={styles.emptyContainer}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
