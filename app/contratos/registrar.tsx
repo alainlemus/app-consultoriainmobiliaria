@@ -115,7 +115,7 @@ export default function RegistrarContratoScreen() {
   // Datos del trámite
   const [tramitePrefilled, setTramitePrefilled] = useState(false);
   const [folio,                setFolio]                = useState('');
-  const [tipoTramite,          setTipoTramite]          = useState('');
+  const [tipoTramite,          setTipoTramite]          = useState('FOVISSSTE');
   const [ciudad,               setCiudad]               = useState('Huejutla de Reyes');
   const [montoCredito,         setMontoCredito]         = useState('');
   const [honorariosPorcentaje, setHonorariosPorcentaje] = useState('10');
@@ -234,7 +234,7 @@ export default function RegistrarContratoScreen() {
     // Terminó de revisar al solidario → datos del trámite
     if (!tramitePrefilled) {
       setFolio(expediente?.folio || folioAuto());
-      setTipoTramite(expediente?.tipo_tramite?.nombre || '');
+      setTipoTramite(expediente?.tipo_tramite?.nombre || 'FOVISSSTE');
       if (expediente?.monto_credito != null) setMontoCredito(String(expediente.monto_credito));
       if (expediente?.honorarios_porcentaje != null) setHonorariosPorcentaje(String(expediente.honorarios_porcentaje));
       if (expediente?.honorarios_monto != null) setHonorariosMonto(String(expediente.honorarios_monto));
@@ -272,7 +272,7 @@ export default function RegistrarContratoScreen() {
       nss,
       claveElector,
       domAcreditado:         acreditado.domicilio,
-      tipoTramite:           tipoTramite || 'Crédito',
+      tipoTramite:           tipoTramite || 'FOVISSSTE',
       montoCredito:          montoCredito ? Number(montoCredito) : null,
       honorariosPorcentaje:  honorariosPorcentaje ? Number(honorariosPorcentaje) : null,
       honorariosMonto:       honorariosMontoFinal ? Number(honorariosMontoFinal) : null,
@@ -632,12 +632,19 @@ export default function RegistrarContratoScreen() {
           </View>
 
           <Button
-            label="Vista previa"
+            label="Vista previa del contrato"
             onPress={previsualizar}
             variant="outline"
             fullWidth
             loading={previsualizando}
             style={{ marginTop: Spacing.xl }}
+          />
+          <Button
+            label="Vista previa del pagaré"
+            onPress={verPagare}
+            variant="outline"
+            fullWidth
+            style={{ marginTop: Spacing.sm }}
           />
           <Button label="Generar contrato" onPress={generar} fullWidth style={{ marginTop: Spacing.sm }} />
         </ScrollView>
