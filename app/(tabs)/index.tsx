@@ -1,3 +1,4 @@
+import { APP_VERSION } from '@/src/version';
 import React, { useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
@@ -6,7 +7,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
@@ -232,7 +232,7 @@ export default function DashboardScreen() {
             ))}
           </View>
 
-          <Text style={styles.version}>v{Constants.expoConfig?.version ?? '—'}</Text>
+          <Text style={styles.version}>v{APP_VERSION}</Text>
         </View>
       </ScrollView>
     </View>

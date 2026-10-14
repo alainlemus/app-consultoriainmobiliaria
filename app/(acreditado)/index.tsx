@@ -1,3 +1,4 @@
+import { APP_VERSION } from '@/src/version';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
@@ -5,7 +6,6 @@ import {
   ActivityIndicator, TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
@@ -219,7 +219,7 @@ export default function MiTramiteScreen() {
               )}
             </>
           )}
-          <Text style={styles.version}>v{Constants.expoConfig?.version ?? '—'}</Text>
+          <Text style={styles.version}>v{APP_VERSION}</Text>
         </ScrollView>
       </View>
     );
@@ -338,7 +338,7 @@ export default function MiTramiteScreen() {
             )}
           </>
         )}
-        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '—'}</Text>
+        <Text style={styles.version}>v{APP_VERSION}</Text>
       </ScrollView>
     </View>
   );

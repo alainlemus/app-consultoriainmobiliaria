@@ -1,10 +1,10 @@
+import { APP_VERSION } from '@/src/version';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   KeyboardAvoidingView, Platform, Image, TouchableOpacity, Linking, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '../../src/theme';
@@ -270,7 +270,7 @@ export default function LoginScreen() {
           <TouchableOpacity onPress={() => Linking.openURL('https://consultoriainmobiliaria.com.mx/aviso-de-privacidad')}>
             <Text style={styles.privacyLink}>Aviso de Privacidad</Text>
           </TouchableOpacity>
-          <Text style={styles.version}>v{Constants.expoConfig?.version ?? '2.0.6'}</Text>
+          <Text style={styles.version}>v{APP_VERSION}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     );
@@ -368,7 +368,7 @@ export default function LoginScreen() {
         <TouchableOpacity onPress={() => Linking.openURL('https://consultoriainmobiliaria.com.mx/aviso-de-privacidad')}>
           <Text style={styles.privacyLink}>Aviso de Privacidad</Text>
         </TouchableOpacity>
-        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '2.2.1'}</Text>
+        <Text style={styles.version}>v{APP_VERSION}</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
