@@ -178,6 +178,17 @@ export function registrarListeners(
   };
 }
 
+/** Notificación que abrió la app estando cerrada (null si se abrió normal o no hay módulo). */
+export async function obtenerNotificacionInicial(): Promise<{ data: Record<string, unknown> } | null> {
+  if (esExpoGo || !Notifications) return null;
+  try {
+    const r = await Notifications.getLastNotificationResponseAsync();
+    return r ? { data: r.notification.request.content.data ?? {} } : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Notificación local (para tests / confirmaciones offline) ─────────────────
 
 export async function mostrarNotificacionLocal(

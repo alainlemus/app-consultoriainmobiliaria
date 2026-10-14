@@ -4,11 +4,20 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { SyncProvider } from '../src/contexts/SyncContext';
 import { AuthProvider } from '../src/contexts/AuthContext';
-import { registrarPushToken, registrarPushTokenAcreditado, registrarListeners, limpiarBadge } from '../src/services/notifications';
+import { registrarPushToken, registrarPushTokenAcreditado, registrarListeners, limpiarBadge, obtenerNotificacionInicial } from '../src/services/notifications';
+import { rutaParaNotificacion, type DatosNotificacion } from '../src/utils/rutaNotificacion';
 import { getAcreditadoToken, removeAcreditadoToken } from '../src/services/acreditadoApi';
 
 export default function RootLayout() {
   const router = useRouter();
+
+  // Si la app estaba cerrada y se abrió tocando una notificación, ir a su pantalla
+  // (después de la redirección al home, para que "atrás" regrese a él).
+  async function abrirNotificacionInicial(esAcreditado: boolean) {
+    const inicial = await obtenerNotificacionInicial();
+    const ruta = rutaParaNotificacion(inicial?.data as DatosNotificacion | undefined, esAcreditado);
+    if (ruta) setTimeout(() => router.push(ruta as never), 300);
+  }
 
   // ── Redirección inicial — solo se ejecuta UNA vez al montar ────────────────
   // No depender de `segments` evita que cambios de ruta internos (ej. navegar
@@ -25,18 +34,21 @@ export default function RootLayout() {
       if (asesorToken && acreditadoToken) {
         await removeAcreditadoToken();
         router.replace('/(tabs)');
+        await abrirNotificacionInicial(false);
         return;
       }
 
       // ── Asesor con token → su home ────────────────────────────────────────
       if (asesorToken) {
         router.replace('/(tabs)');
+        await abrirNotificacionInicial(false);
         return;
       }
 
       // ── Acreditado con token → su portal ──────────────────────────────────
       if (acreditadoToken) {
         router.replace('/(acreditado)');
+        await abrirNotificacionInicial(true);
         return;
       }
 
@@ -58,17 +70,12 @@ export default function RootLayout() {
 
     const cleanup = registrarListeners(
       (_notif) => {},
-      (response) => {
-        const data = response.notification.request.content.data as {
-          tipo?: string;
-          expediente_id?: number;
-          contacto_id?: number;
-        };
-        if (data?.expediente_id) {
-          router.push(`/expedientes/${data.expediente_id}`);
-        } else if (data?.contacto_id) {
-          router.push(`/prospectos/${data.contacto_id}`);
-        }
+      async (response) => {
+        const data = response.notification.request.content.data as DatosNotificacion;
+        // Si hay sesión de asesor manda sobre una de acreditado residual (igual que al iniciar)
+        const esAcreditado = !(await SecureStore.getItemAsync('auth_token')) && !!(await getAcreditadoToken());
+        const ruta = rutaParaNotificacion(data, esAcreditado);
+        if (ruta) router.push(ruta as never);
       },
     );
 
