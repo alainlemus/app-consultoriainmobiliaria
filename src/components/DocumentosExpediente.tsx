@@ -2,7 +2,7 @@
  * Documentos de un expediente: agregar (escanear o subir), y por cada uno
  * ver, reemplazar y eliminar.
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
@@ -24,7 +24,21 @@ const nombreLegible = (doc: Documento) => {
 const fechaCorta = (iso?: string) =>
   iso ? new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
-export default function DocumentosExpediente({ expedienteId }: { expedienteId: number }) {
+/** ¿Todos los documentos validados y ninguno solicitado pendiente? Entonces ya se puede enviar la carpeta. */
+export const expedienteCompleto = (docs: Documento[]) => {
+  const conArchivo = docs.filter(d => d.tiene_archivo);
+  return conArchivo.length > 0
+    && conArchivo.every(d => d.validacion === 'validado')
+    && !docs.some(d => d.solicitado_at && !d.tiene_archivo);
+};
+
+export default function DocumentosExpediente({ expedienteId, acreditadoEnApp = false, onDocs }: {
+  expedienteId: number;
+  /** El acreditado usa la app: el administrador puede pedirle el documento a él o al asesor. */
+  acreditadoEnApp?: boolean;
+  /** Avisa al padre cada vez que cambia la lista (para habilitar el envío de la carpeta). */
+  onDocs?: (docs: Documento[]) => void;
+}) {
   const router = useRouter();
   const { online, pendientes } = useSyncContext();
   const { isSuperAdmin } = useAuth();   // solo un administrador valida o rechaza
@@ -36,6 +50,9 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
   const [enviando, setEnviando]   = useState(false);
   const [solicitando, setSolicitando] = useState(false);   // modal "solicitar documento faltante"
   const [notaFalta, setNotaFalta]     = useState('');
+  const [paraQuien, setParaQuien]     = useState<'acreditado' | 'asesor'>('asesor');
+
+  useEffect(() => { onDocs?.(docs); }, [docs]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Se recarga al volver de subir/reemplazar y cuando la cola offline se vacía.
   useFocusEffect(
@@ -47,6 +64,9 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
         .finally(() => setCargando(false));
     }, [expedienteId, online, pendientes]),
   );
+
+  const pendientesSolicitados = docs.filter(d => d.solicitado_at && !d.tiene_archivo);
+  const docsConArchivo        = docs.filter(d => !(d.solicitado_at && !d.tiene_archivo));
 
   const ver = async (doc: Documento) => {
     if (!doc.id) return;
@@ -107,10 +127,12 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
     if (!notaFalta.trim()) return;
     setEnviando(true);
     try {
-      await solicitarDocumentoFaltante(expedienteId, notaFalta.trim());
+      await solicitarDocumentoFaltante(expedienteId, notaFalta.trim(), acreditadoEnApp ? paraQuien : 'asesor');
       setSolicitando(false);
       setNotaFalta('');
-      Alert.alert('Documento solicitado', 'Se avisó al acreditado: verá tu nota en Mi Trámite y le llegó una notificación.');
+      Alert.alert('Documento solicitado', paraQuien === 'asesor' || !acreditadoEnApp
+        ? 'Se avisó al asesor: le llegó una notificación y verá tu nota en el expediente.'
+        : 'Se avisó al acreditado: verá tu nota en Mi Trámite y le llegó una notificación.');
       getDocumentosExpediente(expedienteId).then(setDocs).catch(() => {});
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo solicitar el documento');
@@ -154,18 +176,42 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
 
       {/* Solo administradores: pedir al acreditado un documento que faltaba */}
       {isSuperAdmin && (
-        <TouchableOpacity style={styles.solicitarBtn} activeOpacity={0.85} onPress={() => { setNotaFalta(''); setSolicitando(true); }}>
+        <TouchableOpacity style={styles.solicitarBtn} activeOpacity={0.85} onPress={() => { setNotaFalta(''); setParaQuien(acreditadoEnApp ? 'acreditado' : 'asesor'); setSolicitando(true); }}>
           <Ionicons name="document-attach" size={22} color={Colors.gold[700]} />
           <View style={{ flex: 1 }}>
             <Text style={styles.solicitarLabel}>Solicitar documento faltante</Text>
-            <Text style={styles.solicitarSub}>Escribe cuál falta; el acreditado recibe un aviso</Text>
+            <Text style={styles.solicitarSub}>Escribe cuál falta; se avisa al acreditado o al asesor</Text>
           </View>
         </TouchableOpacity>
       )}
 
+      {/* Documentos faltantes que pidió un administrador y aún no se suben */}
+      {pendientesSolicitados.map(d => (
+        <View key={d.id} style={styles.avisoFalta}>
+          <View style={styles.avisoFaltaCab}>
+            <Ionicons name="alert-circle" size={22} color={Colors.gold[700]} />
+            <Text style={styles.avisoFaltaTitulo}>
+              {d.solicitado_a === 'acreditado' ? 'Esperando al acreditado: documento solicitado' : 'Te solicitaron un documento'}
+            </Text>
+          </View>
+          <Text style={styles.avisoFaltaNota}>{d.solicitud_nota}</Text>
+          <TouchableOpacity
+            style={styles.avisoFaltaBtn}
+            activeOpacity={0.85}
+            onPress={() => router.push({
+              pathname: '/expedientes/subir-documento',
+              params: { expedienteId: String(expedienteId), reemplazarId: String(d.id), tipoLabel: d.tipo, solicitudNota: d.solicitud_nota ?? '' },
+            })}
+          >
+            <Ionicons name="cloud-upload-outline" size={18} color={Colors.dark[900]} />
+            <Text style={styles.avisoFaltaBtnText}>Subir este documento</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+
       {cargando ? (
         <ActivityIndicator color={Colors.gold[400]} style={{ marginTop: Spacing.md }} />
-      ) : docs.length === 0 ? (
+      ) : docsConArchivo.length === 0 ? (
         <View style={styles.vacio}>
           <Ionicons name="folder-open-outline" size={44} color={Colors.dark[300]} />
           <Text style={styles.vacioTexto}>
@@ -174,8 +220,8 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
         </View>
       ) : (
         <>
-          <Text style={styles.contador}>{docs.length} documento{docs.length === 1 ? '' : 's'} cargado{docs.length === 1 ? '' : 's'}</Text>
-          {docs.map(doc => (
+          <Text style={styles.contador}>{docsConArchivo.length} documento{docsConArchivo.length === 1 ? '' : 's'} cargado{docsConArchivo.length === 1 ? '' : 's'}</Text>
+          {docsConArchivo.map(doc => (
             <View key={doc.id} style={styles.card}>
               <View style={styles.cardTop}>
                 <View style={[styles.tile, esPdf(doc) ? styles.tilePdf : styles.tileFoto]}>
@@ -247,7 +293,18 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
           <View style={styles.modalCard}>
             <Ionicons name="document-attach" size={44} color={Colors.gold[500]} style={{ alignSelf: 'center' }} />
             <Text style={styles.modalTitulo}>Solicitar documento faltante</Text>
-            <Text style={styles.modalTexto}>Explica cuál documento falta. El acreditado verá tu nota en Mi Trámite y recibirá una notificación.</Text>
+            <Text style={styles.modalTexto}>Explica cuál documento falta. Quien elijas recibe una notificación con tu nota.</Text>
+            {acreditadoEnApp ? (
+              <View style={styles.paraFila}>
+                {(['acreditado', 'asesor'] as const).map(p => (
+                  <TouchableOpacity key={p} style={[styles.paraChip, paraQuien === p && styles.paraChipActivo]} onPress={() => setParaQuien(p)}>
+                    <Text style={[styles.paraChipText, paraQuien === p && styles.paraChipTextActivo]}>{p === 'acreditado' ? 'Al acreditado' : 'Al asesor'}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.paraSolo}>Se le pedirá al asesor (el acreditado no usa la app).</Text>
+            )}
             <TextInput
               style={styles.modalInput}
               value={notaFalta}
@@ -350,6 +407,18 @@ const styles = StyleSheet.create({
   },
   solicitarLabel: { color: Colors.gold[700], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
   solicitarSub:   { color: Colors.dark[500], fontSize: Typography.fontSize.xs, marginTop: 1 },
+  paraFila: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
+  paraChip: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.dark[300], alignItems: 'center' },
+  paraChipActivo: { backgroundColor: Colors.dark[900], borderColor: Colors.dark[900] },
+  paraChipText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[700] },
+  paraChipTextActivo: { color: Colors.gold[400] },
+  paraSolo: { fontSize: Typography.fontSize.sm, color: Colors.dark[500], textAlign: 'center', marginBottom: Spacing.md },
+  avisoFalta: { marginTop: Spacing.md, backgroundColor: Colors.gold[50], borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.gold[400], padding: Spacing.base },
+  avisoFaltaCab: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  avisoFaltaTitulo: { flex: 1, fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.gold[700] },
+  avisoFaltaNota: { fontSize: Typography.fontSize.base, color: Colors.dark[800], lineHeight: 24, marginTop: Spacing.sm },
+  avisoFaltaBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: Colors.gold[400], borderRadius: Radius.md, paddingVertical: Spacing.sm, marginTop: Spacing.md },
+  avisoFaltaBtnText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   addIcon:  { fontSize: 22 },
   addLabel: { color: Colors.white, fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
   addSub:   { color: Colors.cream[300], fontSize: Typography.fontSize.xs, marginTop: 1 },

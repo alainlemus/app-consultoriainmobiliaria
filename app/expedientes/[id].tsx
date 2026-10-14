@@ -9,9 +9,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius, Spacing, Typography } from '../../src/theme';
 import { enviarCarpetaExpediente, getExpediente } from '../../src/services/api';
+import type { Documento } from '../../src/types';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { getCacheExpediente } from '../../src/services/offline';
-import DocumentosExpediente from '../../src/components/DocumentosExpediente';
+import DocumentosExpediente, { expedienteCompleto } from '../../src/components/DocumentosExpediente';
 import type { Expediente } from '../../src/types';
 
 export default function DetalleExpedienteScreen() {
@@ -20,6 +21,7 @@ export default function DetalleExpedienteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { isSuperAdmin, user } = useAuth();
   const [enviando, setEnviando] = useState(false);
+  const [docsListos, setDocsListos] = useState<boolean | null>(null);   // lo calcula la lista de documentos
   const [exp, setExp]         = useState<Expediente | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError]     = useState<string | null>(null);
@@ -37,10 +39,16 @@ export default function DetalleExpedienteScreen() {
   }, [id]);
 
   const contacto = exp?.contacto;
+  // La carpeta solo se envía con todos los documentos validados; al inicio se usa lo que dice el servidor
+  const carpetaLista = docsListos ?? !!(exp as { completo?: boolean } | null)?.completo;
 
   // Solo administradores: la carpeta con todos los documentos llega a su correo (enlace de 72 h)
   const enviarCarpeta = () => {
     if (!exp) return;
+    if (!carpetaLista) {
+      Alert.alert('Aún no se puede enviar', 'Valida todos los documentos del expediente (y espera los que solicitaste) para poder enviar la carpeta a tu correo.');
+      return;
+    }
     Alert.alert(
       'Enviar carpeta a mi correo',
       `Te enviaremos${user?.email ? ` a ${user.email}` : ''} un enlace, válido 72 horas, para descargar en tu computadora la carpeta con todos los documentos de este expediente.`,
@@ -99,20 +107,24 @@ export default function DetalleExpedienteScreen() {
           ) : null}
 
           {isSuperAdmin ? (
-            <TouchableOpacity style={styles.carpetaBtn} onPress={enviarCarpeta} disabled={enviando} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.carpetaBtn, !carpetaLista && styles.carpetaBtnOff]} onPress={enviarCarpeta} disabled={enviando} activeOpacity={0.85}>
               {enviando
                 ? <ActivityIndicator color={Colors.dark[900]} />
                 : <Ionicons name="mail" size={22} color={Colors.dark[900]} />}
               <View style={{ flex: 1 }}>
                 <Text style={styles.carpetaTitulo}>Enviar carpeta a mi correo</Text>
-                <Text style={styles.carpetaSub}>ZIP con todos los documentos para tu computadora</Text>
+                <Text style={styles.carpetaSub}>{carpetaLista ? 'ZIP con todos los documentos para tu computadora' : 'Disponible cuando valides todos los documentos'}</Text>
               </View>
               <Ionicons name="paper-plane" size={20} color={Colors.dark[900]} />
             </TouchableOpacity>
           ) : null}
 
           <Text style={styles.sectionLabel}>Documentos</Text>
-          <DocumentosExpediente expedienteId={exp.id} />
+          <DocumentosExpediente
+            expedienteId={exp.id}
+            acreditadoEnApp={!!(exp as { acreditado_en_app?: boolean }).acreditado_en_app}
+            onDocs={docs => { if (docs.length > 0) setDocsListos(expedienteCompleto(docs)); }}
+          />
         </ScrollView>
       )}
     </View>
@@ -142,6 +154,7 @@ const styles = StyleSheet.create({
   nombre:  { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   sub:     { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
   datos:   { backgroundColor: Colors.white, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[200], padding: Spacing.md, marginTop: Spacing.xs, gap: 6 },
+  carpetaBtnOff: { opacity: 0.45 },
   carpetaBtn:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.gold[400], borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.md },
   carpetaTitulo: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   carpetaSub:    { fontSize: Typography.fontSize.xs, color: Colors.dark[800], marginTop: 1 },

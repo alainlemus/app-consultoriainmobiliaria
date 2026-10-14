@@ -74,10 +74,12 @@ const toFileUri = (path: string) =>
 export default function SubirDocumentoScreen() {
   const insets = useSafeAreaInsets();
   // reemplazarId + tipoLabel: se está cambiando un documento ya subido (el tipo no se puede cambiar)
-  const { expedienteId, reemplazarId, tipoLabel } = useLocalSearchParams<{
-    expedienteId: string; reemplazarId?: string; tipoLabel?: string;
+  const { expedienteId, reemplazarId, tipoLabel, solicitudNota } = useLocalSearchParams<{
+    expedienteId: string; reemplazarId?: string; tipoLabel?: string; solicitudNota?: string;
   }>();
   const reemplazando = !!reemplazarId;
+  // Documento faltante que pidió un administrador: no tiene un tipo del catálogo, se muestra su nota
+  const esSolicitado = reemplazando && !!solicitudNota;
 
   const [tipo,  setTipo]  = useState<string>(
     (tipoLabel ? tipoPorLabel(tipoLabel)?.value : undefined) ?? 'ine',
@@ -292,6 +294,13 @@ export default function SubirDocumentoScreen() {
             <Image source={{ uri: resultUri! }} style={s.previewImg} resizeMode="contain" />
           )}
 
+          {esSolicitado ? (
+            <View style={s.solicitadoBox}>
+              <Text style={s.solicitadoTitulo}>Documento solicitado</Text>
+              <Text style={s.solicitadoNota}>{solicitudNota}</Text>
+            </View>
+          ) : (
+          <>
           <Text style={s.sectionLabel}>Tipo de documento · elige uno</Text>
           <View style={s.chipWrap}>
             {TIPOS_DOCUMENTO.map(t => (
@@ -307,6 +316,8 @@ export default function SubirDocumentoScreen() {
             ))}
           </View>
           <RequisitosCard tipo={tipo} />
+          </>
+          )}
 
           <Text style={s.sectionLabel}>Nota para identificarlo</Text>
           <TextInput
@@ -322,7 +333,7 @@ export default function SubirDocumentoScreen() {
 
           <Pressable
             style={[s.btnSubir, uploading && s.btnDisabled]}
-            onPress={() => setConfirmar(true)}
+            onPress={() => (esSolicitado ? subir() : setConfirmar(true))}
             disabled={uploading}
           >
             {uploading
@@ -375,6 +386,13 @@ export default function SubirDocumentoScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {esSolicitado ? (
+          <View style={s.solicitadoBox}>
+            <Text style={s.solicitadoTitulo}>Documento solicitado</Text>
+            <Text style={s.solicitadoNota}>{solicitudNota}</Text>
+          </View>
+        ) : (
+        <>
         <Text style={s.sectionLabel}>Tipo de documento · elige uno</Text>
         <View style={s.chipWrap}>
           {TIPOS_DOCUMENTO.map(t => (
@@ -390,6 +408,8 @@ export default function SubirDocumentoScreen() {
           ))}
         </View>
         <RequisitosCard tipo={tipo} />
+        </>
+        )}
 
         <Text style={s.sectionLabel}>Nota para identificarlo</Text>
         <TextInput
@@ -523,6 +543,9 @@ function AvisoRequisitos({ visible, tipo, accion, onCancelar, onAceptar }: {
 // ── Estilos ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
+  solicitadoBox: { backgroundColor: Colors.gold[50], borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.gold[400], padding: Spacing.base, marginTop: Spacing.md },
+  solicitadoTitulo: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.gold[700] },
+  solicitadoNota: { fontSize: Typography.fontSize.base, color: Colors.dark[800], lineHeight: 24, marginTop: Spacing.xs },
   notaAyuda: { fontSize: Typography.fontSize.sm, color: Colors.dark[500], marginTop: Spacing.xs, lineHeight: 20 },
   chipBloqueado: { opacity: 0.35 },
   requisitos: {

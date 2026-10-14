@@ -146,6 +146,10 @@ export interface Documento {
   /** Lo decide un administrador: en revisión, validado o rechazado (con motivo). */
   validacion?:     'en_revision' | 'validado' | 'rechazado';
   motivo_rechazo?: string | null;
+  /** Documento faltante que un administrador pidió (al acreditado o al asesor) y aún no se sube. */
+  solicitado_at?:  string | null;
+  solicitado_a?:   'acreditado' | 'asesor' | null;
+  solicitud_nota?: string | null;
   created_at?:     string;
   _local_id?:      string;
   _pendiente_sync?: boolean;

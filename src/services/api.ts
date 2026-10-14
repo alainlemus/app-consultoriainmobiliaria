@@ -558,10 +558,10 @@ export async function rechazarDocumento(expedienteId: number, documentoId: numbe
 }
 
 /** Solo administradores: pide al acreditado un documento que faltaba, con una nota que explica cuál. Le llega un push. */
-export async function solicitarDocumentoFaltante(expedienteId: number, nota: string): Promise<Documento> {
+export async function solicitarDocumentoFaltante(expedienteId: number, nota: string, para?: 'acreditado' | 'asesor'): Promise<Documento> {
   const res = await apiFetch<ApiResponse<Documento>>(`/expedientes/${expedienteId}/documentos-solicitados`, {
     method: 'POST',
-    body:   JSON.stringify({ nota }),
+    body:   JSON.stringify({ nota, para }),
   });
   return res.data;
 }
