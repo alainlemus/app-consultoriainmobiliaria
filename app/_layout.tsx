@@ -5,7 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 import { SyncProvider } from '../src/contexts/SyncContext';
 import { AuthProvider } from '../src/contexts/AuthContext';
 import { registrarPushToken, registrarPushTokenAcreditado, registrarListeners, limpiarBadge, obtenerNotificacionInicial } from '../src/services/notifications';
-import { rutaParaNotificacion, type DatosNotificacion } from '../src/utils/rutaNotificacion';
+import { rutaParaNotificacion, esInicio, type DatosNotificacion } from '../src/utils/rutaNotificacion';
 import { getAcreditadoToken, removeAcreditadoToken } from '../src/services/acreditadoApi';
 
 export default function RootLayout() {
@@ -15,8 +15,9 @@ export default function RootLayout() {
   // (después de la redirección al home, para que "atrás" regrese a él).
   async function abrirNotificacionInicial(esAcreditado: boolean) {
     const inicial = await obtenerNotificacionInicial();
-    const ruta = rutaParaNotificacion(inicial?.data as DatosNotificacion | undefined, esAcreditado);
-    if (ruta) setTimeout(() => router.push(ruta as never), 300);
+    if (!inicial) return;
+    const ruta = rutaParaNotificacion(inicial.data as DatosNotificacion, esAcreditado);
+    if (!esInicio(ruta)) setTimeout(() => router.push(ruta as never), 300); // el inicio ya está abierto
   }
 
   // ── Redirección inicial — solo se ejecuta UNA vez al montar ────────────────
@@ -75,7 +76,8 @@ export default function RootLayout() {
         // Si hay sesión de asesor manda sobre una de acreditado residual (igual que al iniciar)
         const esAcreditado = !(await SecureStore.getItemAsync('auth_token')) && !!(await getAcreditadoToken());
         const ruta = rutaParaNotificacion(data, esAcreditado);
-        if (ruta) router.push(ruta as never);
+        if (esInicio(ruta)) router.navigate(ruta as never);
+        else router.push(ruta as never);
       },
     );
 
