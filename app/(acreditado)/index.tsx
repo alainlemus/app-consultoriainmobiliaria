@@ -36,7 +36,7 @@ const ESTADO_LABEL: Record<string, string> = {
 export default function MiTramiteScreen() {
   const insets               = useSafeAreaInsets();
   const router               = useRouter();
-  const { acreditado, clearAcreditado } = useAcreditadoAuth();
+  const { acreditado, clearAcreditado, refresh } = useAcreditadoAuth();
   const [expediente, setExpediente]   = useState<ExpedienteAcreditado | null>(null);
   const [servicios, setServicios]     = useState<ServicioTramite[]>([]);
   const [loading,  setLoading]        = useState(true);
@@ -54,11 +54,12 @@ export default function MiTramiteScreen() {
     servicios.find(s => /tradicional.*fovissste/i.test(s.nombre)) ??
     servicios.find(s => /fovissste/i.test(s.nombre)) ?? null;
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (forzar = false) => {
     try {
       // Optimización: si sabemos desde el perfil del usuario que no hay expediente,
       // evitamos la llamada extra y vamos directo a cargar los servicios disponibles.
-      const yaTenemosQueNoHayExpediente = acreditado !== null && acreditado.tiene_expediente === false;
+      // Al jalar para recargar (forzar) siempre se consulta: el asesor pudo abrir el expediente después.
+      const yaTenemosQueNoHayExpediente = !forzar && acreditado !== null && acreditado.tiene_expediente === false;
 
       const [exp, svcs] = await Promise.all([
         yaTenemosQueNoHayExpediente ? Promise.resolve(null) : getExpedienteAcreditado(),
@@ -81,6 +82,13 @@ export default function MiTramiteScreen() {
   }, [acreditado]);
 
   useEffect(() => { cargar(); }, []);
+
+  // Jalar hacia abajo: refresca el perfil (¿ya tiene expediente? ¿ya está registrado?) y el trámite.
+  const recargar = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    await cargar(true);
+  }, [refresh, cargar]);
 
   async function handleSolicitarAsesoria(servicio: ServicioTramite) {
     setSolicitandoId(servicio.id);
@@ -139,6 +147,7 @@ export default function MiTramiteScreen() {
           </View>
         </View>
         <ScrollView
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={recargar} tintColor={Colors.gold[400]} />}
           contentContainerStyle={styles.emptyContainer}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -165,7 +174,7 @@ export default function MiTramiteScreen() {
                 <View style={styles.errorCard}>
                   <Ionicons name="wifi-outline" size={24} color={Colors.dark[400]} />
                   <Text style={styles.errorCardText}>No se pudieron cargar los servicios disponibles.</Text>
-                  <TouchableOpacity style={styles.retryBtn} onPress={cargar}>
+                  <TouchableOpacity style={styles.retryBtn} onPress={() => cargar()}>
                     <Text style={styles.retryBtnText}>Reintentar</Text>
                   </TouchableOpacity>
                 </View>
@@ -243,7 +252,7 @@ export default function MiTramiteScreen() {
       </View>
 
       <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); cargar(); }} tintColor={Colors.gold[400]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={recargar} tintColor={Colors.gold[400]} />}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
