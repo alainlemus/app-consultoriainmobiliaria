@@ -5,6 +5,8 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 ## [Sin publicar]
 
 ### Cambiado
+- Iniciar el expediente de un prospecto ahora funciona sin señal: se guarda y se crea solo al recuperar internet (después se pueden subir sus documentos).
+- Documentos del acreditado guardados sin conexión: se reintentan al abrir el portal, al volver a la app y cada minuto, aunque la señal esté "conectada" pero débil, y un fallo de red ya no gasta los intentos ni los descarta.
 - Notificaciones: al tocar una notificación ahora abre la pantalla que corresponde (el expediente o el prospecto para el asesor, el mapa en las visitas, Documentos para el acreditado y, si no hay una pantalla específica, el inicio), también cuando la app estaba cerrada y se abrió con la notificación. Antes, estando cerrada solo abría la app, y al acreditado lo mandaba a una pantalla que no es suya.
 - App del acreditado: el botón Subir abre una pantalla nueva, como la del asesor, donde elige qué documento es (con sus requisitos), agrega una nota y lo escanea o selecciona un archivo; antes de enviar confirma que cumple. Sin conexión se guarda con su nota y se envía solo.
 - App del acreditado, Documentos: ahora muestra la lista de documentos que debe subir (acta de nacimiento, INE, CURP, constancia fiscal, comprobante de domicilio, 3 talones y estado de cuenta AFORE) con sus requisitos, dónde obtenerlos y enlaces, los marca como Entregado, incluye avisos importantes y, antes de subir, un aviso para confirmar que el documento cumple.

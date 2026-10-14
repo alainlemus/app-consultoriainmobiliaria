@@ -677,6 +677,52 @@ let syncEnProceso = false;
  *
  * Retorna totales de ok y errores en ambas colas.
  */
+/** ¿El error es de red? (no cuenta como intento fallido: el documento se reintenta cuando haya conexión) */
+const esErrorDeRed = (e: unknown) => {
+  const msg = (e instanceof Error ? e.message : '').toLowerCase();
+  return msg.includes('network') || msg.includes('failed') || msg.includes('timeout');
+};
+
+let docsAcreditadoEnProceso = false;
+
+/**
+ * Envía los documentos que el acreditado guardó sin conexión. Se llama al recuperar red y,
+ * mientras haya pendientes, cada cierto tiempo desde su portal (la señal puede estar "conectada"
+ * pero débil, y entonces no hay evento de red que dispare el reintento).
+ */
+export async function sincronizarDocsAcreditado(): Promise<{ ok: number; errores: number }> {
+  if (docsAcreditadoEnProceso) return { ok: 0, errores: 0 };
+  docsAcreditadoEnProceso = true;
+  let ok = 0;
+  let errores = 0;
+  try {
+    const cola = await getDocsAcreditadoQueue();
+    if (cola.length === 0) return { ok, errores };
+
+    const pendientes: DocAcreditadoPendiente[] = [];
+    for (const doc of cola) {
+      try {
+        await subirDocumentoAcreditado(doc.uri, doc.tipo, doc.mimeType, doc.notas);
+        await limpiarArchivoLocal(doc.uri);
+        ok++;
+      } catch (e) {
+        errores++;
+        if (esErrorDeRed(e)) {
+          pendientes.push(doc);                                   // sin señal: se conserva tal cual
+        } else if (doc.intentos < 3) {
+          pendientes.push({ ...doc, intentos: doc.intentos + 1 }); // el servidor lo rechazó: se reintenta unas veces
+        } else {
+          await limpiarArchivoLocal(doc.uri);
+        }
+      }
+    }
+    await AsyncStorage.setItem(KEYS.DOCS_ACREDITADO_QUEUE, JSON.stringify(pendientes));
+  } finally {
+    docsAcreditadoEnProceso = false;
+  }
+  return { ok, errores };
+}
+
 export async function sincronizar(): Promise<{ ok: number; errores: number }> {
   if (syncEnProceso) return { ok: 0, errores: 0 };
   syncEnProceso = true;
@@ -917,25 +963,9 @@ export async function sincronizar(): Promise<{ ok: number; errores: number }> {
     }
 
     // ── 6. Cola de documentos del acreditado ──────────────────────────────
-    const docsAcreditadoQueue = await getDocsAcreditadoQueue();
-    if (docsAcreditadoQueue.length > 0) {
-      const fallidas: DocAcreditadoPendiente[] = [];
-      for (const doc of docsAcreditadoQueue) {
-        try {
-          await subirDocumentoAcreditado(doc.uri, doc.tipo, doc.mimeType, doc.notas);
-          await limpiarArchivoLocal(doc.uri);
-          ok++;
-        } catch {
-          errores++;
-          if (doc.intentos < 3) {
-            fallidas.push({ ...doc, intentos: doc.intentos + 1 });
-          } else {
-            await limpiarArchivoLocal(doc.uri);
-          }
-        }
-      }
-      await AsyncStorage.setItem(KEYS.DOCS_ACREDITADO_QUEUE, JSON.stringify(fallidas));
-    }
+    const r6 = await sincronizarDocsAcreditado();
+    ok += r6.ok;
+    errores += r6.errores;
 
     // ── 7. Texto del contrato de Prestación de Servicios ──────────────────
     // Best-effort: si falla (sin red, servidor caído) no cuenta como error de

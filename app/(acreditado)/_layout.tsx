@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { AppState } from 'react-native';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing } from '@/src/theme';
+import { sincronizarDocsAcreditado } from '@/src/services/offline';
 import { AcreditadoAuthProvider } from '@/src/contexts/AcreditadoAuthContext';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
@@ -45,6 +47,15 @@ function AcreditadoTabBar({ state, navigation }: any) {
 }
 
 export default function AcreditadoLayout() {
+  // Documentos guardados sin conexión: se reintentan al abrir el portal, al volver a la app y cada
+  // minuto (la señal puede estar "conectada" pero débil, y entonces no hay evento de red).
+  useEffect(() => {
+    sincronizarDocsAcreditado().catch(() => {});
+    const sub = AppState.addEventListener('change', st => { if (st === 'active') sincronizarDocsAcreditado().catch(() => {}); });
+    const t = setInterval(() => { sincronizarDocsAcreditado().catch(() => {}); }, 60_000);
+    return () => { sub.remove(); clearInterval(t); };
+  }, []);
+
   return (
     <AcreditadoAuthProvider>
       <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AcreditadoTabBar {...props} />}>
