@@ -166,6 +166,7 @@ const SECCIONES: Seccion[] = [
     subtitulo: 'Tu recorrido del día',
     pasos: [
       { icono: 'power', titulo: 'Activar la ruta', desc: 'En Inicio activa el interruptor Ruta. Antes te mostramos un aviso que explica qué va a pasar: se guarda tu recorrido con tu ubicación (también en segundo plano), tu administrador lo ve en el mapa, puede gastar más batería y puedes apagarla cuando quieras.' },
+      { icono: 'alarm', titulo: 'No olvides apagarla', desc: 'Si dejas la ruta activa, a las 7 pm y a las 9 pm te llega un aviso para desactivarla. Si sigue activa pasadas las 10 pm, se desactiva sola al abrir la app.' },
       { icono: 'lock-open', titulo: 'Permiso de ubicación', desc: 'Tu teléfono te pedirá permiso. Elige "Permitir siempre" para que la ruta no se corte al cerrar la pantalla.' },
       { icono: 'map', titulo: 'Mi ruta', desc: 'Toca Rutas en Inicio para ver el día que elijas: arriba un resumen (puntos, distancia aproximada y horario), el mapa con tu trazo y, abajo, la línea de tiempo de tus paradas.' },
       { icono: 'cloud-offline', titulo: 'Puntos pendientes', desc: 'Si no hay señal, los puntos se guardan y se envían solos al recuperarla; en Inicio ves cuántos faltan.' },

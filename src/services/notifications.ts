@@ -204,3 +204,44 @@ export async function limpiarBadge(): Promise<void> {
   if (esExpoGo || !Notifications) return;
   await Notifications.setBadgeCountAsync(0);
 }
+
+
+// ── Recordatorio de ruta activa ──────────────────────────────────────────────
+
+/** Horas locales (0-23) en las que se avisa al asesor que su ruta sigue activa. */
+export const HORAS_RECORDATORIO_RUTA = [19, 21];
+
+/**
+ * Programa avisos locales para el resto del día (no necesitan red) que le
+ * recuerdan al asesor desactivar la ruta. Se cancelan al desactivarla.
+ * En Expo Go no hay notificaciones: se omite en silencio.
+ */
+export async function programarRecordatoriosRuta(): Promise<void> {
+  if (!Notifications) return;
+  try {
+    await cancelarRecordatoriosRuta();
+    const permiso = await Notifications.getPermissionsAsync();
+    if (permiso.status !== 'granted') return;
+    for (const hora of HORAS_RECORDATORIO_RUTA) {
+      const cuando = new Date();
+      cuando.setHours(hora, 0, 0, 0);
+      if (cuando.getTime() <= Date.now()) continue;
+      await Notifications.scheduleNotificationAsync({
+        identifier: `ruta-recordatorio-${hora}`,
+        content: {
+          title: 'Tu ruta sigue activa',
+          body:  'Si ya terminaste tu jornada, desactiva la ruta en Inicio para registrar tu ubicación final.',
+          data:  { tipo: 'ruta_activa' },
+        },
+        trigger: { type: 'date', date: cuando },
+      });
+    }
+  } catch { /* los recordatorios son un extra: no deben romper la activación */ }
+}
+
+export async function cancelarRecordatoriosRuta(): Promise<void> {
+  if (!Notifications) return;
+  for (const hora of HORAS_RECORDATORIO_RUTA) {
+    try { await Notifications.cancelScheduledNotificationAsync(`ruta-recordatorio-${hora}`); } catch { /* no existía */ }
+  }
+}

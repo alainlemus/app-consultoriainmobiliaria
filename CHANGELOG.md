@@ -5,6 +5,7 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 ## [Sin publicar]
 
 ### Agregado
+- **Ruta olvidada:** si dejas la ruta activa, te llega un aviso a las 7 pm y a las 9 pm para desactivarla; si sigue activa pasadas las 10 pm (o al día siguiente), se desactiva sola al abrir la app.
 - **Pagaré:** al generar un contrato ahora puedes ver, imprimir y compartir también el pagaré, con el formato oficial y llenado con nombre, domicilio y RFC del acreditado y la fecha del día. Importe y vencimiento quedan en blanco para llenarlos a mano.
 - El pagaré es un documento aparte: se guarda como PDF propio, se sube al expediente como "Pagaré" y tiene sus propios botones de ver/imprimir y compartir.
 - Antes de generar el contrato hay vista previa del contrato y del pagaré.
