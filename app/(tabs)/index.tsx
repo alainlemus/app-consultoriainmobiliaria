@@ -1,4 +1,4 @@
-import { APP_VERSION } from '@/src/version';
+import { APP_VERSION } from '../../src/version';
 import React, { useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
