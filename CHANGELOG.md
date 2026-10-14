@@ -4,6 +4,9 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+### Agregado
+- **Pagaré:** al generar un contrato ahora puedes ver, imprimir y compartir también el pagaré, con el formato oficial y llenado con nombre, domicilio y RFC del acreditado y la fecha del día. Importe y vencimiento quedan en blanco para llenarlos a mano.
+
 ### Corregido
 - Contrato de prestación de servicios: el encabezado ahora es idéntico al del contrato del panel (título en una sola línea con las mismas proporciones, y el folio "Expediente: …" alineado a la derecha, que salía a la izquierda).
 

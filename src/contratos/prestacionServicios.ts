@@ -91,7 +91,7 @@ const MARGEN_LATERAL_PX = 48;
  * se recortaba el final del contrato).
  */
 const PT_POR_PX_IMPRESION = 0.75;
-const anchoCuerpoIos = Math.floor(
+export const anchoCuerpoIos = Math.floor(
   (ANCHO_PAPEL_PT - MARGENES_PAGINA.left - MARGENES_PAGINA.right) / PT_POR_PX_IMPRESION,
 );
 

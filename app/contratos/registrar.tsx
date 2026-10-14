@@ -24,6 +24,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
+import { renderPagareHtml } from '@/src/contratos/pagare';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '@/src/components/ui/Header';
@@ -403,6 +404,26 @@ export default function RegistrarContratoScreen() {
     } catch { /* usuario canceló */ }
   }
 
+  // Pagaré con los datos del acreditado. Se genera al momento (no depende de
+  // la red) y no se guarda: el backend lo regenera desde los datos del contrato.
+  async function pagarePdf(): Promise<string> {
+    const html = renderPagareHtml({ acreditado: acreditado.nombre, domAcreditado: acreditado.domicilio, rfc: acreditado.rfc });
+    const { uri } = await Print.printToFileAsync({ html, ...DIMENSIONES_PAPEL[tamanoPapel], margins: MARGENES_PAGINA });
+    return uri;
+  }
+
+  async function verPagare() {
+    try { await Print.printAsync({ uri: await pagarePdf() }); } catch { /* usuario canceló */ }
+  }
+
+  async function compartirPagare() {
+    try {
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(await pagarePdf(), { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+      }
+    } catch { /* usuario canceló */ }
+  }
+
   // ── Render: captura de INE (acreditado o solidario) ───────────────────────
   if (mode === 'captura') {
     const esAcreditado = personaActual === 'acreditado';
@@ -646,6 +667,8 @@ export default function RegistrarContratoScreen() {
         <View style={{ gap: Spacing.sm, marginTop: Spacing.xl, alignSelf: 'stretch' }}>
           <Button label="Ver / Imprimir" onPress={verPdf} fullWidth />
           <Button label="Compartir" onPress={compartirPdf} variant="outline" fullWidth />
+          <Button label="Ver / Imprimir pagaré" onPress={verPagare} variant="outline" fullWidth />
+          <Button label="Compartir pagaré" onPress={compartirPagare} variant="outline" fullWidth />
           <Button label="Volver a Contratos" onPress={() => router.replace('/contratos')} variant="ghost" fullWidth />
         </View>
       </View>
