@@ -72,11 +72,15 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
 
   const revisarOlvido = useCallback(async () => {
     const desdeRaw = await AsyncStorage.getItem(KEY_TRACKING_SINCE);
-    // Sin fecha guardada (ruta activada en una versión anterior): se toma como olvidada solo si ya es tarde.
-    const desde = desdeRaw ? new Date(desdeRaw) : new Date(new Date().setHours(0, 0, 0, 0));
+    const desde = desdeRaw ? new Date(desdeRaw) : null;
+    if (!desde || isNaN(desde.getTime())) {
+      // Ruta activada en una versión anterior: se empieza a contar desde ahora.
+      await AsyncStorage.setItem(KEY_TRACKING_SINCE, new Date().toISOString());
+      return;
+    }
     if (!rutaOlvidada(desde)) return;
     await syncRoutePoints();
-    await AsyncStorage.multiSet([[KEY_TRACKING_ENABLED, '0']]);
+    await AsyncStorage.setItem(KEY_TRACKING_ENABLED, '0');
     await cancelarRecordatoriosRuta();
     if (isMountedRef.current) {
       setEstaActivo(false);
@@ -156,7 +160,8 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
         // Punto inicial falla silenciosamente — no bloquea la activación
       }
 
-      await AsyncStorage.multiSet([[KEY_TRACKING_ENABLED, '1'], [KEY_TRACKING_SINCE, new Date().toISOString()]]);
+      await AsyncStorage.setItem(KEY_TRACKING_ENABLED, '1');
+      await AsyncStorage.setItem(KEY_TRACKING_SINCE, new Date().toISOString());
       programarRecordatoriosRuta();
 
       if (isMountedRef.current) {
