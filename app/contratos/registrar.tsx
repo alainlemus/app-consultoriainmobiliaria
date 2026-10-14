@@ -44,6 +44,7 @@ type Mode = 'captura' | 'ocr' | 'revision' | 'datos-tramite' | 'generando' | 'li
 type TamanoPapel = 'oficio' | 'carta';
 
 const CONTRATO_TIPO_DOCUMENTO = 'Contrato de Prestación de Servicios';
+const PAGARE_TIPO_DOCUMENTO = 'Pagaré';
 
 interface DatosPersona {
   nombre:    string;
@@ -123,6 +124,7 @@ export default function RegistrarContratoScreen() {
   const [tamanoPapel,          setTamanoPapel]          = useState<TamanoPapel>('oficio');
 
   const [pdfUri, setPdfUri] = useState<string | null>(null);
+  const [pagareUri, setPagareUri] = useState<string | null>(null);
   const [previsualizando, setPrevisualizando] = useState(false);
 
   // ── Cargar expediente cuando viene por parámetro (solo para precargar) ────
@@ -382,6 +384,22 @@ export default function RegistrarContratoScreen() {
         }
       }
 
+      // El pagaré es un documento aparte del contrato: PDF propio, y si hay
+      // expediente también se sube como su propio documento.
+      try {
+        const uriPagare = await persistirDocumento(await pagarePdf(), `pagare_${folio || Date.now()}.pdf`);
+        setPagareUri(uriPagare);
+        if (expediente) {
+          const paramsPagare = { expedienteId: expediente.id, uri: uriPagare, tipo: PAGARE_TIPO_DOCUMENTO, seccion: 'otros' as const, mimeType: 'application/pdf', notas: 'Generado desde la app' };
+          try {
+            if (online) await uploadDocumento(expediente.id, uriPagare, PAGARE_TIPO_DOCUMENTO, 'Generado desde la app', 'application/pdf', 'otros');
+            else await encolarDoc(paramsPagare);
+          } catch {
+            await encolarDoc(paramsPagare).catch(() => {});
+          }
+        }
+      } catch { /* el pagaré se puede regenerar desde los botones */ }
+
       setPdfUri(uriPersistida);
       setMode('listo');
     } catch (e: unknown) {
@@ -413,13 +431,13 @@ export default function RegistrarContratoScreen() {
   }
 
   async function verPagare() {
-    try { await Print.printAsync({ uri: await pagarePdf() }); } catch { /* usuario canceló */ }
+    try { await Print.printAsync({ uri: pagareUri ?? await pagarePdf() }); } catch { /* usuario canceló */ }
   }
 
   async function compartirPagare() {
     try {
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(await pagarePdf(), { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+        await Sharing.shareAsync(pagareUri ?? await pagarePdf(), { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
       }
     } catch { /* usuario canceló */ }
   }
@@ -674,7 +692,8 @@ export default function RegistrarContratoScreen() {
         <View style={{ gap: Spacing.sm, marginTop: Spacing.xl, alignSelf: 'stretch' }}>
           <Button label="Ver / Imprimir" onPress={verPdf} fullWidth />
           <Button label="Compartir" onPress={compartirPdf} variant="outline" fullWidth />
-          <Button label="Ver / Imprimir pagaré" onPress={verPagare} variant="outline" fullWidth />
+          <Text style={[s.subtitle, { marginTop: Spacing.lg, fontWeight: '700' }]}>Pagaré (documento aparte)</Text>
+          <Button label="Ver / Imprimir pagaré" onPress={verPagare} fullWidth />
           <Button label="Compartir pagaré" onPress={compartirPagare} variant="outline" fullWidth />
           <Button label="Volver a Contratos" onPress={() => router.replace('/contratos')} variant="ghost" fullWidth />
         </View>
