@@ -1,11 +1,11 @@
+import { APP_VERSION } from '../../src/version';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
+  View, Text, StyleSheet, ScrollView, AppState,
   TouchableOpacity, RefreshControl, Linking, Alert,
   ActivityIndicator, TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
@@ -14,6 +14,7 @@ import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
 import type { ExpedienteAcreditado, ServicioTramite } from '@/src/types';
 
 const ESTADO_COLOR: Record<string, string> = {
+  en_revision: '#1d4ed8',
   en_proceso: '#1d4ed8',
   pausado:    '#b45309',
   aprobado:   '#15803d',
@@ -23,6 +24,7 @@ const ESTADO_COLOR: Record<string, string> = {
 };
 
 const ESTADO_LABEL: Record<string, string> = {
+  en_revision: 'En revisión',
   en_proceso: 'En proceso',
   pausado:    'Pausado',
   aprobado:   'Aprobado',
@@ -34,7 +36,7 @@ const ESTADO_LABEL: Record<string, string> = {
 export default function MiTramiteScreen() {
   const insets               = useSafeAreaInsets();
   const router               = useRouter();
-  const { acreditado, clearAcreditado } = useAcreditadoAuth();
+  const { acreditado, clearAcreditado, refresh } = useAcreditadoAuth();
   const [expediente, setExpediente]   = useState<ExpedienteAcreditado | null>(null);
   const [servicios, setServicios]     = useState<ServicioTramite[]>([]);
   const [loading,  setLoading]        = useState(true);
@@ -47,11 +49,17 @@ export default function MiTramiteScreen() {
   const [mensajeAdicional, setMensajeAdicional] = useState('');
   const [mostrarMensaje, setMostrarMensaje] = useState(false);
 
-  const cargar = useCallback(async () => {
+  // Por ahora el acreditado solo pide Crédito FOVISSSTE (el tradicional); el resto de servicios no se ofrece.
+  const servicioFovissste =
+    servicios.find(s => /tradicional.*fovissste/i.test(s.nombre)) ??
+    servicios.find(s => /fovissste/i.test(s.nombre)) ?? null;
+
+  const cargar = useCallback(async (forzar = false) => {
     try {
       // Optimización: si sabemos desde el perfil del usuario que no hay expediente,
       // evitamos la llamada extra y vamos directo a cargar los servicios disponibles.
-      const yaTenemosQueNoHayExpediente = acreditado !== null && acreditado.tiene_expediente === false;
+      // Al jalar para recargar (forzar) siempre se consulta: el asesor pudo abrir el expediente después.
+      const yaTenemosQueNoHayExpediente = !forzar && acreditado !== null && acreditado.tiene_expediente === false;
 
       const [exp, svcs] = await Promise.all([
         yaTenemosQueNoHayExpediente ? Promise.resolve(null) : getExpedienteAcreditado(),
@@ -75,6 +83,26 @@ export default function MiTramiteScreen() {
 
   useEffect(() => { cargar(); }, []);
 
+  // Jalar hacia abajo: refresca el perfil (¿ya tiene expediente? ¿ya está registrado?) y el trámite.
+  const recargar = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    await cargar(true);
+  }, [refresh, cargar]);
+
+  // Sin expediente: se revisa sola al volver a la app y cada 20 s, para que aparezca
+  // en cuanto el asesor lo abre sin tener que jalar la pantalla.
+  useEffect(() => {
+    if (loading || expediente) return;
+    const revisar = async () => {
+      await refresh();
+      await cargar(true);
+    };
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') revisar(); });
+    const t = setInterval(revisar, 20_000);
+    return () => { sub.remove(); clearInterval(t); };
+  }, [loading, expediente, refresh, cargar]);
+
   async function handleSolicitarAsesoria(servicio: ServicioTramite) {
     setSolicitandoId(servicio.id);
     try {
@@ -86,8 +114,8 @@ export default function MiTramiteScreen() {
       setMensajeAdicional('');
       setMostrarMensaje(false);
       Alert.alert(
-        '¡Solicitud enviada! ✅',
-        `Tu solicitud de asesoría para "${servicio.nombre}" fue registrada. Un asesor se pondrá en contacto contigo a la brevedad.`,
+        '¡Ya estás registrado!',
+        'Recibimos tu solicitud de Crédito FOVISSSTE. Un asesor se pondrá en contacto contigo a la brevedad.',
         [{ text: 'Entendido' }],
       );
     } catch (e: unknown) {
@@ -122,7 +150,7 @@ export default function MiTramiteScreen() {
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? 'bienvenido'} 👋</Text>
+              <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? 'bienvenido'}</Text>
               <Text style={styles.headerSub}>Consultoría Inmobiliaria</Text>
             </View>
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
@@ -132,21 +160,20 @@ export default function MiTramiteScreen() {
           </View>
         </View>
         <ScrollView
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={recargar} tintColor={Colors.gold[400]} />}
+          alwaysBounceVertical
           contentContainerStyle={styles.emptyContainer}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {solicitudEnviada ? (
+          {(solicitudEnviada || acreditado?.solicitud_enviada) ? (
             // ── Estado post-solicitud ──────────────────────────────────────
             <>
               <Ionicons name="checkmark-circle" size={64} color={Colors.success} />
-              <Text style={styles.emptyTitle}>Solicitud enviada</Text>
+              <Text style={styles.emptyTitle}>¡Ya estás registrado!</Text>
               <Text style={styles.emptySubtitle}>
-                Un asesor revisará tu solicitud y se pondrá en contacto contigo pronto. Puedes enviar otra solicitud si necesitas un servicio diferente.
+                Recibimos tu solicitud de Crédito FOVISSSTE y ya estás registrado con nosotros. Un asesor se pondrá en contacto contigo para iniciar tu trámite; cuando se abra tu expediente lo verás aquí.
               </Text>
-              <TouchableOpacity style={styles.linkBtn} onPress={() => setSolicitudEnviada(false)}>
-                <Text style={styles.linkBtnText}>Solicitar otro servicio</Text>
-              </TouchableOpacity>
             </>
           ) : (
             // ── Selección de servicio ──────────────────────────────────────
@@ -161,7 +188,7 @@ export default function MiTramiteScreen() {
                 <View style={styles.errorCard}>
                   <Ionicons name="wifi-outline" size={24} color={Colors.dark[400]} />
                   <Text style={styles.errorCardText}>No se pudieron cargar los servicios disponibles.</Text>
-                  <TouchableOpacity style={styles.retryBtn} onPress={cargar}>
+                  <TouchableOpacity style={styles.retryBtn} onPress={() => cargar()}>
                     <Text style={styles.retryBtnText}>Reintentar</Text>
                   </TouchableOpacity>
                 </View>
@@ -172,19 +199,18 @@ export default function MiTramiteScreen() {
                 </View>
               ) : (
                 <>
-                  {servicios.map(s => (
+                  {servicioFovissste ? (
                     <TouchableOpacity
-                      key={s.id}
-                      style={[styles.servicioBtn, solicitandoId === s.id && styles.servicioBtnDisabled]}
-                      onPress={() => handleSolicitarAsesoria(s)}
+                      style={[styles.servicioBtn, solicitandoId === servicioFovissste.id && styles.servicioBtnDisabled]}
+                      onPress={() => handleSolicitarAsesoria(servicioFovissste)}
                       disabled={solicitandoId !== null}
                     >
-                      {solicitandoId === s.id
+                      {solicitandoId === servicioFovissste.id
                         ? <ActivityIndicator color={Colors.gold[400]} />
-                        : <Text style={styles.servicioBtnText}>{s.nombre}</Text>
+                        : <Text style={styles.servicioBtnText}>Crédito FOVISSSTE</Text>
                       }
                     </TouchableOpacity>
-                  ))}
+                  ) : null}
 
                   {/* Mensaje adicional opcional */}
                   <TouchableOpacity
@@ -217,14 +243,11 @@ export default function MiTramiteScreen() {
               )}
             </>
           )}
-          <Text style={styles.version}>v{Constants.expoConfig?.version ?? '—'}</Text>
+          <Text style={styles.version}>v{APP_VERSION}</Text>
         </ScrollView>
       </View>
     );
   }
-
-  const etapaOrden = expediente?.etapa.orden ?? 0;
-  const etapaTotal = expediente?.etapa.total ?? 7;
 
   return (
     <View style={[styles.flex, { paddingTop: insets.top }]}>
@@ -232,7 +255,7 @@ export default function MiTramiteScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? ''} 👋</Text>
+            <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? ''}</Text>
             <Text style={styles.headerSub}>Consultoría Inmobiliaria</Text>
           </View>
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
@@ -243,7 +266,7 @@ export default function MiTramiteScreen() {
       </View>
 
       <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); cargar(); }} tintColor={Colors.gold[400]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={recargar} tintColor={Colors.gold[400]} />}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
@@ -262,36 +285,6 @@ export default function MiTramiteScreen() {
               )}
             </View>
 
-            {/* Stepper de progreso */}
-            <View style={styles.card}>
-              <Text style={styles.sectionTitle}>PROGRESO DEL TRÁMITE</Text>
-              <View style={styles.stepperRow}>
-                {Array.from({ length: etapaTotal }).map((_, i) => {
-                  const n = i + 1;
-                  const done    = n < etapaOrden;
-                  const current = n === etapaOrden;
-                  return (
-                    <React.Fragment key={n}>
-                      <View style={[
-                        styles.stepDot,
-                        done    && styles.stepDotDone,
-                        current && styles.stepDotCurrent,
-                      ]}>
-                        {done
-                          ? <Ionicons name="checkmark" size={10} color="#fff" />
-                          : <Text style={[styles.stepNum, current && styles.stepNumCurrent]}>{n}</Text>
-                        }
-                      </View>
-                      {n < etapaTotal && (
-                        <View style={[styles.stepLine, done && styles.stepLineDone]} />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </View>
-              <Text style={styles.etapaNombre}>{expediente.etapa.nombre}</Text>
-            </View>
-
             {/* Guía del paso actual */}
             <View style={[styles.card, styles.guiaCard]}>
               <View style={styles.guiaHeader}>
@@ -300,6 +293,24 @@ export default function MiTramiteScreen() {
               </View>
               <Text style={styles.guiaText}>{expediente.guia_paso_actual}</Text>
             </View>
+
+            {/* Documento que un administrador pidió: la nota explica cuál falta */}
+            {(expediente.documentos_solicitados ?? []).map(d => (
+              <View key={d.id} style={[styles.card, styles.solicitadoCard]}>
+                <View style={styles.guiaHeader}>
+                  <Ionicons name="document-attach" size={20} color={Colors.gold[400]} />
+                  <Text style={styles.guiaTitle}>Te falta un documento</Text>
+                </View>
+                <Text style={styles.guiaText}>{d.nota}</Text>
+                <TouchableOpacity
+                  style={styles.solicitadoBtn}
+                  onPress={() => router.push({ pathname: '/subir-documento-acreditado', params: { tipoLabel: d.tipo } })}
+                >
+                  <Ionicons name="cloud-upload-outline" size={18} color={Colors.dark[900]} />
+                  <Text style={styles.solicitadoBtnText}>Subir este documento</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
 
             {/* Documentos pendientes */}
             {expediente.documentos_pendientes > 0 && (
@@ -355,21 +366,12 @@ export default function MiTramiteScreen() {
                       <Text style={styles.asesorBtnText}>WhatsApp</Text>
                     </TouchableOpacity>
                   )}
-                  {expediente.asesor.email && (
-                    <TouchableOpacity
-                      style={styles.asesorBtn}
-                      onPress={() => Linking.openURL(`mailto:${expediente.asesor!.email}`)}
-                    >
-                      <Ionicons name="mail-outline" size={18} color={Colors.gold[400]} />
-                      <Text style={styles.asesorBtnText}>Email</Text>
-                    </TouchableOpacity>
-                  )}
                 </View>
               </View>
             )}
           </>
         )}
-        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '—'}</Text>
+        <Text style={styles.version}>v{APP_VERSION}</Text>
       </ScrollView>
     </View>
   );
@@ -394,21 +396,15 @@ const styles = StyleSheet.create({
   estadoText: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, color: '#fff' },
   tipoTramite:{ fontSize: Typography.fontSize.sm, color: Colors.dark[400], marginTop: Spacing.xs },
 
-  stepperRow:    { flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.base },
-  stepDot:       { width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.dark[600], alignItems: 'center', justifyContent: 'center' },
-  stepDotDone:   { backgroundColor: Colors.gold[400] },
-  stepDotCurrent:{ backgroundColor: '#1d4ed8', borderWidth: 2, borderColor: '#93c5fd' },
-  stepNum:       { fontSize: 10, color: Colors.dark[400] },
-  stepNumCurrent:{ color: '#fff', fontWeight: 'bold' },
-  stepLine:      { flex: 1, height: 2, backgroundColor: Colors.dark[600] },
-  stepLineDone:  { backgroundColor: Colors.gold[400] },
-  etapaNombre:   { fontSize: Typography.fontSize.sm, color: Colors.cream[200], fontWeight: Typography.fontWeight.semibold, textAlign: 'center' },
 
   guiaCard:   { borderLeftWidth: 3, borderLeftColor: Colors.gold[400] },
   guiaHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
   guiaTitle:  { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold, color: Colors.gold[400] },
   guiaText:   { fontSize: Typography.fontSize.sm, color: Colors.cream[300], lineHeight: Typography.fontSize.sm * 1.6 },
 
+  solicitadoCard: { borderWidth: 1.5, borderColor: Colors.gold[400] },
+  solicitadoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: Colors.gold[400], borderRadius: Radius.md, paddingVertical: Spacing.sm, marginTop: Spacing.md },
+  solicitadoBtnText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   pendientesCard: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start', backgroundColor: '#431407', borderWidth: 1, borderColor: '#7c2d12' },
   pendientesText: { flex: 1, fontSize: Typography.fontSize.sm, color: '#fed7aa', lineHeight: Typography.fontSize.sm * 1.5 },
 

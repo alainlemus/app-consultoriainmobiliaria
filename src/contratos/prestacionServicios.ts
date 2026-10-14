@@ -91,7 +91,7 @@ const MARGEN_LATERAL_PX = 48;
  * se recortaba el final del contrato).
  */
 const PT_POR_PX_IMPRESION = 0.75;
-const anchoCuerpoIos = Math.floor(
+export const anchoCuerpoIos = Math.floor(
   (ANCHO_PAPEL_PT - MARGENES_PAGINA.left - MARGENES_PAGINA.right) / PT_POR_PX_IMPRESION,
 );
 
@@ -213,10 +213,10 @@ export function renderPrestacionServiciosHtml(
         .header { background: #1a1a1a; padding: 14px ${MARGEN_LATERAL_PX}px 0 ${MARGEN_LATERAL_PX}px; }
         .header-empresa { font-size: 18px; font-weight: bold; color: #d4af37; letter-spacing: 1.5px; text-transform: uppercase; }
         .header-slogan { font-size: 10px; color: #a0936a; margin-top: 2px; letter-spacing: 0.5px; padding-bottom: 12px; }
-        .header-divider { height: 4px; background: linear-gradient(to right, #d4af37, #9b2335, #d4af37); }
-        .doc-titulo-bar { background: #9b2335; padding: 8px ${MARGEN_LATERAL_PX}px; text-align: center; }
-        .doc-titulo-bar span { font-size: 13px; font-weight: bold; color: #ffffff; text-transform: uppercase; letter-spacing: 1.5px; }
-        .folio-area { padding: 10px 0 0 0; text-align: right; }
+        .header-divider { height: 3px; background: linear-gradient(to right, #d4af37, #9b2335, #d4af37); }
+        .doc-titulo-bar { background: #9b2335; padding: 7px ${MARGEN_LATERAL_PX}px; text-align: center; }
+        .doc-titulo-bar span { font-size: 11px; font-weight: bold; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; }
+        .bloque.folio-area { padding: 10px 0 0 0; text-align: right; }  /* .bloque justifica: sin esto el folio salía a la izquierda */
         .folio-box { display: inline-block; background: #fdf9ee; border: 1px solid #d4af37; border-radius: 4px; padding: 4px 12px; font-size: 10px; color: #96760f; }
         .contenido { padding: 0 ${MARGEN_LATERAL_PX}px; }
         .bloque { padding-bottom: ${espaciado.pMarginBottom}px; text-align: justify; }

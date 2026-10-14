@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
   ScrollView, StyleSheet, Text, TouchableOpacity, View,
@@ -13,11 +14,11 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Radius, Shadows, Spacing, Typography } from '../src/theme';
 import type { RutaAsesor, RutaDia, RutaPunto, RutaPuntoTipo } from '../src/types';
 
-const TIPO_ICONO: Record<RutaPuntoTipo, string> = {
-  gps:            '📍',
-  visita_cliente: '🏠',
-  escuela:        '🏫',
-  propiedad:      '📋',
+const TIPO_ICONO: Record<RutaPuntoTipo, React.ComponentProps<typeof Ionicons>['name']> = {
+  gps:            'location',
+  visita_cliente: 'home',
+  escuela:        'school',
+  propiedad:      'business',
 };
 
 const TIPO_LABEL: Record<RutaPuntoTipo, string> = {
@@ -66,6 +67,17 @@ function formatFechaLarga(f: string): string {
 }
 
 // ── Componente principal ─────────────────────────────────────────────────────
+
+/** Tarjeta pequeña del resumen: icono, valor y etiqueta. */
+function Dato({ icono, valor, etiqueta }: { icono: React.ComponentProps<typeof Ionicons>['name']; valor: string; etiqueta: string }) {
+  return (
+    <View style={s.dato}>
+      <Ionicons name={icono} size={18} color={Colors.gold[500]} />
+      <Text style={s.datoValor} numberOfLines={1}>{valor}</Text>
+      <Text style={s.datoEtiqueta} numberOfLines={1}>{etiqueta}</Text>
+    </View>
+  );
+}
 
 export default function RutasScreen() {
   const router = useRouter();
@@ -269,12 +281,15 @@ export default function RutasScreen() {
 
       {/* ── Header ── */}
       <View style={[s.header, { paddingTop: insets.top + Spacing.sm }]}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={s.backText}>← Volver</Text>
+        <TouchableOpacity style={s.backBtn} onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Atrás">
+          <Ionicons name="arrow-back" size={22} color={Colors.gold[400]} />
         </TouchableOpacity>
-        <Text style={s.headerTitle} numberOfLines={1}>
-          {isSuperAdmin ? 'Rutas de Asesores' : 'Mi Ruta'}
-        </Text>
+        <View style={s.headerCentro}>
+          <Text style={s.headerTitle} numberOfLines={1}>
+            {isSuperAdmin ? 'Rutas de asesores' : 'Mi ruta'}
+          </Text>
+          {fecha ? <Text style={s.headerSub} numberOfLines={1}>{formatFechaLarga(fecha)}</Text> : null}
+        </View>
         <View style={s.headerRight} />
       </View>
 
@@ -290,12 +305,12 @@ export default function RutasScreen() {
           >
             {loadingAsesores
               ? <ActivityIndicator size={12} color={Colors.gold[400]} style={{ marginRight: 4 }} />
-              : <Text style={s.chipIcon}>{verTodos ? '👥' : '👤'}</Text>
+              : <Ionicons name={verTodos ? 'people' : 'person'} size={16} color={Colors.dark[500]} />
             }
             <Text style={[s.chipLabel, nombreAsesorChip && s.chipLabelActive]} numberOfLines={1}>
               {nombreAsesorChip ?? 'Seleccionar asesor'}
             </Text>
-            <Text style={s.chipArrow}>▾</Text>
+            <Ionicons name="chevron-down" size={16} color={Colors.dark[400]} style={s.chipArrow} />
           </TouchableOpacity>
         )}
 
@@ -308,12 +323,12 @@ export default function RutasScreen() {
         >
           {loadingDias
             ? <ActivityIndicator size={12} color={Colors.gold[400]} style={{ marginRight: 4 }} />
-            : <Text style={s.chipIcon}>📅</Text>
+            : <Ionicons name="calendar" size={20} color={Colors.dark[500]} style={s.chipIcon} />
           }
           <Text style={[s.chipLabel, fecha && s.chipLabelActive, !asesorId && s.chipLabelDisabled]} numberOfLines={1}>
             {fecha ? formatFecha(fecha) : 'Seleccionar fecha'}
           </Text>
-          <Text style={s.chipArrow}>▾</Text>
+          <Ionicons name="chevron-down" size={16} color={Colors.dark[400]} style={s.chipArrow} />
         </TouchableOpacity>
 
         {/* Botón limpiar fecha */}
@@ -323,37 +338,25 @@ export default function RutasScreen() {
             onPress={() => { setFecha(null); setPuntos([]); }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={s.clearBtnText}>✕</Text>
+            <Ionicons name="close" size={18} color={Colors.dark[500]} style={s.clearBtnText} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* ── Barra de resumen (cuando hay puntos) ── */}
+      {/* ── Resumen (cuando hay puntos) ── */}
       {puntos.length > 0 && !loadingPuntos && (
         <View style={s.resumen}>
-          <View style={s.resumenItem}>
-            <Text style={s.resumenValor}>{puntos.length}</Text>
-            <Text style={s.resumenLabel}>puntos</Text>
-          </View>
+          <Dato icono="location" valor={String(puntos.length)} etiqueta="Puntos" />
           {verTodos ? (
-            <View style={s.resumenItem}>
-              <Text style={s.resumenValor}>{gruposPorAsesor.length}</Text>
-              <Text style={s.resumenLabel}>asesores</Text>
-            </View>
-          ) : distanciaKm && (
-            <View style={s.resumenItem}>
-              <Text style={s.resumenValor}>{distanciaKm} km</Text>
-              <Text style={s.resumenLabel}>dist. aprox.</Text>
-            </View>
-          )}
-          <View style={s.resumenItem}>
-            <Text style={s.resumenValor}>{puntos[0].hora.slice(0, 5)}</Text>
-            <Text style={s.resumenLabel}>inicio</Text>
-          </View>
-          <View style={s.resumenItem}>
-            <Text style={s.resumenValor}>{puntos[puntos.length - 1].hora.slice(0, 5)}</Text>
-            <Text style={s.resumenLabel}>último</Text>
-          </View>
+            <Dato icono="people" valor={String(gruposPorAsesor.length)} etiqueta="Asesores" />
+          ) : distanciaKm ? (
+            <Dato icono="navigate" valor={`${distanciaKm} km`} etiqueta="Distancia aprox." />
+          ) : null}
+          <Dato
+            icono="time"
+            valor={`${puntos[0].hora.slice(0, 5)} – ${puntos[puntos.length - 1].hora.slice(0, 5)}`}
+            etiqueta="Horario"
+          />
         </View>
       )}
 
@@ -372,9 +375,9 @@ export default function RutasScreen() {
       {/* ── Error ── */}
       {error && (
         <View style={s.errorBanner}>
-          <Text style={s.errorText}>⚠️ {error}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="warning" size={16} color={Colors.dark[500]} /><Text style={[s.errorText, { flexShrink: 1 }]}>{error}</Text></View>
           <TouchableOpacity onPress={() => setError(null)}>
-            <Text style={s.errorClose}>✕</Text>
+            <Ionicons name="close" size={18} color={Colors.dark[500]} style={s.errorClose} />
           </TouchableOpacity>
         </View>
       )}
@@ -388,7 +391,7 @@ export default function RutasScreen() {
           </View>
         ) : !asesorId ? (
           <View style={s.centered}>
-            <Text style={s.emptyIcon}>🗺️</Text>
+            <View style={s.emptyCirculo}><Ionicons name="map-outline" size={40} color={Colors.gold[500]} /></View>
             <Text style={s.emptyTitle}>
               {isSuperAdmin ? 'Selecciona un asesor' : 'Sin datos de ruta'}
             </Text>
@@ -400,7 +403,7 @@ export default function RutasScreen() {
           </View>
         ) : !fecha ? (
           <View style={s.centered}>
-            <Text style={s.emptyIcon}>📅</Text>
+            <View style={s.emptyCirculo}><Ionicons name="calendar-outline" size={40} color={Colors.gold[500]} /></View>
             <Text style={s.emptyTitle}>Selecciona una fecha</Text>
             <Text style={s.emptySubtitle}>
               {dias.length > 0
@@ -410,7 +413,7 @@ export default function RutasScreen() {
           </View>
         ) : puntos.length === 0 ? (
           <View style={s.centered}>
-            <Text style={s.emptyIcon}>📍</Text>
+            <View style={s.emptyCirculo}><Ionicons name="location-outline" size={40} color={Colors.gold[500]} /></View>
             <Text style={s.emptyTitle}>Sin puntos</Text>
             <Text style={s.emptySubtitle}>No hay ruta registrada el {formatFechaLarga(fecha)}</Text>
           </View>
@@ -483,7 +486,7 @@ export default function RutasScreen() {
                       description={`${TIPO_LABEL[p.tipo]} · ${p.hora}`}
                     >
                       <View style={s.marcadorTipo}>
-                        <Text style={s.marcadorTipoEmoji}>{TIPO_ICONO[p.tipo]}</Text>
+                        <Ionicons name={TIPO_ICONO[p.tipo]} size={20} color={Colors.dark[700]} />
                       </View>
                     </Marker>
                   ) : null
@@ -494,40 +497,54 @@ export default function RutasScreen() {
         )}
       </View>
 
-      {/* ── Lista de puntos ── */}
+      {/* ── Recorrido: línea de tiempo ── */}
       {puntos.length > 0 && (
         <View style={s.lista}>
-          <Text style={s.listaTitulo}>
-            Recorrido del {formatFechaLarga(fecha!)}
-          </Text>
+          <Text style={s.listaTitulo}>Recorrido</Text>
           <FlatList
             data={puntos}
             keyExtractor={p => String(p.id)}
             horizontal={false}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.sm }}
-            renderItem={({ item: p, index }) => (
-              <View style={[s.puntoRow, index > 0 && s.puntoRowBorder]}>
-                {verTodos && p.asesor_id != null ? (
-                  <View style={[s.puntoDot, { backgroundColor: colorPorAsesor(p.asesor_id, ordenAsesores) }]} />
-                ) : (
-                  <View style={[s.puntoDot, index === 0 && s.puntoDotStart, index === puntos.length - 1 && s.puntoDotEnd]} />
-                )}
-                <View style={s.puntoInfo}>
-                  <Text style={s.puntoHora}>
-                    {p.tipo !== 'gps' ? `${TIPO_ICONO[p.tipo]} ` : ''}
-                    {p.nombre_lugar ?? (p.tipo !== 'gps' ? TIPO_LABEL[p.tipo] : p.hora)}
-                    {p.tipo !== 'gps' ? ` · ${p.hora}` : ''}
-                    {verTodos && p.asesor_nombre ? ` · ${p.asesor_nombre}` : ''}
-                  </Text>
-                  <Text style={s.puntoCoords}>{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</Text>
+            contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.sm, paddingHorizontal: Spacing.base }}
+            renderItem={({ item: p, index }) => {
+              const esInicio = index === 0;
+              const esFin    = index === puntos.length - 1 && puntos.length > 1;
+              const color    = verTodos && p.asesor_id != null
+                ? colorPorAsesor(p.asesor_id, ordenAsesores)
+                : esInicio ? '#22c55e' : esFin ? Colors.crimson[500] : Colors.gold[400];
+              const icono: React.ComponentProps<typeof Ionicons>['name'] =
+                p.tipo !== 'gps' ? TIPO_ICONO[p.tipo] : esInicio ? 'play' : esFin ? 'flag' : 'ellipse';
+              const titulo = p.nombre_lugar
+                ?? (p.tipo !== 'gps' ? TIPO_LABEL[p.tipo] : esInicio ? 'Inicio de la ruta' : esFin ? 'Fin de la ruta' : 'Punto de la ruta');
+              return (
+                <View style={s.paso}>
+                  <View style={s.pasoLinea}>
+                    <View style={[s.pasoIcono, { backgroundColor: color }]}>
+                      <Ionicons name={icono} size={p.tipo === 'gps' && !esInicio && !esFin ? 8 : 15} color={Colors.white} />
+                    </View>
+                    {index < puntos.length - 1 && <View style={s.pasoConector} />}
+                  </View>
+                  <View style={s.pasoCuerpo}>
+                    <View style={s.pasoFila}>
+                      <Text style={s.pasoTitulo} numberOfLines={1}>{titulo}</Text>
+                      <Text style={s.pasoHora}>{p.hora.slice(0, 5)}</Text>
+                    </View>
+                    <Text style={s.pasoSub} numberOfLines={1}>
+                      {p.tipo !== 'gps' && p.nombre_lugar ? `${TIPO_LABEL[p.tipo]} · ` : ''}
+                      {verTodos && p.asesor_nombre ? `${p.asesor_nombre} · ` : ''}
+                      {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
+                    </Text>
+                    {(p.precision > 0 || p.velocidad > 0) && (
+                      <View style={s.puntoBadges}>
+                        {p.precision > 0 && <Text style={s.badge}>±{p.precision} m</Text>}
+                        {p.velocidad > 0 && <Text style={s.badge}>{Math.round(p.velocidad)} km/h</Text>}
+                      </View>
+                    )}
+                  </View>
                 </View>
-                <View style={s.puntoBadges}>
-                  {p.precision > 0 && <Text style={s.badge}>±{p.precision}m</Text>}
-                  {p.velocidad > 0 && <Text style={s.badge}>{Math.round(p.velocidad)} km/h</Text>}
-                </View>
-              </View>
-            )}
+              );
+            }}
           />
         </View>
       )}
@@ -552,11 +569,11 @@ export default function RutasScreen() {
               >
                 <View style={s.sheetItemLeft}>
                   <Text style={[s.sheetItemName, asesorId === TODOS && s.sheetItemNameActive]}>
-                    👥 Todos los asesores
+                    <Ionicons name="people" size={16} color={Colors.dark[500]} />{' '}Todos los asesores
                   </Text>
                   <Text style={s.sheetItemSub}>Ver las rutas de todos juntas, con un color por asesor</Text>
                 </View>
-                {asesorId === TODOS && <Text style={s.sheetItemCheck}>✓</Text>}
+                {asesorId === TODOS && <Ionicons name="checkmark" size={18} color={Colors.dark[500]} style={s.sheetItemCheck} />}
               </TouchableOpacity>
             )}
             {asesores.length === 0 ? (
@@ -576,7 +593,7 @@ export default function RutasScreen() {
                     <View style={s.sheetItemMeta}>
                       {a.puntos_hoy > 0 && (
                         <View style={s.badgeVerde}>
-                          <Text style={s.badgeVerdeText}>🟢 {a.puntos_hoy} pts hoy</Text>
+                          <Text style={s.badgeVerdeText}><Ionicons name="ellipse" size={10} color="#22c55e" />{' '}{a.puntos_hoy} pts hoy</Text>
                         </View>
                       )}
                       {a.total_puntos > 0 && (
@@ -587,7 +604,7 @@ export default function RutasScreen() {
                       )}
                     </View>
                   </View>
-                  {a.id === asesorId && <Text style={s.sheetItemCheck}>✓</Text>}
+                  {a.id === asesorId && <Ionicons name="checkmark" size={18} color={Colors.dark[500]} style={s.sheetItemCheck} />}
                 </TouchableOpacity>
               ))
             )}
@@ -626,7 +643,7 @@ export default function RutasScreen() {
                       </Text>
                       <Text style={s.sheetItemSub}>{d.puntos} punto{d.puntos !== 1 ? 's' : ''} registrado{d.puntos !== 1 ? 's' : ''}</Text>
                     </View>
-                    {d.fecha === fecha && <Text style={s.sheetItemCheck}>✓</Text>}
+                    {d.fecha === fecha && <Ionicons name="checkmark" size={18} color={Colors.dark[500]} style={s.sheetItemCheck} />}
                   </TouchableOpacity>
                 );
               })
@@ -653,10 +670,11 @@ const s = StyleSheet.create({
     alignItems:        'center',
     justifyContent:    'space-between',
   },
-  backBtn:     { paddingVertical: Spacing.xs, paddingRight: Spacing.md },
-  backText:    { color: Colors.gold[400], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold },
-  headerTitle: { color: Colors.cream[50], fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, flex: 1, textAlign: 'center' },
-  headerRight: { width: 60 },
+  backBtn:     { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  headerCentro:{ flex: 1, alignItems: 'center' },
+  headerTitle: { color: Colors.cream[50], fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.bold, textAlign: 'center' },
+  headerSub:   { color: Colors.gold[400], fontSize: Typography.fontSize.xs, marginTop: 1, textTransform: 'capitalize' },
+  headerRight: { width: 40 },
 
   // Filtros
   filtros: {
@@ -691,17 +709,27 @@ const s = StyleSheet.create({
   clearBtn:          { padding: Spacing.xs },
   clearBtnText:      { color: Colors.dark[400], fontSize: Typography.fontSize.sm },
 
-  // Resumen
+  // Resumen: tarjetas con icono
   resumen: {
-    flexDirection:   'row',
-    backgroundColor: Colors.dark[900],
-    paddingVertical: Spacing.sm,
+    flexDirection:     'row',
+    gap:               Spacing.sm,
     paddingHorizontal: Spacing.base,
-    gap:             Spacing.base,
+    paddingVertical:   Spacing.sm,
+    backgroundColor:   Colors.cream[50],
   },
-  resumenItem:  { alignItems: 'center', flex: 1 },
-  resumenValor: { color: Colors.gold[400], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
-  resumenLabel: { color: Colors.dark[400], fontSize: Typography.fontSize.xs, textTransform: 'uppercase', letterSpacing: 0.5 },
+  dato: {
+    flex:            1,
+    alignItems:      'center',
+    gap:             2,
+    backgroundColor: Colors.white,
+    borderRadius:    Radius.md,
+    borderWidth:     1,
+    borderColor:     Colors.cream[200],
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
+  },
+  datoValor:    { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
+  datoEtiqueta: { fontSize: Typography.fontSize.xs, color: Colors.dark[400] },
 
   // Leyenda (modo "Todos")
   leyenda: {
@@ -728,8 +756,9 @@ const s = StyleSheet.create({
   errorClose: { color: '#dc2626', fontSize: Typography.fontSize.base, paddingLeft: Spacing.sm },
 
   // Mapa
-  mapContainer: { flex: 1 },
+  mapContainer: { flex: 1, marginHorizontal: Spacing.base, marginBottom: Spacing.sm, borderRadius: Radius.lg, overflow: 'hidden', borderWidth: 1, borderColor: Colors.cream[200] },
   map:          { flex: 1 },
+  emptyCirculo: { width: 84, height: 84, borderRadius: 42, backgroundColor: Colors.gold[50], alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
   centered: {
     flex:           1,
     alignItems:     'center',
@@ -742,34 +771,33 @@ const s = StyleSheet.create({
   emptyTitle:   { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.dark[700], textAlign: 'center', marginBottom: Spacing.xs },
   emptySubtitle:{ fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center', lineHeight: Typography.fontSize.sm * 1.5 },
 
-  // Lista de puntos
+  // Recorrido (línea de tiempo)
   lista: {
     backgroundColor: Colors.white,
+    borderTopLeftRadius:  Radius.lg,
+    borderTopRightRadius: Radius.lg,
     borderTopWidth:  1,
     borderTopColor:  Colors.cream[200],
-    maxHeight:       190,
+    maxHeight:       250,
   },
   listaTitulo: {
-    fontSize:        Typography.fontSize.xs,
-    color:           Colors.dark[500],
-    fontWeight:      Typography.fontWeight.semibold,
-    textTransform:   'uppercase',
-    letterSpacing:   1,
+    fontSize:        Typography.fontSize.sm,
+    color:           Colors.dark[700],
+    fontWeight:      Typography.fontWeight.bold,
     paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.cream[50],
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cream[200],
+    paddingTop:      Spacing.md,
+    paddingBottom:   Spacing.sm,
   },
-  puntoRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.base, gap: Spacing.sm },
-  puntoRowBorder: { borderTopWidth: 1, borderTopColor: Colors.cream[100] },
-  puntoDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.gold[400] },
-  puntoDotStart:  { backgroundColor: '#22c55e' },
-  puntoDotEnd:    { backgroundColor: Colors.crimson[500] },
-  puntoInfo:      { flex: 1 },
-  puntoHora:      { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[800] },
-  puntoCoords:    { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 1 },
-  puntoBadges:    { flexDirection: 'row', gap: Spacing.xs },
+  paso:          { flexDirection: 'row', gap: Spacing.md },
+  pasoLinea:     { alignItems: 'center', width: 28 },
+  pasoIcono:     { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  pasoConector:  { flex: 1, width: 2, backgroundColor: Colors.cream[300], marginVertical: 2 },
+  pasoCuerpo:    { flex: 1, paddingBottom: Spacing.md },
+  pasoFila:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
+  pasoTitulo:    { flex: 1, fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
+  pasoHora:      { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold, color: Colors.gold[600] },
+  pasoSub:       { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 1 },
+  puntoBadges:   { flexDirection: 'row', gap: Spacing.xs, marginTop: 4 },
 
   // Marcador circular para paradas de visita (cliente/escuela/propiedad)
   marcadorTipo: {

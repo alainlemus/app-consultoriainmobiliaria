@@ -1,6 +1,6 @@
 /**
- * Pantalla: Subir / Escanear Documento
- * Ruta: /expedientes/documentos/subir?expedienteId=X
+ * Pantalla: Subir / Escanear Documento de un expediente
+ * Ruta: /expedientes/subir-documento?expedienteId=X
  *
  * Flujo primario:  DocumentScanner nativo → N imágenes → PDF → preview → subir
  * Flujo secundario: Archivo → PDF u otro archivo → preview → subir
@@ -32,15 +32,19 @@ try {
 } catch { /* no disponible en Expo Go / simulador */ }
 
 // ── Resto de imports ──────────────────────────────────────────────────────────
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -52,23 +56,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { uploadDocumento } from '../../../src/services/api';
-import { persistirDocumento } from '../../../src/utils/comprimirFoto';
-import { Colors, Radius, Spacing, Typography } from '../../../src/theme';
-import { useSyncContext } from '../../../src/contexts/SyncContext';
+import { uploadDocumento, reemplazarDocumento } from '../../src/services/api';
+import { persistirDocumento } from '../../src/utils/comprimirFoto';
+import { Colors, Radius, Spacing, Typography } from '../../src/theme';
+import { TIPOS_DOCUMENTO, REQUISITOS_GENERALES, tipoPorLabel } from '../../src/constants/documentos';
+import { useSyncContext } from '../../src/contexts/SyncContext';
 
-const TIPOS_DOCUMENTO = [
-  { value: 'identificacion_oficial', label: 'Identificación oficial' },
-  { value: 'curp',                   label: 'CURP' },
-  { value: 'comprobante_domicilio',  label: 'Comprobante domicilio' },
-  { value: 'estado_cuenta',         label: 'Estado de cuenta' },
-  { value: 'comprobante_ingresos',  label: 'Comprobante ingresos' },
-  { value: 'acta_nacimiento',       label: 'Acta de nacimiento' },
-  { value: 'poder_notarial',        label: 'Poder notarial' },
-  { value: 'otro',                  label: 'Otro' },
-] as const;
-
-type TipoDocumento = typeof TIPOS_DOCUMENTO[number]['value'];
 type Mode = 'selector' | 'processing' | 'preview';
 
 /** Quita el prefijo `file://` — react-native-image-to-pdf espera paths absolutos */
@@ -80,13 +73,18 @@ const toFileUri = (path: string) =>
 
 export default function SubirDocumentoScreen() {
   const insets = useSafeAreaInsets();
-  const { expedienteId, tipo: tipoParam, seccion: seccionParam } = useLocalSearchParams<{
-    expedienteId: string;
-    tipo?: string;
-    seccion?: string;
+  // reemplazarId + tipoLabel: se está cambiando un documento ya subido (el tipo no se puede cambiar)
+  const { expedienteId, reemplazarId, tipoLabel, solicitudNota } = useLocalSearchParams<{
+    expedienteId: string; reemplazarId?: string; tipoLabel?: string; solicitudNota?: string;
   }>();
+  const reemplazando = !!reemplazarId;
+  // Documento faltante que pidió un administrador: no tiene un tipo del catálogo, se muestra su nota
+  const esSolicitado = reemplazando && !!solicitudNota;
 
-  const [tipo,  setTipo]  = useState<TipoDocumento>((tipoParam as TipoDocumento) ?? 'identificacion_oficial');
+  const [tipo,  setTipo]  = useState<string>(
+    (tipoLabel ? tipoPorLabel(tipoLabel)?.value : undefined) ?? 'ine',
+  );
+  const [confirmar, setConfirmar] = useState(false);
   const [notas, setNotas] = useState('');
   const { online, encolarDoc } = useSyncContext();
 
@@ -134,7 +132,7 @@ export default function SubirDocumentoScreen() {
   const seleccionarGaleria = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf'],
+        type: ['application/pdf', 'image/*'],
         copyToCacheDirectory: true,
       });
       if (result.canceled || !result.assets[0]) return;
@@ -160,23 +158,37 @@ export default function SubirDocumentoScreen() {
       // Determinar nombre de archivo con extensión correcta
       const ext       = mimeType === 'application/pdf' ? 'pdf' : 'jpg';
       const nombre    = `doc_${tipo}_${Date.now()}.${ext}`;
+      const etiqueta  = TIPOS_DOCUMENTO.find(t => t.value === tipo)?.label ?? 'Otro';
+      const seccion   = tipo === 'otro' ? 'otros' : undefined;
 
       // Persistir en documentDirectory ANTES de encolar o subir
       // Esto garantiza que la URI sobrevive reinicios de app en Android e iOS
       const uriPersistida = await persistirDocumento(resultUri, nombre);
 
+      if (reemplazarId) {
+        if (!online) {
+          Alert.alert('Sin conexión', 'Para reemplazar un documento necesitas internet. Inténtalo de nuevo cuando tengas conexión.');
+          return;
+        }
+        await reemplazarDocumento(Number(expedienteId), Number(reemplazarId), uriPersistida, mimeType);
+        Alert.alert('Listo', 'Documento reemplazado correctamente.', [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+        return;
+      }
+
       const encolarYVolver = async () => {
         await encolarDoc({
           expedienteId: Number(expedienteId),
-          uri:          uriPersistida,
-          tipo,
-          seccion:      seccionParam || undefined,
+          uri:        uriPersistida,
+          tipo:       etiqueta,
+          seccion,
           mimeType,
           notas:        notas || undefined,
         });
         Alert.alert(
-          '📋 Guardado sin conexión',
-          'El documento se enviará al expediente automáticamente cuando recuperes internet.',
+          'Guardado sin conexión',
+          'El documento se enviará automáticamente cuando recuperes internet.',
           [{ text: 'Entendido', onPress: () => router.back() }],
         );
       };
@@ -191,12 +203,12 @@ export default function SubirDocumentoScreen() {
         await uploadDocumento(
           Number(expedienteId),
           uriPersistida,
-          tipo,
+          etiqueta,
           notas || undefined,
           mimeType,
-          seccionParam || undefined,
+          seccion,
         );
-        Alert.alert('✓ Listo', 'Documento subido correctamente.', [
+        Alert.alert('Listo', 'Documento subido correctamente.', [
           { text: 'OK', onPress: () => router.back() },
         ]);
       } catch (e: unknown) {
@@ -246,7 +258,7 @@ export default function SubirDocumentoScreen() {
       >
         <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity onPress={volverASelector} style={s.backBtn}>
-            <Text style={s.backIcon}>←</Text>
+            <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} style={s.backIcon} />
           </TouchableOpacity>
           <Text style={s.topTitle}>Revisar documento</Text>
           <View style={{ width: 40 }} />
@@ -271,7 +283,7 @@ export default function SubirDocumentoScreen() {
                 )}
               </View>
               <View style={s.pdfBadge}>
-                <Text style={s.pdfIcon}>📄</Text>
+                <Ionicons name="document-text" size={20} color={Colors.dark[500]} style={s.pdfIcon} />
                 <Text style={s.pdfLabel}>
                   PDF · {pages.length} página{pages.length !== 1 ? 's' : ''}
                 </Text>
@@ -282,56 +294,59 @@ export default function SubirDocumentoScreen() {
             <Image source={{ uri: resultUri! }} style={s.previewImg} resizeMode="contain" />
           )}
 
-          <Text style={s.sectionLabel}>Tipo de documento</Text>
-          {tipoParam ? (
-            /* Tipo fijado desde el checklist — no se puede cambiar para garantizar que el
-               documento quede ligado correctamente al requerido del expediente */
-            <View style={s.tipoFijo}>
-              <Text style={s.tipoFijoText}>{tipoParam}</Text>
+          {esSolicitado ? (
+            <View style={s.solicitadoBox}>
+              <Text style={s.solicitadoTitulo}>Documento solicitado</Text>
+              <Text style={s.solicitadoNota}>{solicitudNota}</Text>
             </View>
           ) : (
-            <View style={s.chipWrap}>
-              {TIPOS_DOCUMENTO.map(t => (
-                <Pressable
-                  key={t.value}
-                  style={[s.chip, tipo === t.value && s.chipActivo]}
-                  onPress={() => setTipo(t.value)}
-                >
-                  <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
-                    {t.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+          <>
+          <Text style={s.sectionLabel}>Tipo de documento · elige uno</Text>
+          <View style={s.chipWrap}>
+            {TIPOS_DOCUMENTO.map(t => (
+              <Pressable
+                key={t.value}
+                style={[s.chip, tipo === t.value && s.chipActivo, reemplazando && tipo !== t.value && s.chipBloqueado]}
+                onPress={() => !reemplazando && setTipo(t.value)}
+              >
+                <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
+                  {t.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <RequisitosCard tipo={tipo} />
+          </>
           )}
 
-          <Text style={s.sectionLabel}>Notas (opcional)</Text>
+          <Text style={s.sectionLabel}>Nota para identificarlo</Text>
           <TextInput
             style={s.input}
-            placeholder="Descripción del documento…"
+            placeholder="Ej: INE del dueño de la casa"
             placeholderTextColor={Colors.dark[400]}
             value={notas}
             onChangeText={setNotas}
             multiline
             numberOfLines={3}
           />
+          <Text style={s.notaAyuda}>Puedes subir varios del mismo tipo (por ejemplo, otra INE). Anota de quién es para identificarlo rápido.</Text>
 
           <Pressable
             style={[s.btnSubir, uploading && s.btnDisabled]}
-            onPress={subir}
+            onPress={() => (esSolicitado ? subir() : setConfirmar(true))}
             disabled={uploading}
           >
             {uploading
               ? <ActivityIndicator color={Colors.white} />
               : <Text style={s.btnSubirText}>
-                  {online ? 'Subir documento' : 'Guardar (sin conexión)'}
+                  {reemplazando ? 'Reemplazar documento' : online ? 'Subir documento' : 'Guardar (sin conexión)'}
                 </Text>
             }
           </Pressable>
 
           {!online && (
             <Text style={s.offlineHint}>
-              Sin internet — el documento quedará guardado en tu dispositivo y se enviará al expediente cuando recuperes señal.
+              Sin internet — el documento quedará guardado en tu dispositivo y se enviará cuando recuperes señal.
             </Text>
           )}
 
@@ -339,6 +354,15 @@ export default function SubirDocumentoScreen() {
             <Text style={s.btnSecundarioText}>← Volver a capturar</Text>
           </Pressable>
         </ScrollView>
+
+      {/* Antes de subir: recordatorio de lo que debe cumplir el documento */}
+      <AvisoRequisitos
+        visible={confirmar}
+        tipo={tipo}
+        accion={reemplazando ? 'reemplazar' : 'subir'}
+        onCancelar={() => setConfirmar(false)}
+        onAceptar={() => { setConfirmar(false); subir(); }}
+      />
       </KeyboardAvoidingView>
     );
   }
@@ -351,9 +375,9 @@ export default function SubirDocumentoScreen() {
     >
       <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <Text style={s.backIcon}>←</Text>
+          <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} style={s.backIcon} />
         </TouchableOpacity>
-        <Text style={s.topTitle}>Agregar documento</Text>
+        <Text style={s.topTitle}>{reemplazando ? 'Reemplazar documento' : 'Agregar documento'}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -362,41 +386,46 @@ export default function SubirDocumentoScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={s.sectionLabel}>Tipo de documento</Text>
-        {tipoParam ? (
-          <View style={s.tipoFijo}>
-            <Text style={s.tipoFijoText}>{tipoParam}</Text>
+        {esSolicitado ? (
+          <View style={s.solicitadoBox}>
+            <Text style={s.solicitadoTitulo}>Documento solicitado</Text>
+            <Text style={s.solicitadoNota}>{solicitudNota}</Text>
           </View>
         ) : (
-          <View style={s.chipWrap}>
-            {TIPOS_DOCUMENTO.map(t => (
-              <Pressable
-                key={t.value}
-                style={[s.chip, tipo === t.value && s.chipActivo]}
-                onPress={() => setTipo(t.value)}
-              >
-                <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
-                  {t.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+        <>
+        <Text style={s.sectionLabel}>Tipo de documento · elige uno</Text>
+        <View style={s.chipWrap}>
+          {TIPOS_DOCUMENTO.map(t => (
+            <Pressable
+              key={t.value}
+              style={[s.chip, tipo === t.value && s.chipActivo, reemplazando && tipo !== t.value && s.chipBloqueado]}
+              onPress={() => !reemplazando && setTipo(t.value)}
+            >
+              <Text style={[s.chipText, tipo === t.value && s.chipTextActivo]}>
+                {t.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <RequisitosCard tipo={tipo} />
+        </>
         )}
 
-        <Text style={s.sectionLabel}>Notas (opcional)</Text>
+        <Text style={s.sectionLabel}>Nota para identificarlo</Text>
         <TextInput
           style={s.input}
-          placeholder="Ej: INE vigente, anverso y reverso"
+          placeholder="Ej: INE del dueño de la casa"
           placeholderTextColor={Colors.dark[400]}
           value={notas}
           onChangeText={setNotas}
           multiline
           numberOfLines={3}
         />
+        <Text style={s.notaAyuda}>Puedes subir varios del mismo tipo (por ejemplo, otra INE). Anota de quién es para identificarlo rápido.</Text>
 
         <View style={s.actions}>
           <Pressable style={s.btnEscanear} onPress={escanear}>
-            <Text style={s.btnIcon}>📄</Text>
+            <Ionicons name="scan" size={36} color={Colors.white} />
             <Text style={s.btnLabel}>Escanear documento</Text>
             <Text style={s.btnSubLabel}>
               {DocumentScanner ? 'Múltiples páginas → PDF' : 'Requiere EAS Build'}
@@ -404,9 +433,9 @@ export default function SubirDocumentoScreen() {
           </Pressable>
 
           <Pressable style={s.btnGaleria} onPress={seleccionarGaleria}>
-            <Text style={s.btnIcon}>📁</Text>
+            <Ionicons name="folder-open" size={36} color={Colors.white} />
             <Text style={s.btnLabel}>Archivo</Text>
-            <Text style={s.btnSubLabel}>Seleccionar archivo PDF</Text>
+            <Text style={s.btnSubLabel}>PDF o foto de la galería</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -414,9 +443,134 @@ export default function SubirDocumentoScreen() {
   );
 }
 
+
+/** Lo que hay que revisar del tipo de documento elegido (aparece con un fundido al cambiar de tipo). */
+function RequisitosCard({ tipo }: { tipo: string }) {
+  const def  = TIPOS_DOCUMENTO.find(t => t.value === tipo);
+  const fade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    fade.setValue(0);
+    Animated.timing(fade, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+  }, [tipo, fade]);
+
+  if (!def) return null;
+  return (
+    <Animated.View style={[s.requisitos, { opacity: fade, transform: [{ translateY: fade.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }]}>
+      <View style={s.requisitosCabecera}>
+        <Ionicons name="alert-circle" size={22} color={Colors.gold[600]} />
+        <Text style={s.requisitosTitulo}>Antes de subirlo, revisa que:</Text>
+      </View>
+      {def.requisitos.map((r, i) => (
+        <View key={i} style={s.requisitoFila}>
+          <Ionicons name="checkmark-circle" size={20} color={Colors.gold[600]} />
+          <Text style={s.requisitosItem}>{r}</Text>
+        </View>
+      ))}
+    </Animated.View>
+  );
+}
+
+/**
+ * Aviso antes de subir: la tarjeta entra con un resorte, el icono late para llamar la
+ * atención y cada requisito aparece uno tras otro.
+ */
+function AvisoRequisitos({ visible, tipo, accion, onCancelar, onAceptar }: {
+  visible: boolean; tipo: string; accion: 'subir' | 'reemplazar'; onCancelar: () => void; onAceptar: () => void;
+}) {
+  const def        = TIPOS_DOCUMENTO.find(t => t.value === tipo);
+  const requisitos = [...(def?.requisitos ?? []), ...REQUISITOS_GENERALES];
+
+  const entrada = useRef(new Animated.Value(0)).current;
+  const latido  = useRef(new Animated.Value(1)).current;
+  const items   = useRef(Array.from({ length: 12 }, () => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    if (!visible) return;
+    entrada.setValue(0);
+    items.forEach(v => v.setValue(0));
+    Animated.spring(entrada, { toValue: 1, friction: 6, tension: 80, useNativeDriver: true }).start();
+    Animated.stagger(
+      140,
+      items.slice(0, requisitos.length).map(v => Animated.timing(v, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true })),
+    ).start();
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(latido, { toValue: 1.18, duration: 600, useNativeDriver: true }),
+      Animated.timing(latido, { toValue: 1,    duration: 600, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [visible, tipo, entrada, latido, items, requisitos.length]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancelar}>
+      <View style={s.avisoBackdrop}>
+        <Animated.View style={[s.avisoCard, { opacity: entrada, transform: [{ scale: entrada.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }] }]}>
+          <Animated.View style={[s.avisoIconoWrap, { transform: [{ scale: latido }] }]}>
+            <Ionicons name="warning" size={44} color={Colors.white} />
+          </Animated.View>
+          <Text style={s.avisoTitulo}>¡Revisa tu documento!</Text>
+          <Text style={s.avisoTexto}>
+            Un documento incorrecto o vencido detiene el trámite. Antes de {accion}{' '}
+            <Text style={s.avisoNegrita}>{def?.label}</Text>, confirma que:
+          </Text>
+
+          <ScrollView style={s.avisoLista} contentContainerStyle={{ gap: Spacing.sm }} showsVerticalScrollIndicator={false}>
+            {requisitos.map((r, i) => (
+              <Animated.View
+                key={i}
+                style={[s.avisoFila, { opacity: items[i] ?? 1, transform: [{ translateX: (items[i] ?? entrada).interpolate({ inputRange: [0, 1], outputRange: [-16, 0] }) }] }]}
+              >
+                <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                <Text style={s.avisoItem}>{r}</Text>
+              </Animated.View>
+            ))}
+          </ScrollView>
+
+          <Pressable style={s.avisoBtnPrimario} onPress={onAceptar}>
+            <Ionicons name="shield-checkmark" size={22} color={Colors.gold[400]} />
+            <Text style={s.avisoBtnPrimarioText}>Sí, cumple — {accion}</Text>
+          </Pressable>
+          <Pressable style={s.avisoBtnSecundario} onPress={onCancelar}>
+            <Text style={s.avisoBtnSecundarioText}>Revisar de nuevo</Text>
+          </Pressable>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 // ── Estilos ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
+  solicitadoBox: { backgroundColor: Colors.gold[50], borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.gold[400], padding: Spacing.base, marginTop: Spacing.md },
+  solicitadoTitulo: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.gold[700] },
+  solicitadoNota: { fontSize: Typography.fontSize.base, color: Colors.dark[800], lineHeight: 24, marginTop: Spacing.xs },
+  notaAyuda: { fontSize: Typography.fontSize.sm, color: Colors.dark[500], marginTop: Spacing.xs, lineHeight: 20 },
+  chipBloqueado: { opacity: 0.35 },
+  requisitos: {
+    marginTop: Spacing.md, backgroundColor: Colors.gold[50], borderRadius: Radius.md,
+    borderWidth: 1.5, borderColor: Colors.gold[400], padding: Spacing.base, gap: Spacing.sm,
+  },
+  requisitosCabecera: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  requisitosTitulo:   { flex: 1, fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.gold[700] },
+  requisitoFila:      { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  requisitosItem:     { flex: 1, fontSize: Typography.fontSize.base, color: Colors.dark[800], lineHeight: 24 },
+
+  avisoBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: Spacing.lg },
+  avisoCard:     { width: '100%', maxHeight: '90%', backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.xl },
+  avisoIconoWrap:{ alignSelf: 'center', width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.warning, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
+  avisoTitulo:   { fontSize: Typography.fontSize['2xl'], fontWeight: Typography.fontWeight.black, color: Colors.dark[900], textAlign: 'center', marginBottom: Spacing.sm },
+  avisoTexto:    { fontSize: Typography.fontSize.base, color: Colors.dark[600], textAlign: 'center', lineHeight: 24 },
+  avisoNegrita:  { fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
+  avisoLista:    { marginTop: Spacing.md, marginBottom: Spacing.lg, backgroundColor: Colors.cream[100], borderRadius: Radius.md, padding: Spacing.md, flexGrow: 0 },
+  avisoFila:     { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+  avisoItem:     { flex: 1, fontSize: Typography.fontSize.base, color: Colors.dark[800], lineHeight: 24, fontWeight: Typography.fontWeight.medium },
+  avisoBtnPrimario:     { flexDirection: 'row', gap: Spacing.sm, backgroundColor: Colors.dark[900], borderRadius: Radius.md, paddingVertical: Spacing.base, alignItems: 'center', justifyContent: 'center' },
+  avisoBtnPrimarioText: { color: Colors.gold[400], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
+  avisoBtnSecundario:     { paddingVertical: Spacing.md, alignItems: 'center' },
+  avisoBtnSecundarioText: { color: Colors.dark[600], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold },
+
   flex:     { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
 
@@ -455,29 +609,19 @@ const s = StyleSheet.create({
 
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   chip: {
-    paddingHorizontal: Spacing.md, paddingVertical: 7,
-    borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.cream[300],
+    paddingHorizontal: Spacing.md, paddingVertical: 10,
+    borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.dark[300],
     backgroundColor: Colors.white,
   },
   chipActivo:     { backgroundColor: Colors.dark[900], borderColor: Colors.dark[900] },
   chipText:       { fontSize: Typography.fontSize.xs, color: Colors.dark[700], fontWeight: '500' },
   chipTextActivo: { color: Colors.white, fontWeight: Typography.fontWeight.bold },
 
-  // Tipo fijo (desde el checklist del expediente — no editable)
-  tipoFijo: {
-    backgroundColor: Colors.cream[100], borderRadius: Radius.md,
-    borderWidth: 1, borderColor: Colors.cream[300],
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
-  },
-  tipoFijoText: {
-    fontSize: Typography.fontSize.sm, color: Colors.dark[800],
-    fontWeight: '600',
-  },
 
   input: {
-    backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cream[300],
+    backgroundColor: Colors.white, borderWidth: 1.5, borderColor: Colors.dark[300],
     borderRadius: Radius.md, padding: Spacing.md, color: Colors.dark[900],
-    fontSize: Typography.fontSize.sm, textAlignVertical: 'top', minHeight: 80,
+    fontSize: Typography.fontSize.base, textAlignVertical: 'top', minHeight: 80,
   },
 
   // ── Botones selector ──

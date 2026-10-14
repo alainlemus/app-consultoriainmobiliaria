@@ -1,8 +1,8 @@
-# Push a main → App Store (canal production).
+# Push a main → App Store y Google Play (canal production).
 # Subir la versión (npm run release:*) o cualquier cambio nativo cambia el
-# fingerprint → build de producción + envío a App Store Connect.
-# Solo cambios de JS → update OTA a los usuarios de la versión actual.
-# Android: se agregará cuando exista la cuenta de servicio de Google Play.
+# fingerprint → build de producción + envío a App Store Connect / Play Console
+# (track internal). Solo cambios de JS → update OTA a los usuarios de la versión actual.
+# Requiere la cuenta de servicio de Google Play subida a EAS (eas credentials).
 name: Production
 
 on:
@@ -22,6 +22,13 @@ jobs:
     params:
       fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
       profile: production
+  get_android_build:
+    name: Buscar build Android compatible
+    needs: [fingerprint]
+    type: get-build
+    params:
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      profile: production
 
   build_ios:
     name: Build iOS
@@ -31,12 +38,29 @@ jobs:
     params:
       platform: ios
       profile: production
+  build_android:
+    name: Build Android
+    needs: [get_android_build]
+    if: ${{ !needs.get_android_build.outputs.build_id }}
+    type: build
+    params:
+      platform: android
+      profile: production
+
   submit_ios:
     name: Enviar a App Store Connect
     needs: [build_ios]
     type: submit
     params:
       build_id: ${{ needs.build_ios.outputs.build_id }}
+      profile: production
+
+  submit_android:
+    name: Enviar a Google Play
+    needs: [build_android]
+    type: submit
+    params:
+      build_id: ${{ needs.build_android.outputs.build_id }}
       profile: production
 
   update_ios:
@@ -48,3 +72,12 @@ jobs:
     params:
       channel: production
       platform: ios
+  update_android:
+    name: Update OTA Android
+    needs: [get_android_build]
+    if: ${{ needs.get_android_build.outputs.build_id }}
+    type: update
+    environment: production
+    params:
+      channel: production
+      platform: android

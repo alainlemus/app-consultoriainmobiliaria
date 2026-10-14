@@ -1,63 +1,25 @@
 /**
  * Pantalla: Documentos del Acreditado
- *
- * Flujo de subida:
- *   1. Escanear con DocumentScanner nativo → PDF automático (EAS Build)
- *   2. Cámara normal → imagen JPEG (fallback)
- *   3. Galería → imagen o PDF
- *   4. Archivo PDF directo
- *
- * Los módulos nativos se cargan condicionalmente igual que en subir.tsx del asesor.
+ * Muestra qué documentos debe subir (con requisitos y dónde obtenerlos) y su estado.
+ * El botón "Subir" abre /subir-documento-acreditado (elegir tipo, nota, escanear o archivo).
  */
 
-// ── Imports nativos condicionales ─────────────────────────────────────────────
-import type DocScannerT  from 'react-native-document-scanner-plugin';
-import type RNImageToPdfT from 'react-native-image-to-pdf';
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-let DocumentScanner: typeof DocScannerT | null = null;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-let RNImageToPdf: typeof RNImageToPdfT | null = null;
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  DocumentScanner = (require('react-native-document-scanner-plugin') as { default: typeof DocScannerT }).default;
-} catch { /* no disponible en Expo Go */ }
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  RNImageToPdf = (require('react-native-image-to-pdf') as { default: typeof RNImageToPdfT }).default;
-} catch { /* no disponible en Expo Go */ }
-
 // ── Resto de imports ──────────────────────────────────────────────────────────
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Alert, RefreshControl, ActivityIndicator, Linking,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import {
   getDocumentosAcreditado,
-  subirDocumentoAcreditado,
   getUrlDocumentoAcreditado,
 } from '@/src/services/acreditadoApi';
-import { encolarDocAcreditado } from '@/src/services/offline';
-import { persistirDocumento } from '@/src/utils/comprimirFoto';
 import type { DocumentoAcreditado } from '@/src/types';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const stripFilePrefix = (uri: string) => uri.replace(/^file:\/\//, '');
-const toFileUri = (path: string) =>
-  path.startsWith('file://') ? path : `file://${path}`;
-
-const TIPOS_DOCUMENTO = [
-  'CURP', 'INE', 'Constancia SAT', 'Talón de nómina', 'AFORE',
-  'Acta de nacimiento', 'CFE', 'NSS', 'Escritura', 'Contrato', 'Otro',
-];
+import { DOCUMENTOS_ACREDITADO, AVISOS_ACREDITADO } from '@/src/constants/documentos';
 
 const ESTADO_COLOR: Record<string, string> = {
   pendiente:  '#b45309',
@@ -75,10 +37,10 @@ const ESTADO_LABEL: Record<string, string> = {
 
 export default function DocumentosScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [documentos, setDocumentos] = useState<DocumentoAcreditado[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [subiendo,   setSubiendo]   = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -88,7 +50,8 @@ export default function DocumentosScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  useEffect(() => { cargar(); }, []);
+  // Al volver de subir un documento se recarga la lista
+  useFocusEffect(useCallback(() => { cargar(); }, [cargar]));
 
   // ── Ver documento ─────────────────────────────────────────────────────────
   async function handleVerDocumento(doc: DocumentoAcreditado) {
@@ -100,127 +63,9 @@ export default function DocumentosScreen() {
     }
   }
 
-  // ── Selector de origen ────────────────────────────────────────────────────
-  function handleSubirDocumento() {
-    const opciones: { text: string; onPress?: () => void; style?: 'cancel' | 'destructive' }[] = [];
-
-    if (DocumentScanner && RNImageToPdf) {
-      opciones.push({ text: '📷 Escanear documento', onPress: () => escanear() });
-    } else {
-      opciones.push({ text: '📷 Tomar foto', onPress: () => subirDesde('camara') });
-    }
-
-    opciones.push(
-      { text: '📄 Archivo PDF',  onPress: () => subirDesde('archivo') },
-      { text: 'Cancelar', style: 'cancel' },
-    );
-
-    Alert.alert('Subir documento', '¿Cómo quieres obtener el documento?', opciones);
-  }
-
-  // ── Escáner nativo (DocumentScanner + RNImageToPdf) ───────────────────────
-  async function escanear() {
-    if (!DocumentScanner || !RNImageToPdf) return;
-    try {
-      const { scannedImages } = await DocumentScanner.scanDocument({
-        croppedImageQuality: 90,
-        maxNumDocuments: 10,
-      });
-      if (!scannedImages || scannedImages.length === 0) return;
-
-      setSubiendo(true);
-      const nombre = `doc_${Date.now()}`;
-      const { filePath } = await RNImageToPdf.createPDFbyImages({
-        imagePaths: scannedImages.map(stripFilePrefix),
-        name: nombre,
-      });
-
-      await seleccionarTipoYSubir(toFileUri(filePath), 'application/pdf', '');
-    } catch (e: unknown) {
-      Alert.alert('Error al escanear', e instanceof Error ? e.message : 'Error desconocido');
-      setSubiendo(false);
-    }
-  }
-
-  // ── Cámara / galería / archivo ────────────────────────────────────────────
-  async function subirDesde(origen: 'camara' | 'archivo') {
-    let uri   = '';
-    let mime  = 'application/octet-stream';
-    let nombre = '';
-
-    try {
-      if (origen === 'camara') {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (perm.status === 'undetermined') {
-          // Primera vez — el sistema mostrará el diálogo nativo de permisos
-          const second = await ImagePicker.requestCameraPermissionsAsync();
-          if (!second.granted) { Alert.alert('Permiso requerido', 'Activa el acceso a la cámara en Configuración.'); return; }
-        } else if (!perm.granted) {
-          Alert.alert('Permiso requerido', 'Activa el acceso a la cámara en Configuración.');
-          return;
-        }
-        const result = await ImagePicker.launchCameraAsync({
-          quality: 0.9,
-          allowsEditing: false,
-          base64: false,
-        });
-        if (result.canceled) return;
-        uri  = result.assets[0].uri;
-        mime = result.assets[0].mimeType ?? 'image/jpeg';
-
-      } else {
-        const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf'] });
-        if (result.canceled) return;
-        uri    = result.assets[0].uri;
-        mime   = 'application/pdf';
-        nombre = result.assets[0].name?.replace(/\.[^/.]+$/, '') ?? 'Documento';
-      }
-    } catch { return; }
-
-    await seleccionarTipoYSubir(uri, mime, nombre);
-  }
-
-  // ── Preguntar tipo y subir ─────────────────────────────────────────────────
-  async function seleccionarTipoYSubir(uri: string, mime: string, nombreBase: string) {
-    Alert.alert(
-      'Tipo de documento',
-      'Selecciona el tipo de documento:',
-      TIPOS_DOCUMENTO.map(tipo => ({
-        text: tipo,
-        onPress: async () => {
-          setSubiendo(true);
-          try {
-            // Persistir en documentDirectory para que sobreviva reinicios de app
-            const ext        = mime === 'application/pdf' ? 'pdf' : 'jpg';
-            const nombre     = `${tipo}_${Date.now()}.${ext}`;
-            const uriPersist = await persistirDocumento(uri, nombre);
-
-            try {
-              await subirDocumentoAcreditado(uriPersist, nombreBase || tipo, mime);
-              await cargar();
-              Alert.alert('✅ Listo', `${tipo} subido correctamente.`);
-            } catch (e: unknown) {
-              const msg = (e instanceof Error ? e.message : '').toLowerCase();
-              if (msg.includes('network') || msg.includes('failed') || msg.includes('timeout')) {
-                // Red débil o nula → encolar para reintento automático
-                await encolarDocAcreditado({ uri: uriPersist, tipo, mimeType: mime });
-                Alert.alert(
-                  '📋 Guardado sin conexión',
-                  `El documento "${tipo}" se enviará automáticamente cuando tengas mejor señal.`,
-                );
-              } else {
-                Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo subir el documento.');
-              }
-            }
-          } catch (e: any) {
-            Alert.alert('Error', e?.message ?? 'No se pudo procesar el documento.');
-          } finally {
-            setSubiendo(false);
-          }
-        },
-      }))
-    );
-  }
+  /** ¿Ya entregó este documento? (por nombre del documento en el expediente) */
+  const yaSubido = (tipo: string) =>
+    documentos.some(d => d.tiene_archivo && d.estado !== 'rechazado' && d.nombre?.toLowerCase().startsWith(tipo.toLowerCase()));
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
@@ -237,16 +82,10 @@ export default function DocumentosScreen() {
         <Text style={styles.headerTitle}>Mis Documentos</Text>
         <TouchableOpacity
           style={styles.subirBtn}
-          onPress={handleSubirDocumento}
-          disabled={subiendo}
+          onPress={() => router.push('/subir-documento-acreditado')}
         >
-          {subiendo
-            ? <ActivityIndicator color={Colors.dark[900]} size="small" />
-            : <>
-                <Ionicons name="cloud-upload-outline" size={18} color={Colors.dark[900]} />
-                <Text style={styles.subirBtnText}>Subir</Text>
-              </>
-          }
+          <Ionicons name="cloud-upload-outline" size={18} color={Colors.dark[900]} />
+          <Text style={styles.subirBtnText}>Subir</Text>
         </TouchableOpacity>
       </View>
 
@@ -262,6 +101,41 @@ export default function DocumentosScreen() {
         }
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <View style={styles.guia}>
+            <Text style={styles.guiaTitulo}>Documentos que debes subir</Text>
+            {DOCUMENTOS_ACREDITADO.map(d => {
+              const listo = yaSubido(d.tipo);
+              return (
+                <View key={d.tipo} style={styles.guiaItem}>
+                  <Ionicons
+                    name={listo ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={22}
+                    color={listo ? Colors.success : Colors.gold[400]}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.guiaItemTitulo}>{d.tipo}{listo ? '  ·  Entregado' : ''}</Text>
+                    {d.requisitos.map((r, i) => <Text key={i} style={styles.guiaItemTexto}>• {r}</Text>)}
+                    <Text style={styles.guiaDonde}>{d.donde}</Text>
+                    {d.url && (
+                      <TouchableOpacity onPress={() => Linking.openURL(d.url!)}>
+                        <Text style={styles.guiaLink}>Abrir enlace</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+            <View style={styles.guiaAvisos}>
+              <View style={styles.guiaAvisosCab}>
+                <Ionicons name="alert-circle" size={18} color={Colors.gold[400]} />
+                <Text style={styles.guiaAvisosTitulo}>Importante</Text>
+              </View>
+              {AVISOS_ACREDITADO.map((a, i) => <Text key={i} style={styles.guiaItemTexto}>• {a}</Text>)}
+            </View>
+            {documentos.length > 0 && <Text style={styles.guiaTitulo2}>Mis documentos</Text>}
+          </View>
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="document-text-outline" size={48} color={Colors.dark[600]} />
@@ -290,6 +164,9 @@ export default function DocumentosScreen() {
               {item.subido_por_acreditado && (
                 <Text style={styles.docSubidoPor}>Subido por ti</Text>
               )}
+              {item.solicitud_nota && !item.tiene_archivo && (
+                <Text style={styles.docMotivoRechazo} numberOfLines={3}>Solicitado: {item.solicitud_nota}</Text>
+              )}
               {item.estado === 'rechazado' && item.notas && (
                 <Text style={styles.docMotivoRechazo} numberOfLines={2}>Motivo: {item.notas}</Text>
               )}
@@ -310,6 +187,28 @@ export default function DocumentosScreen() {
 }
 
 const styles = StyleSheet.create({
+  guia: { backgroundColor: Colors.dark[800], borderRadius: Radius.lg, padding: Spacing.base, marginBottom: Spacing.base, gap: Spacing.md },
+  guiaTitulo: { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.cream[50] },
+  guiaTitulo2: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.cream[100], marginTop: Spacing.sm },
+  guiaItem: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' },
+  guiaItemTitulo: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.cream[50], marginBottom: 2 },
+  guiaItemTexto: { fontSize: Typography.fontSize.sm, color: Colors.cream[200], lineHeight: 20 },
+  guiaDonde: { fontSize: Typography.fontSize.sm, color: Colors.gold[400], marginTop: 4, lineHeight: 20 },
+  guiaLink: { fontSize: Typography.fontSize.sm, color: Colors.gold[400], fontWeight: Typography.fontWeight.bold, textDecorationLine: 'underline', marginTop: 2 },
+  guiaAvisos: { backgroundColor: Colors.dark[700], borderRadius: Radius.md, padding: Spacing.md, gap: 4 },
+  guiaAvisosCab: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  guiaAvisosTitulo: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.gold[400] },
+  avisoBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: Spacing.lg },
+  avisoCard: { width: '100%', maxHeight: '90%', backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.xl },
+  avisoTitulo: { fontSize: Typography.fontSize['2xl'], fontWeight: Typography.fontWeight.black, color: Colors.dark[900], textAlign: 'center', marginTop: Spacing.sm },
+  avisoTexto: { fontSize: Typography.fontSize.base, color: Colors.dark[600], textAlign: 'center', marginTop: Spacing.xs },
+  avisoLista: { marginTop: Spacing.md, marginBottom: Spacing.lg, backgroundColor: Colors.cream[100], borderRadius: Radius.md, padding: Spacing.md, flexGrow: 0 },
+  avisoFila: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start', marginBottom: Spacing.sm },
+  avisoItem: { flex: 1, fontSize: Typography.fontSize.base, color: Colors.dark[800], lineHeight: 22 },
+  avisoBtn: { backgroundColor: Colors.dark[900], borderRadius: Radius.md, paddingVertical: Spacing.base, alignItems: 'center' },
+  avisoBtnText: { color: Colors.gold[400], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
+  avisoCancelar: { paddingVertical: Spacing.md, alignItems: 'center' },
+  avisoCancelarText: { color: Colors.dark[600], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold },
   flex:   { flex: 1, backgroundColor: Colors.dark[900] },
   center: { alignItems: 'center', justifyContent: 'center' },
   header: {

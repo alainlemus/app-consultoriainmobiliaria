@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
@@ -20,7 +21,25 @@ import {
   guardarPuntoOffline,
 } from '../services/routeTracking';
 
+import { programarRecordatoriosRuta, cancelarRecordatoriosRuta } from '../services/notifications';
+
 const KEY_TRACKING_ENABLED = 'route:tracking_enabled';
+const KEY_TRACKING_SINCE   = 'route:tracking_since';
+
+/** Hora local a partir de la cual una ruta olvidada se desactiva sola. */
+const HORA_CIERRE_AUTOMATICO = 22;
+
+/**
+ * Una ruta activa se da por olvidada si ya pasó el cierre del día en que se
+ * activó (o si ya es otro día). Sin rastreo en segundo plano no se puede tomar
+ * un punto final real, así que el cierre automático no agrega ninguno.
+ */
+export function rutaOlvidada(desde: Date, ahora: Date = new Date()): boolean {
+  const cierre = new Date(desde);
+  cierre.setHours(HORA_CIERRE_AUTOMATICO, 0, 0, 0);
+  if (desde.getTime() >= cierre.getTime()) cierre.setDate(cierre.getDate() + 1);
+  return ahora.getTime() >= cierre.getTime();
+}
 
 interface UseRouteTrackingReturn {
   estaActivo:  boolean;
@@ -49,6 +68,27 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
     if (isMountedRef.current) setPendientes(n);
   }, []);
 
+  // ── Cierre automático de rutas olvidadas ───────────────────────────────────
+
+  const revisarOlvido = useCallback(async () => {
+    const desdeRaw = await AsyncStorage.getItem(KEY_TRACKING_SINCE);
+    const desde = desdeRaw ? new Date(desdeRaw) : null;
+    if (!desde || isNaN(desde.getTime())) {
+      // Ruta activada en una versión anterior: se empieza a contar desde ahora.
+      await AsyncStorage.setItem(KEY_TRACKING_SINCE, new Date().toISOString());
+      return;
+    }
+    if (!rutaOlvidada(desde)) return;
+    await syncRoutePoints();
+    await AsyncStorage.setItem(KEY_TRACKING_ENABLED, '0');
+    await cancelarRecordatoriosRuta();
+    if (isMountedRef.current) {
+      setEstaActivo(false);
+      setError('Tu ruta se desactivó sola porque quedó activa después de las 10 pm.');
+      await actualizarPendientes();
+    }
+  }, [actualizarPendientes]);
+
   // ── Restaurar estado al montar ──────────────────────────────────────────────
 
   useEffect(() => {
@@ -57,9 +97,17 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
       const guardado = await AsyncStorage.getItem(KEY_TRACKING_ENABLED);
       if (isMountedRef.current && guardado === '1') {
         setEstaActivo(true);
+        await revisarOlvido();
       }
     })();
-  }, [isAsesor]);
+  }, [isAsesor, revisarOlvido]);
+
+  // Al volver a la app, si la ruta quedó activa pasado el cierre, se apaga sola.
+  useEffect(() => {
+    if (!isAsesor || !estaActivo) return;
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') revisarOlvido(); });
+    return () => sub.remove();
+  }, [isAsesor, estaActivo, revisarOlvido]);
 
   // ── Sync periódico mientras la app está en foreground ──────────────────────
 
@@ -113,6 +161,8 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
       }
 
       await AsyncStorage.setItem(KEY_TRACKING_ENABLED, '1');
+      await AsyncStorage.setItem(KEY_TRACKING_SINCE, new Date().toISOString());
+      programarRecordatoriosRuta();
 
       if (isMountedRef.current) {
         setEstaActivo(true);
@@ -153,6 +203,7 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
     } catch {}
 
     await AsyncStorage.setItem(KEY_TRACKING_ENABLED, '0');
+    cancelarRecordatoriosRuta();
 
     if (isMountedRef.current) {
       setEstaActivo(false);

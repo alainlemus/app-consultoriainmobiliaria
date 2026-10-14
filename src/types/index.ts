@@ -124,6 +124,7 @@ export interface Expediente {
   documentos_pendientes_total?:  number;
   _local_id?:        string;
   _pendiente_sync?:  boolean;
+  documentos_count?: number;
 }
 
 export interface Documento {
@@ -142,6 +143,13 @@ export interface Documento {
   uri_local?:      string;
   estado:          'pendiente' | 'recibido' | 'rechazado' | 'no_aplica';
   notas?:          string;
+  /** Lo decide un administrador: en revisión, validado o rechazado (con motivo). */
+  validacion?:     'en_revision' | 'validado' | 'rechazado';
+  motivo_rechazo?: string | null;
+  /** Documento faltante que un administrador pidió (al acreditado o al asesor) y aún no se sube. */
+  solicitado_at?:  string | null;
+  solicitado_a?:   'acreditado' | 'asesor' | null;
+  solicitud_nota?: string | null;
   created_at?:     string;
   _local_id?:      string;
   _pendiente_sync?: boolean;
@@ -158,12 +166,12 @@ export const ANUNCIO_TIPO_LABEL: Record<TipoAnuncio, string> = {
   otro:        'Otro',
 };
 
-export const ANUNCIO_TIPO_EMOJI: Record<TipoAnuncio, string> = {
-  lona:        '📢',
-  hoja_tienda: '🏪',
-  hoja_poste:  '📌',
-  volante:     '📄',
-  otro:        '📣',
+export const ANUNCIO_TIPO_ICONO: Record<TipoAnuncio, string> = {
+  lona:        'megaphone',
+  hoja_tienda: 'storefront',
+  hoja_poste:  'pin',
+  volante:     'document-text',
+  otro:        'megaphone-outline',
 };
 
 export interface Anuncio {
@@ -312,6 +320,8 @@ export interface Acreditado {
   foto_perfil_url?: string | null;
   curp_verificado:  boolean;
   tiene_expediente: boolean;
+  /** Ya pidió asesoría desde la app (está registrado como prospecto). */
+  solicitud_enviada?: boolean;
 }
 
 export interface AcreditadoAuthState {
@@ -336,6 +346,8 @@ export interface ExpedienteAcreditado {
   fecha_esperada_pago?:  string;
   guia_paso_actual:      string;
   documentos_pendientes: number;
+  /** Documentos que un administrador pidió y aún no sube (con la nota que explica cuál falta). */
+  documentos_solicitados?: { id: number; tipo: string; nota: string; solicitado_at?: string }[];
   asesor?: {
     name:      string;
     telefono?: string;
@@ -352,12 +364,8 @@ export interface DocumentoAcreditado {
   tiene_archivo:          boolean;
   subido_por_acreditado:  boolean;
   notas?:                 string;
-}
-
-export interface SeguimientoAcreditado {
-  tipo:        string;
-  descripcion: string;
-  fecha:       string;
+  /** Nota del administrador cuando el documento fue solicitado. */
+  solicitud_nota?:        string | null;
 }
 
 export interface ServicioTramite {

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, StatusBar, LayoutAnimation,
@@ -11,6 +12,8 @@ import { Colors, Typography, Spacing, Radius } from '../src/theme';
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface Paso {
   icono: string;
@@ -28,129 +31,160 @@ interface Seccion {
 
 const SECCIONES: Seccion[] = [
   {
-    id: 'inicio',
-    icono: '🚀',
-    titulo: 'Primeros pasos',
-    subtitulo: 'Cómo empezar a usar la app',
+    id: 'novedades',
+    icono: 'sparkles',
+    titulo: 'Novedades',
+    subtitulo: 'Lo nuevo y lo que ya no está',
     pasos: [
-      { icono: '🔐', titulo: 'Inicia sesión', desc: 'Usa el correo y contraseña que te dio tu administrador. Si olvidaste tu contraseña, contacta al admin para restablecerla.' },
-      { icono: '👤', titulo: 'Completa tu perfil', desc: 'Ve a la pestaña Perfil y llena tu información: teléfono, banco y CLABE interbancaria. Estos datos son necesarios para recibir comisiones.' },
-      { icono: '📸', titulo: 'Sube tu foto', desc: 'En Perfil toca tu foto y selecciona "Tomar selfie". La cámara frontal se abrirá automáticamente.' },
+      { icono: 'folder', titulo: 'Nuevo: Expedientes con documentos', desc: 'Cuando un prospecto se vuelve cliente abres su expediente y ahí escaneas o subes sus documentos. La pestaña Expedientes muestra cuántos documentos tiene cada cliente.' },
+      { icono: 'alert-circle', titulo: 'Nuevo: Requisitos antes de subir', desc: 'Al elegir el tipo de documento ves qué debe cumplir (vigencia, últimos 3 talones, no mayor a 3 meses…) y, antes de subirlo, te pedimos confirmar que lo revisaste.' },
+      { icono: 'shield-checkmark', titulo: 'Nuevo: Validación de documentos', desc: 'Cada documento aparece En revisión, Validado o Rechazado (con el motivo). Solo un administrador valida o rechaza.' },
+      { icono: 'notifications', titulo: 'Nuevo: Avisos de validación', desc: 'Cuando un administrador valida (o rechaza) un documento, el asesor recibe una notificación con el documento y el expediente. Si valida todos los documentos del expediente, llega otro aviso: "Expediente completo".' },
+      { icono: 'mail', titulo: 'Nuevo: Carpeta por correo (administrador)', desc: 'En un expediente, el administrador toca "Enviar carpeta a mi correo" y recibe un enlace de 72 horas para descargar en su computadora el ZIP con todos los documentos.' },
+      { icono: 'eye-off', titulo: 'Nuevo: Expedientes completos', desc: 'Cuando todos los documentos de un expediente están validados, deja de aparecer en la app. Se sigue consultando en el panel.' },
+      { icono: 'pricetag', titulo: 'Nuevo: Varios del mismo tipo', desc: 'Puedes subir más de un documento del mismo tipo (por ejemplo la INE del acreditado y la del dueño de la casa). La nota que escribas los identifica rápido.' },
+      { icono: 'navigate', titulo: 'Nuevo: Ruta', desc: 'El rastreo ahora se llama Ruta: al activarla te explicamos qué va a pasar. La pantalla Mi ruta se renovó con resumen, mapa y línea de tiempo del recorrido.' },
+      { icono: 'checkmark-circle', titulo: 'Nuevo: Aviso al guardar', desc: 'Al guardar un prospecto aparece un aviso que te dice si se guardó en el servidor o en tu teléfono (si no tienes internet).' },
+      { icono: 'document-text', titulo: 'Nuevo: Contratos para todos', desc: 'Ahora todos los asesores pueden generar contratos desde Inicio → Contratos. Ven su propio historial; el administrador ve todos.' },
+      { icono: 'close-circle', titulo: 'Ya no está: Comisiones', desc: 'Se quitó la pestaña Comisiones y sus avisos. En Perfil ya no se piden banco ni CLABE.' },
+      { icono: 'close-circle', titulo: 'Ya no está: Estado y etapas', desc: 'Los expedientes ya no tienen estado, etapas ni lista de documentos obligatorios por sección: solo los documentos que subes.' },
+      { icono: 'close-circle', titulo: 'Ya no está: Foto y escuela', desc: 'Al registrar un prospecto ya no se pide foto ni escuela, y los expedientes no llevan foto.' },
+    ],
+  },
+  {
+    id: 'inicio',
+    icono: 'rocket',
+    titulo: 'Primeros pasos',
+    subtitulo: 'Cómo moverte en la app',
+    pasos: [
+      { icono: 'lock-closed', titulo: 'Inicia sesión', desc: 'Usa el correo y contraseña que te dio tu administrador. Si la olvidaste, pídele que la restablezca.' },
+      { icono: 'apps', titulo: 'Las 4 pestañas', desc: 'Inicio (resumen y acciones), Prospectos (personas que estás evaluando), Expedientes (clientes con sus documentos) y Perfil.' },
+      { icono: 'home', titulo: 'Inicio', desc: 'Muestra cuántos prospectos y expedientes tienes (tócalos para abrirlos), el botón Nuevo prospecto, Contratos, el Mapa, las Rutas y el interruptor de Ruta.' },
+      { icono: 'person', titulo: 'Perfil', desc: 'Ahí editas tu nombre y teléfono, cambias tu foto de perfil, ves esta guía y cierras sesión.' },
     ],
   },
   {
     id: 'prospectos',
-    icono: '🤝',
+    icono: 'people',
     titulo: 'Prospectos',
-    subtitulo: 'Registra y da seguimiento a clientes',
+    subtitulo: 'Personas que estás evaluando',
     pasos: [
-      { icono: '➕', titulo: 'Agregar prospecto', desc: 'En la pestaña Prospectos toca "＋ Nuevo" (o desde Inicio → "Nuevo prospecto"). Llena nombre, teléfono, correo y el servicio (FOVISSSTE, INFONAVIT, Avalúo, etc.).' },
-      { icono: '🏦', titulo: 'Precalificación FOVISSSTE', desc: 'Al seleccionar FOVISSSTE aparecen los campos: estado y municipio donde usará el crédito, estado de residencia, régimen pensionario y si tiene discapacidad. Puedes adjuntar la captura de pantalla del simulador oficial como referencia.' },
-      { icono: '🔢', titulo: 'Precalificación INFONAVIT', desc: 'Al seleccionar INFONAVIT aparecen los campos: NSS (Número de Seguridad Social), estado y municipio donde usará el crédito.' },
-      { icono: '🔄', titulo: 'Actualizar estado', desc: 'Desde el detalle del prospecto cambia su estado entre Nuevo y Precalificado. Los estados avanzados (En trámite, Cerrado) los gestiona el administrador desde el CRM.' },
-      { icono: '📁', titulo: 'Iniciar expediente', desc: 'Cuando el prospecto esté listo, entra a su detalle y toca "Iniciar expediente". El prospecto desaparecerá de tu lista de prospectos y pasará automáticamente a la sección Expedientes. Si ya tiene expediente activo verás el botón "Ver expediente" con su folio.' },
+      { icono: 'person-add', titulo: 'Agregar un prospecto', desc: 'En Inicio toca Nuevo prospecto (o ＋ Nuevo en la pestaña Prospectos). Solo el nombre es obligatorio; teléfono, correo y notas ayudan a darle seguimiento.' },
+      { icono: 'create', titulo: 'Campos de texto y listas', desc: 'Los campos de texto son cajas blancas con borde: tocas y escribes. Las listas tienen una flecha ▾ a la derecha: tocas y eliges una opción. Los botones redondos (como el régimen pensionario) se eligen de uno en uno.' },
+      { icono: 'list', titulo: 'Datos opcionales', desc: 'Debajo hay campos opcionales siempre visibles: estado del prospecto, CURP, precalificación FOVISSSTE (estado y municipio donde usará el crédito, estado de residencia, régimen pensionario, discapacidad) y la captura del simulador.' },
+      { icono: 'checkmark-circle', titulo: 'Aviso al guardar', desc: 'Al guardar sale un aviso: "El prospecto se guardó correctamente" si hay internet, o "Se guardó en tu dispositivo…" si no lo hay. Toca Aceptar para volver a la lista.' },
+      { icono: 'refresh', titulo: 'Estado del prospecto', desc: 'Desde su detalle cambia entre Nuevo y Precalificado. Los estados avanzados los lleva el administrador.' },
+      { icono: 'folder-open', titulo: 'Pasar a cliente', desc: 'Cuando se confirma como cliente, entra a su detalle y toca Iniciar expediente: pasa a la pestaña Expedientes y deja de aparecer en Prospectos.' },
     ],
   },
   {
     id: 'expedientes',
-    icono: '📁',
+    icono: 'folder',
     titulo: 'Expedientes',
-    subtitulo: 'Gestión de trámites de crédito',
+    subtitulo: 'Tus clientes y sus documentos',
     pasos: [
-      { icono: '📋', titulo: 'Ver mis expedientes', desc: 'En la pestaña Expedientes verás los asignados a ti. Filtra por estado (En proceso, Documentación, Autorizado, etc.) o jalando hacia abajo para actualizar.' },
-      { icono: '📄', titulo: 'Escanear documentos (PDF)', desc: 'Entra al expediente → toca el documento en el checklist → se abre la pantalla de captura. Toca "Escanear documento" para usar el escáner nativo: puedes capturar varias páginas y la app las convierte automáticamente en un PDF. Requiere EAS Build (build de producción).' },
-      { icono: '🖼️', titulo: 'Subir desde galería', desc: 'En la pantalla de captura también puedes tocar "Galería" para adjuntar una imagen existente de tu dispositivo. Esta opción funciona en cualquier build.' },
-      { icono: '📌', titulo: 'Checklist de documentos', desc: 'El checklist muestra solo los documentos obligatorios del tipo de trámite. El contador (ej. 3/12) indica cuántos has subido. Los opcionales los gestiona el administrador desde el CRM.' },
-      { icono: '👁️', titulo: 'Ver documentos', desc: 'Toca un documento subido para abrirlo. Los PDFs y fotos se abren en tu navegador con un enlace temporal (válido 5 min).' },
-      { icono: '🔁', titulo: 'Reemplazar / eliminar', desc: 'Toca y mantén presionado un documento ya subido para reemplazarlo (se abre la galería) o eliminarlo.' },
-      { icono: '🔄', titulo: 'Estado del trámite', desc: 'El admin actualiza el estado: En proceso → Documentación → Autorizado → Escrituración → Cerrado. Al cerrarse, verás tu comisión en la pestaña Comisiones.' },
+      { icono: 'clipboard', titulo: 'Tu lista de expedientes', desc: 'Cada tarjeta muestra el nombre del cliente, el folio, el trámite y cuántos documentos tiene. Toca una para abrirla. El administrador puede filtrar por asesor.' },
+      { icono: 'call', titulo: 'Datos del cliente', desc: 'Arriba del expediente ves su nombre, folio, teléfono, correo y CURP. Ya no hay foto del cliente.' },
+      { icono: 'git-network', titulo: 'Sin etapas ni estado', desc: 'El expediente ya no avanza por etapas: tu trabajo es subir bien los documentos y el equipo del panel los revisa y captura.' },
+      { icono: 'checkmark-done-circle', titulo: 'Expedientes completos', desc: 'Cuando el administrador valida todos los documentos, recibes el aviso "Expediente completo" y ese expediente ya no se muestra en la app; sigue disponible en el panel.' },
+    ],
+  },
+  {
+    id: 'documentos',
+    icono: 'document-text',
+    titulo: 'Documentos',
+    subtitulo: 'Escanear, subir y validar',
+    pasos: [
+      { icono: 'scan', titulo: 'Agregar un documento', desc: 'En el expediente toca Escanear o subir documento. Elige el tipo: INE, CURP, acta de nacimiento, acta de matrimonio, comprobante de domicilio, talón de pago, constancia laboral, constancia de situación fiscal, estado de cuenta u otro.' },
+      { icono: 'alert-circle', titulo: 'Revisa los requisitos', desc: 'Al elegir el tipo aparece un recuadro con lo que debe cumplir. Ejemplos: estado de cuenta, constancias y comprobante de domicilio no mayores a 3 meses; los últimos 3 talones de pago; INE vigente por ambos lados.' },
+      { icono: 'camera', titulo: 'Escanear o subir archivo', desc: 'Escanear documento usa la cámara (varias páginas se unen en un PDF; requiere el build de producción). Archivo adjunta un PDF o una foto de tu galería.' },
+      { icono: 'pricetag', titulo: 'Nota para identificarlo', desc: 'Escribe una nota corta, por ejemplo "INE del dueño de la casa". Puedes subir varios documentos del mismo tipo y la nota aparece como etiqueta dorada para reconocer cada uno al instante.' },
+      { icono: 'document-attach', titulo: 'Solicitar un documento faltante', desc: 'Solo el administrador: en el expediente toca Solicitar documento faltante y escribe cuál falta. El acreditado recibe una notificación y ve tu nota en Mi Trámite; mientras no lo suba, su trámite sigue En revisión. Al subirlo, valídalo como los demás. Puedes pedirlo al acreditado (si usa la app) o al asesor. El asesor recibe una notificación y ve el aviso en el expediente. La carpeta por correo solo se puede enviar cuando todo está validado.' },
+      { icono: 'warning', titulo: 'Confirma antes de subir', desc: 'Al tocar Subir documento sale un aviso con los requisitos de ese tipo. Si cumple, toca Sí, cumple; si no, Revisar de nuevo. Así evitamos subir documentos vencidos o ilegibles.' },
+      { icono: 'shield-checkmark', titulo: 'Estado de cada documento', desc: 'En revisión: recién subido. Validado: un administrador lo aprobó. Rechazado: aparece el motivo en rojo; usa Reemplazar para subir el correcto.' },
+      { icono: 'notifications', titulo: 'Avisos', desc: 'Al subir documentos, los administradores reciben una notificación. Al validarlos, el asesor recibe la suya, y otra más cuando el expediente queda completo (todos sus documentos validados).' },
+      { icono: 'mail', titulo: 'Carpeta por correo', desc: 'Solo el administrador ve en el expediente el botón Enviar carpeta a mi correo: genera la carpeta con todos los documentos y manda un enlace (72 horas) para descargarla en su computadora.' },
+      { icono: 'person-circle', titulo: 'Solo el administrador valida', desc: 'Validar y Rechazar solo aparecen con una cuenta de administrador (también se hace desde el panel). Los asesores ven el resultado pero no pueden cambiarlo.' },
+      { icono: 'swap-horizontal', titulo: 'Ver, reemplazar o eliminar', desc: 'Cada documento tiene tres botones: Ver (se abre con un enlace temporal de 5 minutos), Reemplazar (sube otro archivo y vuelve a quedar En revisión; requiere internet) y Eliminar (pide confirmación).' },
     ],
   },
   {
     id: 'contratos',
-    icono: '🖋️',
-    titulo: 'Contratos (solo administradores)',
-    subtitulo: 'Genera el Contrato de Prestación de Servicios',
+    icono: 'create',
+    titulo: 'Contratos',
+    subtitulo: 'Todos los asesores pueden generarlos',
     pasos: [
-      { icono: '📇', titulo: 'Registrar contrato', desc: 'Desde Inicio → "Contratos" → "Registrar contrato". Escanea la INE del acreditado (y del obligado solidario si aplica) para leer sus datos automáticamente.' },
-      { icono: '👁️', titulo: 'Revisar datos', desc: 'Confirma que los datos leídos de la INE sean correctos antes de continuar. Puedes corregirlos a mano si algo salió mal en la lectura.' },
-      { icono: '📄', titulo: 'Generar el PDF', desc: 'Elige el tipo de trámite y el tamaño de hoja, y toca "Generar contrato". Queda guardado en el historial de "Contratos" para consultarlo o compartirlo cuando quieras.' },
-      { icono: '📶', titulo: 'Funciona sin conexión', desc: 'Puedes registrar contratos sin internet; se guardan en tu dispositivo y se suben al CRM en cuanto recuperes la señal.' },
+      { icono: 'id-card', titulo: 'Registrar contrato', desc: 'Desde Inicio → Contratos → Registrar contrato (disponible para todos los asesores). Escanea la INE del acreditado (y del obligado solidario si aplica) para leer sus datos automáticamente.' },
+      { icono: 'eye', titulo: 'Revisar datos', desc: 'Confirma que los datos leídos de la INE sean correctos antes de continuar. Puedes corregirlos a mano.' },
+      { icono: 'help-circle', titulo: 'Foto o a mano', desc: 'Al empezar se abre un aviso con ejemplo: puedes subir los datos con foto de la INE o capturarlos a mano. Usa la credencial original (no una fotocopia) y céntrala completa en el cuadro de la cámara. Lo vuelves a ver con "¿Cómo tomar la foto?".' },
+      { icono: 'document-text', titulo: 'Generar el PDF', desc: 'Elige el tipo de trámite y el tamaño de hoja, y toca Generar contrato. Queda en el historial de Contratos para consultarlo o compartirlo.' },
+      { icono: 'document-text', titulo: 'Pagaré', desc: 'Al terminar el contrato aparecen los botones del pagaré para verlo, imprimirlo o compartirlo. Ya lleva los datos del acreditado y la fecha; el importe y el vencimiento se llenan a mano.' },
+      { icono: 'cloud-offline', titulo: 'Funciona sin conexión', desc: 'Puedes registrar contratos sin internet; se guardan en tu dispositivo y se suben al recuperar la señal.' },
+      { icono: 'people', titulo: 'Quién los ve', desc: 'Cada asesor ve en su historial los contratos que generó; el administrador ve todos. Solo el administrador puede editar el texto de la plantilla.' },
     ],
   },
   {
     id: 'offline',
-    icono: '📶',
+    icono: 'cellular',
     titulo: 'Modo sin internet',
     subtitulo: 'La app funciona aunque no tengas señal',
     pasos: [
-      { icono: '🔴', titulo: 'Barra de estado', desc: 'En la parte superior de todos los tabs verás una barra de color. Roja = sin internet. Azul = sincronizando. Si no hay barra, todo está sincronizado.' },
-      { icono: '📱', titulo: 'Datos en el dispositivo', desc: 'Sin conexión, prospectos y expedientes muestran los datos de tu última visita al CRM con el aviso "📴 Sin conexión — datos guardados". Puedes consultar toda la información aunque estés en zona sin señal.' },
-      { icono: '✏️', titulo: 'Crear y editar sin conexión', desc: 'Puedes crear y editar prospectos, registrar visitas y anuncios aunque no tengas internet. Los cambios se guardan en tu dispositivo y muestran el mensaje "Se enviará cuando recuperes internet".' },
-      { icono: '📄', titulo: 'Documentos sin conexión', desc: 'También puedes escanear o seleccionar documentos estando offline. Se guardan en cola y el botón cambia a "Guardar (sin conexión)".' },
-      { icono: '📸', titulo: 'Fotos protegidas', desc: 'Las fotos de anuncios, visitas y contactos se guardan en tu dispositivo desde antes de intentar subirlas. Si tienes señal débil (2G) o te mueves justo después de guardar, la foto no se pierde: se sube sola en cuanto haya mejor conexión.' },
-      { icono: '🔢', titulo: 'Badge de pendientes', desc: 'El tab Prospectos muestra un número dorado indicando cuántos elementos están en cola para sincronizar.' },
-      { icono: '⚡', titulo: 'Sincronización automática', desc: 'Al recuperar internet, la app sincroniza todo automáticamente: prospectos, ediciones, anuncios, visitas, fotos y documentos pendientes. También puedes tocar la barra azul para sincronizar manualmente.' },
+      { icono: 'cloud-offline', titulo: 'Barra de estado', desc: 'Arriba verás una barra cuando no hay conexión ("Sin internet · Modo offline") o cuando hay algo por sincronizar. Si no hay barra, todo está al día.' },
+      { icono: 'phone-portrait', titulo: 'Datos guardados', desc: 'Sin conexión, las listas muestran lo que viste la última vez, con el aviso "Datos guardados en el dispositivo".' },
+      { icono: 'create', titulo: 'Crear sin conexión', desc: 'Puedes registrar prospectos, visitas, anuncios y subir documentos. Se guardan en tu teléfono, te lo avisamos con un mensaje y se envían solos al volver la señal.' },
+      { icono: 'swap-horizontal', titulo: 'Lo que sí necesita internet', desc: 'Abrir o ver documentos ya cargados, reemplazarlos, validarlos y rechazarlos requieren conexión.' },
+      { icono: 'flash', titulo: 'Sincronización automática', desc: 'Al recuperar internet la app envía todo lo pendiente. También puedes tocar la barra para sincronizar a mano.' },
     ],
   },
   {
     id: 'mapa',
-    icono: '🗺️',
+    icono: 'map',
     titulo: 'Mapa de Visitas',
     subtitulo: 'Documenta tu actividad en campo',
     pasos: [
-      { icono: '📍', titulo: 'Registrar visita', desc: 'En la pestaña Mapa toca "+ Registrar Visita". La app detecta tu ubicación automáticamente. Agrega notas y, si quieres, selecciona fotos de la galería.' },
-      { icono: '🏠', titulo: 'Tipo: Cliente', desc: 'Usa este tipo al visitar a un prospecto. Puedes vincular la visita a un contacto existente para que el admin vea el historial completo.' },
-      { icono: '🏢', titulo: 'Tipo: Propiedad', desc: 'Cuando visitas un inmueble en evaluación. Ingresa el nombre o dirección de la propiedad para identificarla en el mapa.' },
-      { icono: '🏫', titulo: 'Tipo: Escuela', desc: 'Para visitas a escuelas o instituciones (ferias, presentaciones). Ingresa el nombre de la escuela.' },
-      { icono: '📶', titulo: 'Funciona offline', desc: 'Las visitas registradas sin señal se guardan en tu dispositivo y se sincronizan automáticamente cuando recuperes internet.' },
+      { icono: 'location', titulo: 'Registrar visita', desc: 'En el Mapa toca Registrar visita. La app detecta tu ubicación. Agrega notas y, si quieres, fotos de la galería.' },
+      { icono: 'home', titulo: 'Tipo: Cliente', desc: 'Para visitar a un prospecto. Puedes vincular la visita a un contacto para que el administrador vea su historial.' },
+      { icono: 'business', titulo: 'Tipo: Propiedad', desc: 'Para un inmueble en evaluación: escribe el nombre o dirección para identificarlo en el mapa.' },
+      { icono: 'school', titulo: 'Tipo: Escuela', desc: 'Para visitas a escuelas o instituciones (ferias, presentaciones).' },
+      { icono: 'cloud-offline', titulo: 'Funciona offline', desc: 'Las visitas sin señal se guardan y se sincronizan al recuperar internet.' },
     ],
   },
   {
     id: 'anuncios',
-    icono: '📢',
+    icono: 'megaphone',
     titulo: 'Anuncios publicitarios',
-    subtitulo: 'Registra la propaganda que colocas en campo',
+    subtitulo: 'La propaganda que colocas en campo',
     pasos: [
-      { icono: '📢', titulo: 'Registrar anuncio', desc: 'Desde el Mapa, toca el botón "📢" para abrir "Nuevo anuncio". Elige el tipo (lona, hoja en tienda, hoja en poste, volante u otro), la fecha de colocación y una descripción opcional.' },
-      { icono: '📷', titulo: 'Fotos del anuncio', desc: 'Puedes agregar hasta 3 fotos con la cámara o desde la galería. Se comprimen automáticamente y se suben solas en segundo plano — no necesitas esperar a que terminen para seguir trabajando.' },
-      { icono: '📍', titulo: 'Ubicación automática', desc: 'Al guardar, la app registra tu ubicación GPS actual como el lugar del anuncio. Asegúrate de estar frente a él antes de tocar "Registrar".' },
-      { icono: '🗺️', titulo: 'Ver anuncios en el mapa', desc: 'En el Mapa, usa el chip "📢 Anuncios" para mostrar u ocultar los anuncios de todos los asesores. Toca uno para ver su detalle o marcarlo como retirado si ya no está en su lugar.' },
-      { icono: '📶', titulo: 'Funciona con señal débil', desc: 'Si tienes poca señal (2G) o te mueves justo después de guardar, el anuncio y sus fotos quedan seguros en tu dispositivo y se suben solos en cuanto haya mejor conexión.' },
+      { icono: 'megaphone', titulo: 'Registrar anuncio', desc: 'Desde el Mapa toca el botón del megáfono. Elige el tipo (lona, hoja en tienda, hoja en poste, volante u otro), la fecha y una descripción opcional.' },
+      { icono: 'camera', titulo: 'Fotos del anuncio', desc: 'Hasta 3 fotos con la cámara o la galería; se comprimen y se suben solas en segundo plano.' },
+      { icono: 'location', titulo: 'Ubicación automática', desc: 'Al guardar se registra tu ubicación actual como el lugar del anuncio: asegúrate de estar frente a él.' },
+      { icono: 'map', titulo: 'Verlos en el mapa', desc: 'Usa el chip Anuncios del Mapa para mostrarlos u ocultarlos. Toca uno para ver su detalle o marcarlo como retirado.' },
     ],
   },
   {
     id: 'rutas',
-    icono: '📍',
-    titulo: 'Rutas y rastreo GPS',
-    subtitulo: 'Supervisión de tu actividad en campo',
+    icono: 'navigate',
+    titulo: 'Ruta',
+    subtitulo: 'Tu recorrido del día',
     pasos: [
-      { icono: '🟢', titulo: 'Activar rastreo', desc: 'En Inicio, activa el switch "📍 Rastreo de ubicación" para que la app registre tu recorrido mientras trabajas en campo. Puedes apagarlo cuando quieras desde el mismo switch.' },
-      { icono: '🗺️', titulo: 'Ver tu historial', desc: 'Toca "Rutas" en Inicio para ver el mapa de tus recorridos por día, con el trazo de la ruta y los puntos registrados.' },
-      { icono: '📶', titulo: 'Puntos pendientes', desc: 'Si guardaste puntos de ruta sin conexión, verás cuántos faltan por sincronizar. Se suben solos al recuperar internet.' },
-    ],
-  },
-  {
-    id: 'comisiones',
-    icono: '💰',
-    titulo: 'Comisiones',
-    subtitulo: 'Consulta tus ingresos',
-    pasos: [
-      { icono: '💵', titulo: '¿Cuándo aparece?', desc: 'Las comisiones aparecen cuando el admin las registra al cerrar un expediente. Verás el monto, la fecha y el expediente asociado.' },
-      { icono: '🔄', titulo: 'Estados', desc: 'Pendiente → generada pero no aprobada. Aprobada → lista para pago. Pagada → ya depositada a tu cuenta.' },
-      { icono: '🏦', titulo: 'Recibir el pago', desc: 'El pago se hace vía transferencia a la CLABE de tu perfil. Verifica que esté correcta en la pestaña Perfil antes de tu primer expediente cerrado.' },
-      { icono: '📊', titulo: 'Resumen mensual', desc: 'Al inicio de Comisiones verás: total pendiente, total pagado y número de expedientes cerrados en el mes.' },
+      { icono: 'power', titulo: 'Activar la ruta', desc: 'En Inicio activa el interruptor Ruta. Antes te mostramos un aviso que explica qué va a pasar: se guarda tu recorrido con tu ubicación (también en segundo plano), tu administrador lo ve en el mapa, puede gastar más batería y puedes apagarla cuando quieras.' },
+      { icono: 'alarm', titulo: 'No olvides apagarla', desc: 'Si dejas la ruta activa, a las 7 pm y a las 9 pm te llega un aviso para desactivarla. Si sigue activa pasadas las 10 pm, se desactiva sola al abrir la app.' },
+      { icono: 'lock-open', titulo: 'Permiso de ubicación', desc: 'Tu teléfono te pedirá permiso. Elige "Permitir siempre" para que la ruta no se corte al cerrar la pantalla.' },
+      { icono: 'map', titulo: 'Mi ruta', desc: 'Toca Rutas en Inicio para ver el día que elijas: arriba un resumen (puntos, distancia aproximada y horario), el mapa con tu trazo y, abajo, la línea de tiempo de tus paradas.' },
+      { icono: 'cloud-offline', titulo: 'Puntos pendientes', desc: 'Si no hay señal, los puntos se guardan y se envían solos al recuperarla; en Inicio ves cuántos faltan.' },
+      { icono: 'people', titulo: 'Administradores', desc: 'Pueden elegir un asesor (o Todos) para ver sus recorridos, cada uno con su color.' },
     ],
   },
   {
     id: 'perfil',
-    icono: '👤',
+    icono: 'person',
     titulo: 'Mi Perfil',
-    subtitulo: 'Gestiona tu información personal',
+    subtitulo: 'Tu información',
     pasos: [
-      { icono: '✏️', titulo: 'Editar datos', desc: 'Toca "Editar" en la pantalla Perfil para modificar nombre, teléfono, banco y CLABE. Toca "Guardar" cuando termines.' },
-      { icono: '📸', titulo: 'Foto de perfil', desc: 'Toca tu foto → "Tomar selfie". La cámara frontal se activa para actualizar tu imagen.' },
-      { icono: '🚪', titulo: 'Cerrar sesión', desc: 'Al final de la pantalla Perfil encontrarás el botón "Cerrar sesión".' },
+      { icono: 'create', titulo: 'Editar datos', desc: 'Toca Editar para cambiar tu nombre y teléfono, y Guardar al terminar. Ya no se piden banco ni CLABE.' },
+      { icono: 'camera', titulo: 'Foto de perfil', desc: 'Toca tu foto y elige Tomar selfie para actualizarla.' },
+      { icono: 'help-circle', titulo: 'Esta guía', desc: 'En Perfil puedes volver a abrir esta guía de uso cuando quieras.' },
+      { icono: 'log-out', titulo: 'Cerrar sesión', desc: 'Al final de Perfil está el botón Cerrar sesión.' },
     ],
   },
 ];
@@ -172,7 +206,7 @@ export default function AyudaScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backIcon}>←</Text>
+          <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Centro de Ayuda</Text>
         <View style={{ width: 40 }} />
@@ -185,7 +219,7 @@ export default function AyudaScreen() {
       >
         {/* Banner */}
         <View style={styles.banner}>
-          <Text style={styles.bannerEmoji}>❓</Text>
+          <Ionicons name="help-circle" size={40} color={Colors.gold[400]} />
           <View style={styles.bannerTexto}>
             <Text style={styles.bannerTitulo}>Guía de uso</Text>
             <Text style={styles.bannerSub}>Toca cada sección para ver los pasos detallados.</Text>
@@ -201,13 +235,13 @@ export default function AyudaScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.seccionLeft}>
-                <Text style={styles.seccionEmoji}>{s.icono}</Text>
+                <Ionicons name={s.icono as IconName} size={26} color={Colors.gold[400]} />
                 <View>
                   <Text style={styles.seccionTitulo}>{s.titulo}</Text>
                   <Text style={styles.seccionSub}>{s.subtitulo}</Text>
                 </View>
               </View>
-              <Text style={[styles.chevron, abiertos[s.id] && styles.chevronAbierto]}>›</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.dark[400]} />
             </TouchableOpacity>
 
             {abiertos[s.id] && (
@@ -215,7 +249,7 @@ export default function AyudaScreen() {
                 {s.pasos.map((p, i) => (
                   <View key={i} style={styles.paso}>
                     <View style={styles.pasoBadge}>
-                      <Text style={styles.pasoEmoji}>{p.icono}</Text>
+                      <Ionicons name={p.icono as IconName} size={22} color={Colors.gold[400]} />
                     </View>
                     <View style={styles.pasoTexto}>
                       <View style={styles.pasoTituloRow}>

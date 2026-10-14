@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   View, Text, StyleSheet, Dimensions,
   TouchableOpacity, FlatList, StatusBar,
@@ -15,7 +16,7 @@ import { ONBOARDING_KEY } from '../src/constants/storage';
 
 interface Slide {
   id: string;
-  emoji: string;
+  icono: React.ComponentProps<typeof Ionicons>['name'];
   titulo: string;
   descripcion: string;
   detalle: string;
@@ -24,42 +25,35 @@ interface Slide {
 const SLIDES: Slide[] = [
   {
     id: '1',
-    emoji: '👋',
+    icono: 'hand-left',
     titulo: 'Bienvenido a\nConsultoría Inmobiliaria',
-    descripcion: 'La plataforma que te ayuda a gestionar tus clientes, expedientes y comisiones desde tu celular.',
+    descripcion: 'La plataforma que te ayuda a registrar tus prospectos y los documentos de tus clientes desde tu celular.',
     detalle: 'Todo en un solo lugar, disponible 24/7.',
   },
   {
     id: '2',
-    emoji: '🤝',
+    icono: 'people',
     titulo: 'Registra tus\nProspectos',
-    descripcion: 'Agrega nuevos clientes interesados en créditos FOVISSSTE o INFONAVIT y haz seguimiento de cada uno.',
-    detalle: 'Usa el simulador de precalificación para saber si califican antes de iniciar el trámite.',
+    descripcion: 'Registra a las personas que estás evaluando para un crédito FOVISSSTE. Solo el nombre es obligatorio; lo demás es opcional.',
+    detalle: 'Cuando se confirman como clientes, abre su expediente desde su ficha.',
   },
   {
     id: '3',
-    emoji: '📁',
-    titulo: 'Gestiona\nExpedientes',
-    descripcion: 'Sube documentos directamente desde tu cámara. Consulta el estado de cada trámite en tiempo real.',
-    detalle: 'INE, CURP, comprobantes de ingresos y más — todo organizado por cliente.',
+    icono: 'document-text',
+    titulo: 'Documentos del\nExpediente',
+    descripcion: 'Cuando un prospecto se vuelve cliente, abre su expediente y escanea o sube sus documentos desde tu cámara.',
+    detalle: 'Te diremos qué revisar antes de subir cada documento, y un administrador los valida.',
   },
   {
     id: '4',
-    emoji: '🗺️',
+    icono: 'map',
     titulo: 'Registra tus\nVisitas en Campo',
     descripcion: 'Documenta cada visita con ubicación y fotos. La app funciona offline — sincroniza cuando tengas señal.',
     detalle: 'Tu actividad queda registrada y el admin puede ver tu trabajo en el mapa.',
   },
   {
     id: '5',
-    emoji: '💰',
-    titulo: 'Consulta tus\nComisiones',
-    descripcion: 'Ve el estado de cada comisión: pendiente, aprobada o pagada. Revisa tu resumen mensual de ingresos.',
-    detalle: 'Asegúrate de tener tu CLABE correcta en tu perfil para recibir pagos sin problema.',
-  },
-  {
-    id: '6',
-    emoji: '🎉',
+    icono: 'checkmark-done-circle',
     titulo: '¡Todo listo!',
     descripcion: 'Ya conoces lo esencial. Empieza registrando tu primer prospecto o completando tu perfil.',
     detalle: 'Puedes volver a ver este tutorial desde la sección Perfil → Ayuda.',
@@ -93,7 +87,7 @@ export default function OnboardingScreen() {
   const renderSlide = ({ item }: { item: Slide }) => (
     <View style={[styles.slide, { width }]}>
       <View style={styles.emojiContainer}>
-        <Text style={styles.emoji}>{item.emoji}</Text>
+        <Ionicons name={item.icono} size={72} color={Colors.gold[400]} />
       </View>
       <Text style={styles.titulo}>{item.titulo}</Text>
       <Text style={styles.descripcion}>{item.descripcion}</Text>

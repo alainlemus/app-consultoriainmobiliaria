@@ -3,36 +3,15 @@ import {
   View, Text, StyleSheet, FlatList,
   TouchableOpacity, ActivityIndicator, RefreshControl, Image, Modal, Pressable,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius } from '../../src/theme';
-import Badge, { ESTADO_EXPEDIENTE_BADGE } from '../../src/components/ui/Badge';
-import type { BadgeVariant } from '../../src/components/ui/Badge';
 import { getExpedientes, getAsesores, type AsesorBasico } from '../../src/services/api';
 import { cacheExpedientes, getCacheExpedientes, getExpedientesPendientesSync } from '../../src/services/offline';
 import { useSyncContext } from '../../src/contexts/SyncContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import type { Expediente } from '../../src/types';
-
-const ETAPAS_FILTRO = [
-  { value: 'todos',                  label: 'Todos' },
-  { value: 'Expediente iniciado',    label: 'Iniciado' },
-  { value: 'Documentos completos',   label: 'Docs completos' },
-  { value: 'Validación SOFOM',       label: 'Val. SOFOM' },
-  { value: 'Asignación a notaría',   label: 'Notaría' },
-  { value: 'Firma ante notario',     label: 'Firma' },
-  { value: 'Dispersión y cobro',     label: 'Dispersión' },
-];
-
-// Badge por etapa nombre
-export const ETAPA_BADGE: Record<string, BadgeVariant> = {
-  'Expediente iniciado':  'gray',
-  'Documentos completos': 'info',
-  'Validación SOFOM':     'warning',
-  'Asignación a notaría': 'gold',
-  'Firma ante notario':   'dark',
-  'Dispersión y cobro':   'success',
-};
 
 export default function ExpedientesScreen() {
   const router = useRouter();
@@ -44,7 +23,6 @@ export default function ExpedientesScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [desdeCache, setDesdeCache] = useState(false);
-  const [etapa,      setEtapa]      = useState('todos');
 
   // Filtro por asesor — solo super_admin
   const [asesores,       setAsesores]       = useState<AsesorBasico[]>([]);
@@ -63,9 +41,7 @@ export default function ExpedientesScreen() {
 
     if (!online) {
       const cached = await getCacheExpedientes();
-      const filtrados = etapa === 'todos'
-        ? cached
-        : cached.filter(e => e.etapa?.nombre === etapa);
+      const filtrados = cached;
       const filtradosPorAsesor = asesorFiltrado
         ? filtrados.filter(e => e.asesor_id === asesorFiltrado.id)
         : filtrados;
@@ -81,7 +57,6 @@ export default function ExpedientesScreen() {
 
     try {
       const res = await getExpedientes({
-        etapa:     etapa !== 'todos' ? etapa : undefined,
         asesor_id: asesorFiltrado?.id,
       });
       const pendientesNuevos = pendientesCola.filter(p =>
@@ -89,7 +64,7 @@ export default function ExpedientesScreen() {
       );
       setItems([...pendientesNuevos, ...res.data]);
       setDesdeCache(false);
-      if (etapa === 'todos' && !asesorFiltrado) {
+      if (!asesorFiltrado) {
         cacheExpedientes(res.data).catch(() => {});
       }
     } catch {
@@ -105,7 +80,7 @@ export default function ExpedientesScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [online, etapa, asesorFiltrado]);
+  }, [online, asesorFiltrado]);
 
   useEffect(() => { setLoading(true); load(); }, [load]);
 
@@ -115,7 +90,6 @@ export default function ExpedientesScreen() {
       <View style={[styles.header, { paddingTop: insets.top + Spacing.md }]}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.headerSub}>CRM</Text>
             <Text style={styles.headerTitle}>Expedientes</Text>
           </View>
         </View>
@@ -127,7 +101,7 @@ export default function ExpedientesScreen() {
             style={styles.asesorFiltro}
             onPress={() => setModalAsesores(true)}
           >
-            <Text style={styles.asesorFiltroIcon}>👤</Text>
+            <Ionicons name="person" size={20} color={Colors.dark[500]} style={styles.asesorFiltroIcon} />
             <Text style={styles.asesorFiltroText} numberOfLines={1}>
               {asesorFiltrado ? asesorFiltrado.name : 'Todos los asesores'}
             </Text>
@@ -136,37 +110,19 @@ export default function ExpedientesScreen() {
                 onPress={() => setAsesorFiltrado(null)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>✕</Text>
+                <Ionicons name="close" size={16} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
             )}
-            {!asesorFiltrado && <Text style={styles.asesorFiltroChevron}>▾</Text>}
+            {!asesorFiltrado && <Ionicons name="chevron-down" size={16} color={Colors.dark[400]} style={styles.asesorFiltroChevron} />}
           </TouchableOpacity>
         )}
-
-        <FlatList
-          horizontal
-          data={ETAPAS_FILTRO}
-          keyExtractor={e => e.value}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterList}
-          renderItem={({ item: e }) => (
-            <TouchableOpacity
-              style={[styles.filterChip, etapa === e.value && styles.filterChipActive]}
-              onPress={() => setEtapa(e.value)}
-            >
-              <Text style={[styles.filterText, etapa === e.value && styles.filterTextActive]}>
-                {e.label}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
       </View>
 
       {/* Aviso cache offline */}
       {desdeCache && (
         <View style={styles.cacheBanner}>
           <Text style={styles.cacheText}>
-            📴 Sin conexión — mostrando datos guardados en el dispositivo
+            Datos guardados en el dispositivo
           </Text>
         </View>
       )}
@@ -191,27 +147,19 @@ export default function ExpedientesScreen() {
               }
               activeOpacity={exp._pendiente_sync ? 1 : 0.8}
             >
-              {/* Foto del acreditado */}
-              {exp.contacto?.foto_url ? (
-                <Image source={{ uri: exp.contacto.foto_url }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatarFallback}>
-                  <Text style={styles.avatarLetter}>
-                    {(exp.contacto?.nombre?.[0] ?? '?').toUpperCase()}
-                  </Text>
-                </View>
-              )}
+              {/* Ya no se pide foto: icono de expediente */}
+              <View style={styles.avatarFallback}>
+                <Ionicons name="folder-open" size={26} color={Colors.gold[400]} />
+              </View>
 
               <View style={styles.info}>
-                {/* Fila superior: badge + chevron */}
                 {!exp._pendiente_sync && (
                   <View style={styles.badgeRow}>
-                    <Badge
-                      label={exp.etapa?.nombre ?? exp.estado}
-                      variant={ETAPA_BADGE[exp.etapa?.nombre ?? ''] ?? ESTADO_EXPEDIENTE_BADGE[exp.estado] ?? 'gray'}
-                      small
-                    />
-                    <Text style={styles.chevron}>›</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="attach" size={16} color={Colors.dark[500]} />
+                      <Text style={styles.docsPill}>{exp.documentos_count ?? 0} documento{(exp.documentos_count ?? 0) === 1 ? '' : 's'}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={Colors.dark[400]} style={styles.chevron} />
                   </View>
                 )}
                 <Text style={styles.nombre}>
@@ -224,7 +172,7 @@ export default function ExpedientesScreen() {
                   {exp.tipo_tramite?.nombre ?? '—'}
                 </Text>
                 {exp._pendiente_sync && (
-                  <Text style={styles.pendienteSyncText}>⏳ Pendiente de sincronizar</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="hourglass" size={16} color={Colors.dark[500]} /><Text style={[styles.pendienteSyncText, { flexShrink: 1 }]}>Pendiente de sincronizar</Text></View>
                 )}
               </View>
             </TouchableOpacity>
@@ -243,9 +191,9 @@ export default function ExpedientesScreen() {
             onPress={() => { setAsesorFiltrado(null); setModalAsesores(false); }}
           >
             <Text style={[styles.asesorItemText, !asesorFiltrado && styles.asesorItemTextActive]}>
-              👥 Todos los asesores
+              <Ionicons name="people" size={16} color={Colors.dark[500]} />{' '}Todos los asesores
             </Text>
-            {!asesorFiltrado && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+            {!asesorFiltrado && <Ionicons name="checkmark" size={18} color={Colors.gold[400]} />}
           </TouchableOpacity>
           {asesores.map(a => (
             <TouchableOpacity
@@ -254,9 +202,9 @@ export default function ExpedientesScreen() {
               onPress={() => { setAsesorFiltrado(a); setModalAsesores(false); }}
             >
               <Text style={[styles.asesorItemText, asesorFiltrado?.id === a.id && styles.asesorItemTextActive]}>
-                👤 {a.name}
+                <Ionicons name="person" size={16} color={Colors.dark[500]} />{' '}{a.name}
               </Text>
-              {asesorFiltrado?.id === a.id && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+              {asesorFiltrado?.id === a.id && <Ionicons name="checkmark" size={18} color={Colors.gold[400]} />}
             </TouchableOpacity>
           ))}
         </View>
@@ -266,6 +214,7 @@ export default function ExpedientesScreen() {
 }
 
 const styles = StyleSheet.create({
+  docsPill: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], fontWeight: Typography.fontWeight.semibold },
   flex:   { flex: 1, backgroundColor: Colors.cream[50] },
   center: { flex: 1, marginTop: 60 },
 
@@ -298,13 +247,11 @@ const styles = StyleSheet.create({
   empty:  { textAlign: 'center', color: Colors.dark[400], marginTop: 40, fontSize: Typography.fontSize.sm },
 
   cacheBanner: {
-    backgroundColor:  Colors.dark[800],
+    backgroundColor:   Colors.cream[100],
     paddingHorizontal: Spacing.base,
-    paddingVertical:   Spacing.md,
-    borderLeftWidth:   4,
-    borderLeftColor:   Colors.gold[400],
+    paddingVertical:   Spacing.xs,
   },
-  cacheText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, lineHeight: Typography.fontSize.sm * 1.4 },
+  cacheText: { color: Colors.dark[500], fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold },
 
   // Selector de asesor (sobre fondo oscuro del header)
   asesorFiltro: {

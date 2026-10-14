@@ -3,6 +3,7 @@
  * Ruta: /mapa
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -34,7 +35,7 @@ import { useSyncContext } from '../src/contexts/SyncContext';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Colors, Radius, Spacing, Typography } from '../src/theme';
 import type { Contacto, Ubicacion, SemaforoEscuela, Anuncio } from '../src/types';
-import { ANUNCIO_TIPO_EMOJI, ANUNCIO_TIPO_LABEL } from '../src/types';
+import { ANUNCIO_TIPO_ICONO, ANUNCIO_TIPO_LABEL } from '../src/types';
 
 // ── Constantes de tipo ────────────────────────────────────────────────────────
 const TIPO_COLOR: Record<string, string> = {
@@ -42,10 +43,11 @@ const TIPO_COLOR: Record<string, string> = {
   propiedad:      Colors.dark[700],
   escuela:        '#3b82f6',
 };
-const TIPO_ICON: Record<string, string> = {
-  visita_cliente: '🏠',
-  propiedad:      '🏢',
-  escuela:        '🏫',
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+const TIPO_ICON: Record<string, IconName> = {
+  visita_cliente: 'home',
+  propiedad:      'business',
+  escuela:        'school',
 };
 const TIPO_LABEL: Record<string, string> = {
   visita_cliente: 'Cliente',
@@ -57,11 +59,6 @@ const SEMAFORO_COLOR: Record<SemaforoEscuela, string> = {
   verde:    '#22c55e',
   amarillo: '#f59e0b',
   rojo:     '#ef4444',
-};
-const SEMAFORO_EMOJI: Record<SemaforoEscuela, string> = {
-  verde:    '🟢',
-  amarillo: '🟡',
-  rojo:     '🔴',
 };
 const SEMAFORO_LABEL: Record<SemaforoEscuela, string> = {
   verde:    'Hay maestros clientes',
@@ -106,7 +103,6 @@ export default function MapaScreen() {
 
   // ── Anuncios ───────────────────────────────────────────────────────────────
   const [anuncios,        setAnuncios]        = useState<Anuncio[]>([]);
-  const [mostrarAnuncios, setMostrarAnuncios] = useState(true);
   const [detalleAnuncio,  setDetalleAnuncio]  = useState<Anuncio | null>(null);
 
   // ── Filtro por asesor (solo super_admin) ───────────────────────────────────
@@ -155,17 +151,69 @@ export default function MapaScreen() {
   const [busqMapa, setBusqMapa]           = useState('');
   const [busqVisible, setBusqVisible]     = useState(false);
   const [searchExpanded, setSearchExpanded] = useState(false);
+  // ── Filtro único: Todos | Cliente | Propiedad | Escuela | Anuncios ───────────
+  // Cada opción muestra solo lo suyo; "Todos" muestra visitas y anuncios.
+  const visitasFiltradas = useMemo(
+    () => ubicaciones.filter(u =>
+      u.latitud != null && u.longitud != null && (filtro === 'todos' || filtro === u.tipo),
+    ),
+    [ubicaciones, filtro],
+  );
+  const anunciosFiltrados = useMemo(
+    () => (filtro === 'todos' || filtro === 'anuncios')
+      ? anuncios.filter(a => a.latitud != null && a.longitud != null
+          && (!asesorFiltrado || a.asesor_id == null || a.asesor_id === asesorFiltrado.id))
+      : [],
+    [anuncios, filtro, asesorFiltrado],
+  );
+  const cuenta = useMemo(() => {
+    const conCoords = ubicaciones.filter(u => u.latitud != null && u.longitud != null);
+    const anunciosAsesor = anuncios.filter(a => !asesorFiltrado || a.asesor_id == null || a.asesor_id === asesorFiltrado.id);
+    return {
+      todos:          conCoords.length + anunciosAsesor.length,
+      visita_cliente: conCoords.filter(u => u.tipo === 'visita_cliente').length,
+      propiedad:      conCoords.filter(u => u.tipo === 'propiedad').length,
+      escuela:        conCoords.filter(u => u.tipo === 'escuela').length,
+      anuncios:       anunciosAsesor.length,
+    } as Record<string, number>;
+  }, [ubicaciones, anuncios, asesorFiltrado]);
+
+  // Al cambiar de filtro, el mapa se ajusta a lo que quedó visible
+  const primerFiltro = useRef(true);
+  useEffect(() => {
+    if (primerFiltro.current) { primerFiltro.current = false; return; }
+    const coords = [
+      ...visitasFiltradas.map(u => ({ latitude: u.latitud as number, longitude: u.longitud as number })),
+      ...anunciosFiltrados.map(a => ({ latitude: a.latitud, longitude: a.longitud })),
+    ];
+    if (coords.length === 0) return;
+    if (coords.length === 1) {
+      mapRef.current?.animateToRegion({ ...coords[0], latitudeDelta: 0.02, longitudeDelta: 0.02 }, 500);
+    } else {
+      mapRef.current?.fitToCoordinates(coords, { edgePadding: { top: 120, right: 50, bottom: 120, left: 50 }, animated: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtro]);
+
+  // Los marcadores personalizados se redibujan un momento al cambiar el contenido (evita pines vacíos)
+  const [redibujar, setRedibujar] = useState(true);
+  useEffect(() => {
+    setRedibujar(true);
+    const t = setTimeout(() => setRedibujar(false), 900);
+    return () => clearTimeout(t);
+  }, [filtro, ubicaciones, anuncios, asesorFiltrado]);
+
   const resultadosBusq = useMemo(() => {
     if (busqMapa.trim().length < 2) return [];
     const q = busqMapa.toLowerCase();
-    return ubicaciones.filter(u =>
+    return visitasFiltradas.filter(u =>
       u.contacto?.toLowerCase().includes(q) ||
       u.nombre_lugar?.toLowerCase().includes(q) ||
       u.direccion?.toLowerCase().includes(q) ||
       u.municipio?.toLowerCase().includes(q) ||
       u.estado?.toLowerCase().includes(q)
     ).slice(0, 8);
-  }, [busqMapa, ubicaciones]);
+  }, [busqMapa, visitasFiltradas]);
 
   // ── Navegación externa ─────────────────────────────────────────────────────
   const abrirNavegacion = async (lat: number, lng: number, app: 'google' | 'waze' | 'apple') => {
@@ -507,7 +555,7 @@ export default function MapaScreen() {
           } as Ubicacion);
           await cerrarFormulario();
           Alert.alert(
-            '📋 Guardado sin conexión',
+            'Guardado sin conexión',
             'La visita se guardó en tu dispositivo y se enviará automáticamente cuando recuperes la conexión.',
           );
           return;
@@ -527,48 +575,51 @@ export default function MapaScreen() {
     }
   };
 
-  const marcadores = filtro === 'todos'
-    ? ubicaciones
-    : ubicaciones.filter(u => u.tipo === filtro);
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={s.container}>
       {/* Header */}
       <View style={s.header}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
-          <Text style={s.backIcon}>←</Text>
+          <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} style={s.backIcon} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Mapa de visitas</Text>
-          <Text style={s.headerSub}>{ubicaciones.filter(u => !u._pendiente_sync).length} registros{desdeCache ? ' · sin conexión' : ''}</Text>
+          <Text style={s.headerSub}>{visitasFiltradas.length + anunciosFiltrados.length} en el mapa{desdeCache ? ' · sin conexión' : ''}</Text>
         </View>
       </View>
 
       {/* Banner offline */}
       {desdeCache && (
         <View style={s.cacheBanner}>
-          <Text style={s.cacheText}>📴 Sin conexión — mostrando visitas guardadas en el dispositivo</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="cloud-offline" size={16} color={Colors.dark[500]} /><Text style={[s.cacheText, { flexShrink: 1 }]}>Sin conexión — mostrando visitas guardadas en el dispositivo</Text></View>
         </View>
       )}
 
       {/* Filtros */}
       <View style={s.filtrosCont}>
-        {(['todos', 'visita_cliente', 'propiedad', 'escuela'] as const).map(f => (
-          <Pressable key={f} style={[s.chip, filtro === f && s.chipActivo]} onPress={() => setFiltro(f)}>
-            <Text style={[s.chipText, filtro === f && s.chipTextActivo]}>
-              {f === 'todos' ? 'Todos' : `${TIPO_ICON[f]} ${TIPO_LABEL[f]}`}
-            </Text>
-          </Pressable>
-        ))}
-        <Pressable
-          style={[s.chip, mostrarAnuncios && s.chipAnuncioActivo]}
-          onPress={() => setMostrarAnuncios(v => !v)}
-        >
-          <Text style={[s.chipText, mostrarAnuncios && s.chipTextActivo]}>
-            📢 Anuncios {anuncios.length > 0 ? `(${anuncios.filter(a => a.estado !== 'retirado').length})` : ''}
-          </Text>
-        </Pressable>
+        {(['todos', 'visita_cliente', 'propiedad', 'escuela', 'anuncios'] as const).map(f => {
+          const activo = filtro === f;
+          const color  = f === 'anuncios' ? '#f97316' : Colors.gold[400];
+          return (
+            <Pressable
+              key={f}
+              style={[s.chip, activo && { backgroundColor: color, borderColor: color }, { flexDirection: 'row', alignItems: 'center', gap: 5 }]}
+              onPress={() => setFiltro(f)}
+            >
+              {f !== 'todos' && (
+                <Ionicons
+                  name={f === 'anuncios' ? 'megaphone' : TIPO_ICON[f]}
+                  size={15}
+                  color={activo ? Colors.dark[900] : Colors.dark[500]}
+                />
+              )}
+              <Text style={[s.chipText, activo && s.chipTextActivo]}>
+                {f === 'todos' ? 'Todos' : f === 'anuncios' ? 'Anuncios' : TIPO_LABEL[f]} ({cuenta[f] ?? 0})
+              </Text>
+            </Pressable>
+          );
+        })}
         {/* Filtro por asesor — solo super_admin */}
         {isSuperAdmin && (
           <Pressable
@@ -576,7 +627,7 @@ export default function MapaScreen() {
             onPress={() => setModalAsesores(true)}
           >
             <Text style={[s.chipText, asesorFiltrado ? s.chipTextActivo : null]} numberOfLines={1}>
-              👤 {asesorFiltrado ? asesorFiltrado.name : 'Todos'}
+              <Ionicons name="person" size={16} color={Colors.dark[500]} />{' '}{asesorFiltrado ? asesorFiltrado.name : 'Todos los asesores'}
             </Text>
           </Pressable>
         )}
@@ -591,7 +642,7 @@ export default function MapaScreen() {
         )}
 
         <MapView ref={mapRef} style={s.map} initialRegion={REGION_CDMX} showsUserLocation={locationPermission} showsMyLocationButton={false} googleRenderer="LEGACY">
-          {marcadores.filter(u => u.latitud != null && u.longitud != null).map((u, i) => {
+          {visitasFiltradas.map((u, i) => {
             const semaforoColor = u.tipo === 'escuela' && u.semaforo
               ? SEMAFORO_COLOR[u.semaforo as SemaforoEscuela]
               : null;
@@ -600,15 +651,17 @@ export default function MapaScreen() {
                 key={u.id ?? u._local_id ?? `l-${i}`}
                 coordinate={{ latitude: u.latitud ?? 0, longitude: u.longitud ?? 0 }}
                 pinColor={TIPO_COLOR[u.tipo]}
+                tracksViewChanges={redibujar}
                 onPress={() => setDetalle(u)}
               >
                 <View style={[
                   s.pin,
-                  { borderColor: semaforoColor ?? TIPO_COLOR[u.tipo] },
+                  // Círculo del color del tipo con el icono en blanco; el semáforo de escuelas es el borde
+                  { backgroundColor: TIPO_COLOR[u.tipo], borderColor: semaforoColor ?? Colors.white },
                   semaforoColor ? { borderWidth: 3 } : {},
                   u._pendiente_sync ? { opacity: 0.6, borderStyle: 'dashed' } : {},
                 ]}>
-                  <Text style={s.pinIcon}>{TIPO_ICON[u.tipo]}</Text>
+                  <Ionicons name={TIPO_ICON[u.tipo]} size={18} color={Colors.white} />
                   {(u.fotos?.length ?? 0) > 0 && (
                     <View style={s.fotoBadge}>
                       <Text style={s.fotoBadgeText}>{u.fotos!.length}</Text>
@@ -624,18 +677,19 @@ export default function MapaScreen() {
           })}
 
           {/* Marcadores de anuncios */}
-          {mostrarAnuncios && anuncios.map((a, i) => (
+          {anunciosFiltrados.map((a, i) => (
             <Marker
               key={`anuncio-${a.id ?? i}`}
               coordinate={{ latitude: a.latitud, longitude: a.longitud }}
+              tracksViewChanges={redibujar}
               onPress={() => setDetalleAnuncio(a)}
             >
               <View style={[
                 s.pin,
-                { borderColor: '#f97316', backgroundColor: '#fff7ed' },
+                { borderColor: Colors.white, backgroundColor: '#f97316' },
                 a.estado === 'retirado' ? { opacity: 0.45 } : {},
               ]}>
-                <Text style={s.pinIcon}>{ANUNCIO_TIPO_EMOJI[a.tipo]}</Text>
+                <Ionicons name={ANUNCIO_TIPO_ICONO[a.tipo] as IconName} size={18} color={Colors.white} />
               </View>
             </Marker>
           ))}
@@ -644,7 +698,7 @@ export default function MapaScreen() {
         {/* Buscador flotante sobre el mapa */}
         <View style={s.searchMapa} pointerEvents="box-none">
           <View style={s.searchMapaBar}>
-            <Text style={s.searchMapaIco}>🔍</Text>
+            <Ionicons name="search" size={20} color={Colors.dark[500]} style={s.searchMapaIco} />
             <TextInput
               style={s.searchMapaTxt}
               placeholder="Buscar cliente, dirección, escuela..."
@@ -656,7 +710,7 @@ export default function MapaScreen() {
             />
             {busqMapa.length > 0 && (
               <Pressable onPress={() => { setBusqMapa(''); setBusqVisible(false); }} style={{ paddingHorizontal: 6 }}>
-                <Text style={{ color: Colors.dark[400], fontSize: 15 }}>✕</Text>
+                <Ionicons name="close" size={17} color={Colors.dark[400]} />
               </Pressable>
             )}
           </View>
@@ -678,7 +732,7 @@ export default function MapaScreen() {
                     setTimeout(() => setDetalle(u), 700);
                   }}
                 >
-                  <Text style={s.searchMapaItemIco}>{TIPO_ICON[u.tipo]}</Text>
+                  <Ionicons name={TIPO_ICON[u.tipo]} size={18} color={Colors.dark[700]} />
                   <View style={{ flex: 1 }}>
                     <Text style={s.searchMapaItemPrim} numberOfLines={1}>
                       {u.nombre_lugar || u.contacto || u.municipio || 'Sin nombre'}
@@ -689,7 +743,7 @@ export default function MapaScreen() {
                       </Text>
                     ) : null}
                   </View>
-                  <Text style={{ color: Colors.gold[400], fontSize: 13 }}>›</Text>
+                  <Ionicons name="chevron-forward" size={16} color={Colors.gold[400]} />
                 </Pressable>
               ))}
             </View>
@@ -706,14 +760,14 @@ export default function MapaScreen() {
         {/* FABs */}
         <View style={s.fabs}>
           <Pressable style={s.fabSec} onPress={centrarEnMi}>
-            <Text style={s.fabIcon}>🎯</Text>
+            <Ionicons name="locate" size={20} color={Colors.dark[500]} style={s.fabIcon} />
           </Pressable>
           {/* FAB anuncio — naranja para distinguirlo */}
           <Pressable style={s.fabAnuncio} onPress={() => router.push('/anuncio/nuevo')}>
-            <Text style={s.fabIcon}>📢</Text>
+            <Ionicons name="megaphone" size={20} color={Colors.dark[500]} style={s.fabIcon} />
           </Pressable>
           <Pressable style={s.fab} onPress={() => abrirRegistro()}>
-            <Text style={s.fabIcon}>＋</Text>
+            <Ionicons name="add" size={16} color={Colors.dark[400]} style={s.fabIcon} />
           </Pressable>
         </View>
       </View>
@@ -740,7 +794,7 @@ export default function MapaScreen() {
                     style={[s.tipoBtn, tipo === t && { backgroundColor: TIPO_COLOR[t], borderColor: TIPO_COLOR[t] }]}
                     onPress={() => setTipo(t)}
                   >
-                    <Text style={s.tipoBtnIcon}>{TIPO_ICON[t]}</Text>
+                    <Ionicons name={TIPO_ICON[t]} size={22} color={Colors.dark[700]} />
                     <Text style={[s.tipoBtnText, tipo === t && s.tipoBtnTextActivo]}>
                       {TIPO_LABEL[t]}
                     </Text>
@@ -752,20 +806,20 @@ export default function MapaScreen() {
               {tipo === 'visita_cliente' && (
                 <>
                   <Text style={s.sheetLabel}>
-                    Prospecto{contactoId ? ' ✓' : ' (opcional)'}
+                    Prospecto{contactoId ? ' (elegido)' : ' (opcional)'}
                   </Text>
                   {contactoId ? (
                     <View style={s.prospFijo}>
                       <Text style={s.prospFijoText}>{busqProspecto}</Text>
                       <Pressable onPress={() => { setContactoId(null); setBusqProspecto(''); }}>
-                        <Text style={{ color: Colors.dark[400], fontSize: 16 }}>✕</Text>
+                        <Ionicons name="close" size={18} color={Colors.dark[400]} />
                       </Pressable>
                     </View>
                   ) : (
                     <>
                       {/* Buscador con ícono lupa */}
                       <View style={s.searchWrap}>
-                        <Text style={s.searchIcon}>🔍</Text>
+                        <Ionicons name="search" size={20} color={Colors.dark[500]} style={s.searchIcon} />
                         <TextInput
                           style={s.searchInput}
                           placeholder="Buscar prospecto por nombre..."
@@ -777,7 +831,7 @@ export default function MapaScreen() {
                         />
                         {busqProspecto.length > 0 && (
                           <Pressable onPress={() => setBusqProspecto('')} style={s.searchClear}>
-                            <Text style={{ color: Colors.dark[400], fontSize: 14 }}>✕</Text>
+                            <Ionicons name="close" size={16} color={Colors.dark[400]} />
                           </Pressable>
                         )}
                       </View>
@@ -837,7 +891,7 @@ export default function MapaScreen() {
               {/* ── Estado (buscador) ─────────────────────────────────────── */}
               <Text style={s.sheetLabel}>Estado</Text>
               <View style={s.searchWrap}>
-                <Text style={s.searchIcon}>🔍</Text>
+                <Ionicons name="search" size={20} color={Colors.dark[500]} style={s.searchIcon} />
                 <TextInput
                   style={s.searchInput}
                   placeholder="Buscar estado..."
@@ -855,7 +909,7 @@ export default function MapaScreen() {
                 />
                 {busqEstado.length > 0 && (
                   <Pressable onPress={() => { setBusqEstado(''); setEstadoVal(''); setMunicipio(''); setEstadoDropdownVisible(false); }} style={s.searchClear}>
-                    <Text style={{ color: Colors.dark[400], fontSize: 14 }}>✕</Text>
+                    <Ionicons name="close" size={16} color={Colors.dark[400]} />
                   </Pressable>
                 )}
               </View>
@@ -891,7 +945,7 @@ export default function MapaScreen() {
                     style={[s.searchWrap, { paddingRight: Spacing.md }]}
                     onPress={() => setMunicipioDropdownVisible(v => !v)}
                   >
-                    <Text style={s.searchIcon}>📍</Text>
+                    <Ionicons name="location" size={20} color={Colors.dark[500]} style={s.searchIcon} />
                     <Text style={[s.searchInput, { flex: 1, color: municipio ? Colors.dark[900] : Colors.dark[400] }]}>
                       {municipio || 'Seleccionar municipio...'}
                     </Text>
@@ -947,18 +1001,18 @@ export default function MapaScreen() {
                   <View key={i} style={s.fotoThumb}>
                     <Image source={{ uri: f.uri }} style={s.fotoImg} />
                     <TouchableOpacity style={s.fotoRemove} onPress={() => quitarFoto(i)}>
-                      <Text style={{ color: Colors.white, fontSize: 10, fontWeight: 'bold' }}>✕</Text>
+                      <Ionicons name="close" size={12} color={Colors.white} />
                     </TouchableOpacity>
                   </View>
                 ))}
                 {fotosSeleccionadas.length < 3 && (
                   <View style={s.fotosBtns}>
                     <TouchableOpacity style={s.fotoBtn} onPress={() => agregarFotos('camara')}>
-                      <Text style={s.fotoBtnIcon}>📷</Text>
+                      <Ionicons name="camera" size={20} color={Colors.dark[500]} style={s.fotoBtnIcon} />
                       <Text style={s.fotoBtnText}>Cámara</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.fotoBtn} onPress={() => agregarFotos('galeria')}>
-                      <Text style={s.fotoBtnIcon}>🖼️</Text>
+                      <Ionicons name="image" size={20} color={Colors.dark[500]} style={s.fotoBtnIcon} />
                       <Text style={s.fotoBtnText}>Galería</Text>
                     </TouchableOpacity>
                   </View>
@@ -967,7 +1021,7 @@ export default function MapaScreen() {
 
               {userLoc && (
                 <Text style={s.coords}>
-                  📍 {userLoc.lat.toFixed(5)}, {userLoc.lng.toFixed(5)}
+                  <Ionicons name="location" size={16} color={Colors.dark[500]} />{' '}{userLoc.lat.toFixed(5)}, {userLoc.lng.toFixed(5)}
                 </Text>
               )}
 
@@ -992,12 +1046,12 @@ export default function MapaScreen() {
               {/* Badge de pendiente sync */}
               {detalle._pendiente_sync && (
                 <View style={s.pendienteSyncBanner}>
-                  <Text style={s.pendienteSyncText}>⏳ Pendiente de sincronizar — se enviará cuando haya conexión</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="hourglass" size={16} color={Colors.dark[500]} /><Text style={[s.pendienteSyncText, { flexShrink: 1 }]}>Pendiente de sincronizar — se enviará cuando haya conexión</Text></View>
                 </View>
               )}
               <View style={s.detalleHeader}>
                 <View style={[s.detalleIconWrap, { backgroundColor: TIPO_COLOR[detalle.tipo] + '22', borderColor: TIPO_COLOR[detalle.tipo] }]}>
-                  <Text style={s.detalleIconGrande}>{TIPO_ICON[detalle.tipo]}</Text>
+                  <Ionicons name={TIPO_ICON[detalle.tipo]} size={34} color={Colors.dark[700]} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.detalleTipo}>{TIPO_LABEL[detalle.tipo]}</Text>
@@ -1011,7 +1065,7 @@ export default function MapaScreen() {
                   </Text>
                 </View>
                 <Pressable onPress={() => setDetalle(null)} style={s.detalleClose}>
-                  <Text style={{ color: Colors.dark[500], fontSize: 18 }}>✕</Text>
+                  <Ionicons name="close" size={20} color={Colors.dark[500]} />
                 </Pressable>
               </View>
 
@@ -1027,9 +1081,7 @@ export default function MapaScreen() {
                 <View style={s.semaforoSection}>
                   <Text style={s.semaforoTitulo}>Estado del semáforo</Text>
                   <View style={s.semaforoRow}>
-                    <Text style={s.semaforoEmoji}>
-                      {SEMAFORO_EMOJI[(detalle.semaforo as SemaforoEscuela) ?? 'amarillo']}
-                    </Text>
+                    <Ionicons name="ellipse" size={26} color={SEMAFORO_COLOR[(detalle.semaforo as SemaforoEscuela) ?? 'amarillo']} />
                     <View style={{ flex: 1 }}>
                       <Text style={s.semaforoLabel}>
                         {SEMAFORO_LABEL[(detalle.semaforo as SemaforoEscuela) ?? 'amarillo']}
@@ -1100,14 +1152,14 @@ export default function MapaScreen() {
                   style={[s.navBtn, { backgroundColor: '#4285F4' }]}
                   onPress={() => detalle.latitud != null && detalle.longitud != null && abrirNavegacion(detalle.latitud, detalle.longitud, 'google')}
                 >
-                  <Text style={s.navBtnIco}>🗺️</Text>
+                  <Ionicons name="map" size={20} color={Colors.dark[500]} style={s.navBtnIco} />
                   <Text style={s.navBtnTxt}>Google Maps</Text>
                 </Pressable>
                 <Pressable
                   style={[s.navBtn, { backgroundColor: '#00C4B3' }]}
                   onPress={() => detalle.latitud != null && detalle.longitud != null && abrirNavegacion(detalle.latitud, detalle.longitud, 'waze')}
                 >
-                  <Text style={s.navBtnIco}>🚗</Text>
+                  <Ionicons name="car" size={20} color={Colors.dark[500]} style={s.navBtnIco} />
                   <Text style={s.navBtnTxt}>Waze</Text>
                 </Pressable>
                 {Platform.OS === 'ios' && (
@@ -1115,7 +1167,7 @@ export default function MapaScreen() {
                     style={[s.navBtn, { backgroundColor: Colors.dark[600] }]}
                     onPress={() => detalle.latitud != null && detalle.longitud != null && abrirNavegacion(detalle.latitud, detalle.longitud, 'apple')}
                   >
-                    <Text style={s.navBtnIco}>🍎</Text>
+                    <Ionicons name="logo-apple" size={20} color={Colors.dark[500]} style={s.navBtnIco} />
                     <Text style={s.navBtnTxt}>Maps</Text>
                   </Pressable>
                 )}
@@ -1146,14 +1198,14 @@ export default function MapaScreen() {
               ]}
               onPress={() => setSemaforoNuevo(op)}
             >
-              <Text style={s.semaforoOpcionEmoji}>{SEMAFORO_EMOJI[op]}</Text>
+              <Ionicons name="ellipse" size={22} color={SEMAFORO_COLOR[op]} />
               <Text style={[
                 s.semaforoOpcionLabel,
                 semaforoNuevo === op && { color: SEMAFORO_COLOR[op], fontWeight: Typography.fontWeight.bold },
               ]}>
                 {SEMAFORO_LABEL[op]}
               </Text>
-              {semaforoNuevo === op && <Text style={{ color: SEMAFORO_COLOR[op], fontSize: 18 }}>✓</Text>}
+              {semaforoNuevo === op && <Ionicons name="checkmark" size={20} color={SEMAFORO_COLOR[op]} />}
             </Pressable>
           ))}
 
@@ -1190,7 +1242,7 @@ export default function MapaScreen() {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
               <View style={s.detalleHeader}>
                 <View style={[s.detalleIconWrap, { backgroundColor: '#fff7ed', borderColor: '#f97316' }]}>
-                  <Text style={s.detalleIconGrande}>{ANUNCIO_TIPO_EMOJI[detalleAnuncio.tipo]}</Text>
+                  <Ionicons name={ANUNCIO_TIPO_ICONO[detalleAnuncio.tipo] as IconName} size={34} color={Colors.dark[700]} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.detalleTipo}>
@@ -1202,11 +1254,11 @@ export default function MapaScreen() {
                     </View>
                   )}
                   {detalleAnuncio.colocado_en && (
-                    <Text style={s.detalleFecha}>📅 Colocado: {detalleAnuncio.colocado_en}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="calendar" size={16} color={Colors.dark[500]} /><Text style={[s.detalleFecha, { flexShrink: 1 }]}>Colocado: {detalleAnuncio.colocado_en}</Text></View>
                   )}
                 </View>
                 <Pressable onPress={() => setDetalleAnuncio(null)} style={s.detalleClose}>
-                  <Text style={{ color: Colors.dark[500], fontSize: 18 }}>✕</Text>
+                  <Ionicons name="close" size={20} color={Colors.dark[500]} />
                 </Pressable>
               </View>
 
@@ -1272,7 +1324,7 @@ export default function MapaScreen() {
                   }}
                 >
                   <Text style={s.btnGuardarText}>
-                    {detalleAnuncio.estado === 'activo' ? '🗑️ Marcar como retirado' : '✓ Reactivar anuncio'}
+                    {detalleAnuncio.estado === 'activo' ? 'Marcar como retirado' : 'Reactivar anuncio'}
                   </Text>
                 </Pressable>
               )}
@@ -1293,9 +1345,9 @@ export default function MapaScreen() {
               onPress={() => { setAsesorFiltrado(null); setModalAsesores(false); }}
             >
               <Text style={[s.asesorItemText, !asesorFiltrado && s.asesorItemTextoActivo]}>
-                👥 Todos los asesores
+                <Ionicons name="people" size={16} color={Colors.dark[500]} />{' '}Todos los asesores
               </Text>
-              {!asesorFiltrado && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+              {!asesorFiltrado && <Ionicons name="checkmark" size={18} color={Colors.gold[400]} />}
             </Pressable>
             {asesores.map(a => (
               <Pressable
@@ -1304,9 +1356,9 @@ export default function MapaScreen() {
                 onPress={() => { setAsesorFiltrado(a); setModalAsesores(false); }}
               >
                 <Text style={[s.asesorItemText, asesorFiltrado?.id === a.id && s.asesorItemTextoActivo]}>
-                  👤 {a.name}
+                  <Ionicons name="person" size={16} color={Colors.dark[500]} />{' '}{a.name}
                 </Text>
-                {asesorFiltrado?.id === a.id && <Text style={{ color: Colors.gold[400] }}>✓</Text>}
+                {asesorFiltrado?.id === a.id && <Ionicons name="checkmark" size={18} color={Colors.gold[400]} />}
               </Pressable>
             ))}
           </View>
@@ -1383,7 +1435,6 @@ const s = StyleSheet.create({
     borderRadius: Radius.full, borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-  chipAnuncioActivo: { backgroundColor: '#f97316', borderColor: '#f97316' },
   chipAsesorActivo:  { backgroundColor: Colors.gold[600], borderColor: Colors.gold[600] },
   chipActivo: { backgroundColor: Colors.gold[400], borderColor: Colors.gold[400] },
   chipText: { fontSize: Typography.fontSize.xs, color: '#ffffff' },

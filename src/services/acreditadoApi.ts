@@ -13,7 +13,6 @@ import {
   AcreditadoAuthState,
   ExpedienteAcreditado,
   DocumentoAcreditado,
-  SeguimientoAcreditado,
   ServicioTramite,
 } from '../types';
 
@@ -220,11 +219,6 @@ export async function subirFotoAcreditado(uri: string): Promise<string | null> {
 export async function getExpedienteAcreditado(): Promise<ExpedienteAcreditado | null> {
   const res = await acreditadoFetch<{ data: ExpedienteAcreditado | null }>('/expediente');
   return res.data;
-}
-
-export async function getSeguimientoAcreditado(): Promise<SeguimientoAcreditado[]> {
-  const res = await acreditadoFetch<{ data: SeguimientoAcreditado[] }>('/expediente/seguimiento');
-  return res.data ?? [];
 }
 
 export async function getDocumentosPendientesAcreditado(): Promise<DocumentoAcreditado[]> {

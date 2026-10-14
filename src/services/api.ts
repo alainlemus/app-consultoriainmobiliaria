@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
-import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Comision, ResumenComisiones, Escuela, SemaforoEscuela, Anuncio, EstadoAnuncio, RutaAsesor, RutaDia, RutaPunto } from '../types';
+import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Escuela, SemaforoEscuela, Anuncio, EstadoAnuncio, RutaAsesor, RutaDia, RutaPunto } from '../types';
 
 // Selecciona la URL según plataforma en desarrollo
 // iOS simulador  → 127.0.0.1:8080
@@ -168,8 +168,6 @@ export async function getMe(): Promise<AuthState['user']> {
 export async function updatePerfil(data: {
   name?: string;
   telefono?: string;
-  banco?: string;
-  clabe?: string;
 }): Promise<AuthState['user']> {
   const res = await apiFetch<{ message: string; data: AuthState['user'] }>('/auth/perfil', {
     method: 'PUT',
@@ -355,7 +353,8 @@ export async function updateContratoPrestacionServiciosConfig(
 
 // ── Documentos ─────────────────────────────────────────────────────────────
 
-export async function uploadDocumento(expedienteId: number, uri: string, tipo: string, notas?: string, mimeType?: string, seccion?: string): Promise<Documento> {
+/** POST multipart de un documento; la ruta decide si va a un expediente o a un prospecto. */
+async function postDocumento(path: string, uri: string, tipo: string, notas?: string, mimeType?: string, seccion?: string): Promise<Documento> {
   const token = await getToken();
   const mime = mimeType ?? 'image/jpeg';
   const ext  = mime === 'application/pdf' ? 'pdf' : mime.split('/')[1] ?? 'jpg';
@@ -365,7 +364,7 @@ export async function uploadDocumento(expedienteId: number, uri: string, tipo: s
   if (seccion) formData.append('seccion', seccion);
   if (notas)   formData.append('notas', notas);
 
-  const response = await fetch(`${API_BASE}/expedientes/${expedienteId}/documentos`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     method:  'POST',
     headers: {
       'Accept':        'application/json',
@@ -381,6 +380,16 @@ export async function uploadDocumento(expedienteId: number, uri: string, tipo: s
   const res = await response.json();
   const doc: Documento = res.data;
   return { ...doc, url: resolveStorageUrl(doc.url) };
+}
+
+export function uploadDocumento(expedienteId: number, uri: string, tipo: string, notas?: string, mimeType?: string, seccion?: string): Promise<Documento> {
+  return postDocumento(`/expedientes/${expedienteId}/documentos`, uri, tipo, notas, mimeType, seccion);
+}
+
+/** Documentos ya subidos del expediente (sin los renglones de checklist vacíos). */
+export async function getDocumentosExpediente(expedienteId: number): Promise<Documento[]> {
+  const res = await apiFetch<{ data: Documento[] }>(`/expedientes/${expedienteId}/documentos`);
+  return res.data.filter(d => d.tiene_archivo);
 }
 
 export async function deleteDocumento(expedienteId: number, documentoId: number): Promise<void> {
@@ -528,13 +537,33 @@ export async function reemplazarDocumento(expedienteId: number, documentoId: num
   return { ...doc, url: resolveStorageUrl(doc.url) };
 }
 
-/** Marca un documento ya subido como no válido — el acreditado ve el motivo y debe volver a subirlo */
+/** Solo administradores: envía a su correo el enlace para descargar la carpeta (ZIP) del expediente */
+export async function enviarCarpetaExpediente(expedienteId: number): Promise<{ message: string; email: string }> {
+  return apiFetch<{ message: string; email: string }>(`/expedientes/${expedienteId}/enviar-carpeta`, { method: 'POST' });
+}
+
+/** Solo administradores: da por válido un documento */
+export async function validarDocumento(expedienteId: number, documentoId: number): Promise<Documento> {
+  const res = await apiFetch<ApiResponse<Documento>>(`/expedientes/${expedienteId}/documentos/${documentoId}/validar`, { method: 'POST' });
+  return { ...res.data, url: resolveStorageUrl(res.data.url) };
+}
+
+/** Solo administradores: marca un documento como no válido — se guarda el motivo y el acreditado lo ve */
 export async function rechazarDocumento(expedienteId: number, documentoId: number, motivo: string): Promise<Documento> {
   const res = await apiFetch<ApiResponse<Documento>>(`/expedientes/${expedienteId}/documentos/${documentoId}/rechazar`, {
     method: 'POST',
     body:   JSON.stringify({ motivo }),
   });
   return { ...res.data, url: resolveStorageUrl(res.data.url) };
+}
+
+/** Solo administradores: pide al acreditado un documento que faltaba, con una nota que explica cuál. Le llega un push. */
+export async function solicitarDocumentoFaltante(expedienteId: number, nota: string, para?: 'acreditado' | 'asesor'): Promise<Documento> {
+  const res = await apiFetch<ApiResponse<Documento>>(`/expedientes/${expedienteId}/documentos-solicitados`, {
+    method: 'POST',
+    body:   JSON.stringify({ nota, para }),
+  });
+  return res.data;
 }
 
 // ── Ubicaciones ────────────────────────────────────────────────────────────
@@ -672,24 +701,6 @@ export async function registrarDispositivo(fcmToken: string, plataforma: 'ios' |
     method: 'POST',
     body:   JSON.stringify({ fcm_token: fcmToken, plataforma }),
   });
-}
-
-// ── Comisiones ─────────────────────────────────────────────────────────────
-
-export async function getComisiones(params?: {
-  estado?: 'pagada' | 'pendiente';
-  page?: number;
-}): Promise<{ data: Comision[]; current_page: number; last_page: number; total: number }> {
-  const p: Record<string, string> = {};
-  if (params?.estado) p['estado'] = params.estado;
-  if (params?.page)   p['page']   = String(params.page);
-  const qs = new URLSearchParams(p).toString();
-  return apiFetch(`/comisiones${qs ? `?${qs}` : ''}`);
-}
-
-export async function getResumenComisiones(): Promise<ResumenComisiones> {
-  const res = await apiFetch<ApiResponse<ResumenComisiones>>('/comisiones/resumen');
-  return res.data;
 }
 
 // ── Route Points ───────────────────────────────────────────────────────────────

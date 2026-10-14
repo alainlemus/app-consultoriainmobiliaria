@@ -1,24 +1,24 @@
+import { APP_VERSION } from '../../src/version';
 import React, { useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
   TouchableOpacity, RefreshControl, StatusBar, Image,
   Switch, ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
 import { getContactos, getExpedientes, getMe, logout } from '../../src/services/api';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useRouteTracking } from '../../src/hooks/useRouteTracking';
+import AvisoRuta from '../../src/components/AvisoRuta';
 import type { User, Contacto } from '../../src/types';
 
 interface Stats {
   totalProspectos:  number;
   totalExpedientes: number;
-  enTramite:        number;
-  cerrados:         number;
 }
 
 export default function DashboardScreen() {
@@ -40,6 +40,7 @@ export default function DashboardScreen() {
   // El botón de rutas se muestra para super_admin y asesores.
   // Usamos authLoading para no mostrar el botón hasta saber el rol real.
   const mostrarRutas = !authLoading && (isSuperAdmin || isAsesor);
+  const [avisoRuta, setAvisoRuta] = useState(false);   // aviso antes de activar la ruta
   const { estaActivo, pendientes: routePendientes, iniciando, error: routeError, activar, desactivar } = useRouteTracking(isAsesor);
 
   // Usar el user del AuthContext si está disponible (evita llamar getMe() de nuevo)
@@ -58,10 +59,6 @@ export default function DashboardScreen() {
       setStats({
         totalProspectos:  prospectos.meta.total,
         totalExpedientes: expedientes.meta.total,
-        enTramite: expedientes.data.filter(e =>
-          ['en_proceso','documentacion','en_catastro','pre_avaluo','cuv_generada','avaluo_cerrado','en_notaria'].includes(e.estado)
-        ).length,
-        cerrados: expedientes.data.filter(e => e.estado === 'cerrado').length,
       });
       setRecientes(prospectos.data.slice(0, 5));
     } catch {
@@ -136,30 +133,27 @@ export default function DashboardScreen() {
           {isSuperAdmin && (
             <View style={styles.superAdminBanner}>
               <Text style={styles.superAdminBannerText}>
-                👑 Vista de administrador — mostrando datos de todos los asesores
+                <Ionicons name="ribbon" size={16} color={Colors.gold[400]} />{' '}Vista de administrador — mostrando datos de todos los asesores
               </Text>
             </View>
           )}
           {/* ── KPI cards ── */}
           <View style={styles.kpiGrid}>
-            <KpiCard label="Prospectos"  value={stats?.totalProspectos  ?? '—'} icon="👥" accent={Colors.gold[400]}    />
-            <KpiCard label="Expedientes" value={stats?.totalExpedientes ?? '—'} icon="📁" accent={Colors.dark[500]}    />
-            <KpiCard label="En trámite"  value={stats?.enTramite        ?? '—'} icon="⚙️" accent={Colors.crimson[500]} />
-            <KpiCard label="Cerrados"    value={stats?.cerrados         ?? '—'} icon="✅" accent={Colors.success}      />
+            <KpiCard label="Prospectos"  value={stats?.totalProspectos  ?? '—'} icon="people" accent={Colors.gold[400]} onPress={() => router.push('/(tabs)/prospectos')} />
+            <KpiCard label="Expedientes" value={stats?.totalExpedientes ?? '—'} icon="folder" accent={Colors.dark[500]} onPress={() => router.push('/(tabs)/expedientes')} />
           </View>
 
           {/* ── Acciones rápidas ── */}
-          <SectionHeader title="Acciones rápidas" />
+          <SectionHeader title="Acciones" />
           <View style={styles.actionsGrid}>
-            <ActionTile icon="➕" label="Nuevo prospecto" onPress={() => router.push('/prospectos/nuevo')} primary />
-            <ActionTile icon="👥" label="Prospectos"      onPress={() => router.push('/(tabs)/prospectos')} />
-            <ActionTile icon="📁" label="Expedientes"     onPress={() => router.push('/(tabs)/expedientes')} />
-            {isSuperAdmin && (
-              <ActionTile icon="🖋️" label="Contratos" onPress={() => router.push('/contratos')} />
+            <ActionTile icon="person-add" label="Nuevo prospecto" onPress={() => router.push('/prospectos/nuevo')} primary />
+            {/* Contratos: disponible para todos los asesores y el administrador */}
+            {(isSuperAdmin || isAsesor) && (
+              <ActionTile icon="document-text" label="Contratos" onPress={() => router.push('/contratos')} />
             )}
-            <ActionTile icon="🗺️" label="Mapa"            onPress={() => router.push('/mapa')} />
+            <ActionTile icon="map" label="Mapa"            onPress={() => router.push('/mapa')} />
             {mostrarRutas && (
-              <ActionTile icon="📍" label="Rutas" onPress={() => router.push('/rutas')} />
+              <ActionTile icon="trail-sign" label="Rutas" onPress={() => router.push('/rutas')} />
             )}
           </View>
 
@@ -168,7 +162,10 @@ export default function DashboardScreen() {
             <View style={styles.trackingCard}>
               <View style={styles.trackingRow}>
                 <View style={styles.trackingInfo}>
-                  <Text style={styles.trackingLabel}>📍 Rastreo de ubicación</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="navigate" size={18} color={Colors.dark[800]} />
+                    <Text style={styles.trackingLabel}>Ruta</Text>
+                  </View>
                   <Text style={styles.trackingSub}>
                      {estaActivo
                        ? routePendientes > 0
@@ -176,7 +173,7 @@ export default function DashboardScreen() {
                          : 'Registrando ruta'
                        : iniciando
                          ? 'Activando...'
-                         : 'Registra tu ruta para supervisión'}
+                         : 'Captura tu ruta conforme a las ubicaciones registradas'}
                   </Text>
                 </View>
                 {iniciando ? (
@@ -184,7 +181,7 @@ export default function DashboardScreen() {
                 ) : (
                   <Switch
                     value={estaActivo}
-                    onValueChange={(val) => val ? activar() : desactivar()}
+                    onValueChange={(val) => val ? setAvisoRuta(true) : desactivar()}
                     trackColor={{ false: Colors.cream[300], true: Colors.gold[400] }}
                     thumbColor={estaActivo ? Colors.dark[800] : Colors.cream[50]}
                   />
@@ -195,6 +192,12 @@ export default function DashboardScreen() {
               )}
             </View>
           )}
+
+          <AvisoRuta
+            visible={avisoRuta}
+            onCancelar={() => setAvisoRuta(false)}
+            onActivar={() => { setAvisoRuta(false); activar(); }}
+          />
 
           {/* ── Prospectos recientes ── */}
           <SectionHeader title="Recientes" action={{ label: 'Ver todos', onPress: () => router.push('/(tabs)/prospectos') }} />
@@ -215,7 +218,7 @@ export default function DashboardScreen() {
                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                      <Text style={styles.recentNombre}>{c.nombre}</Text>
                      {c.estado_prospecto === 'en_tramite' && (
-                       <Text style={{ fontSize: 14 }}>📂</Text>
+                       <Ionicons name="folder-open" size={16} color={Colors.dark[500]} />
                      )}
                    </View>
                    <Text style={styles.recentSub}>{c.email ?? c.telefono ?? '—'}</Text>
@@ -229,7 +232,7 @@ export default function DashboardScreen() {
             ))}
           </View>
 
-          <Text style={styles.version}>v{Constants.expoConfig?.version ?? '—'}</Text>
+          <Text style={styles.version}>v{APP_VERSION}</Text>
         </View>
       </ScrollView>
     </View>
@@ -256,24 +259,26 @@ const sh = StyleSheet.create({
   link:  { fontSize: Typography.fontSize.sm, color: Colors.gold[500], fontWeight: Typography.fontWeight.semibold },
 });
 
-function KpiCard({ label, value, icon, accent }: { label: string; value: number | string; icon: string; accent: string }) {
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
+function KpiCard({ label, value, icon, accent, onPress }: { label: string; value: number | string; icon: IconName; accent: string; onPress?: () => void }) {
   return (
-    <View style={[styles.kpiCard, { borderTopColor: accent }]}>
-      <Text style={styles.kpiIcon}>{icon}</Text>
+    <TouchableOpacity style={[styles.kpiCard, { borderTopColor: accent }]} onPress={onPress} activeOpacity={0.8}>
+      <Ionicons name={icon} size={26} color={accent} style={{ marginBottom: 2 }} />
       <Text style={[styles.kpiValue, { color: accent }]}>{value}</Text>
-      <Text style={styles.kpiLabel}>{label}</Text>
-    </View>
+      <Text style={styles.kpiLabel} numberOfLines={1}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
-function ActionTile({ icon, label, onPress, primary }: { icon: string; label: string; onPress: () => void; primary?: boolean }) {
+function ActionTile({ icon, label, onPress, primary }: { icon: IconName; label: string; onPress: () => void; primary?: boolean }) {
   return (
     <TouchableOpacity
       style={[styles.actionTile, primary && styles.actionTilePrimary]}
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <Text style={[styles.actionIcon, primary && styles.actionIconPrimary]}>{icon}</Text>
+      <Ionicons name={icon} size={30} color={primary ? Colors.gold[400] : Colors.dark[700]} />
       <Text style={[styles.actionLabel, primary && styles.actionLabelPrimary]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -346,7 +351,8 @@ const styles = StyleSheet.create({
   // Acciones — tiles más altas para área táctil cómoda
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.xs },
   actionTile: {
-    width:           '47.5%',
+    flexBasis:       '47.5%',
+    flexGrow:        1,   // si queda un mosaico solo en la última fila, ocupa todo el ancho
     backgroundColor: Colors.white,
     borderRadius:    Radius.md,
     paddingVertical: Spacing.xl,   // antes lg — más espacio vertical
@@ -358,6 +364,8 @@ const styles = StyleSheet.create({
     minHeight:       90,           // área táctil mínima cómoda
   },
   actionTilePrimary: {
+    flexBasis:       '100%',   // la acción principal ocupa todo el ancho
+    paddingVertical: Spacing.lg,
     backgroundColor: Colors.dark[900],
     borderColor:     Colors.dark[900],
   },

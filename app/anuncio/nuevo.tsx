@@ -9,6 +9,7 @@
  * se sincroniza automáticamente cuando se recupera la conexión.
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
@@ -35,7 +36,7 @@ import { comprimirFotos, limpiarArchivoLocal } from '../../src/utils/comprimirFo
 import { useSyncContext } from '../../src/contexts/SyncContext';
 import { Colors, Radius, Spacing, Typography } from '../../src/theme';
 import type { TipoAnuncio } from '../../src/types';
-import { ANUNCIO_TIPO_EMOJI, ANUNCIO_TIPO_LABEL } from '../../src/types';
+import { ANUNCIO_TIPO_ICONO, ANUNCIO_TIPO_LABEL } from '../../src/types';
 
 const TIPOS: TipoAnuncio[] = ['lona', 'hoja_tienda', 'hoja_poste', 'volante', 'otro'];
 
@@ -120,7 +121,7 @@ export default function NuevoAnuncioScreen() {
           // Anuncio guardado → cerrar pantalla inmediatamente
           // Las fotos se suben en background sin bloquear al asesor
           Alert.alert(
-            '✓ Anuncio registrado',
+            'Anuncio registrado',
             'Se guardó el anuncio en tu ubicación actual.',
             [{ text: 'Aceptar', onPress: () => router.back() }],
           );
@@ -152,7 +153,7 @@ export default function NuevoAnuncioScreen() {
       await refrescar();
 
       Alert.alert(
-        '📋 Guardado sin conexión',
+        'Guardado sin conexión',
         'El anuncio se guardó en tu dispositivo y se enviará automáticamente cuando recuperes la conexión a internet.',
         [{ text: 'Aceptar', onPress: () => router.back() }],
       );
@@ -204,7 +205,7 @@ export default function NuevoAnuncioScreen() {
       {/* Header */}
       <View style={[s.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
-          <Text style={s.backIcon}>←</Text>
+          <Ionicons name="arrow-back" size={22} color={Colors.dark[700]} style={s.backIcon} />
         </Pressable>
         <View>
           <Text style={s.headerTitle}>Nuevo anuncio</Text>
@@ -221,7 +222,7 @@ export default function NuevoAnuncioScreen() {
         {/* Aviso GPS */}
         <View style={s.gpsNotice}>
           <Text style={s.gpsNoticeText}>
-            📍 Se registrará tu ubicación GPS actual al guardar. Asegúrate de estar frente al anuncio.
+            <Ionicons name="location" size={16} color={Colors.dark[500]} />{' '}Se registrará tu ubicación GPS actual al guardar. Asegúrate de estar frente al anuncio.
           </Text>
         </View>
 
@@ -234,7 +235,7 @@ export default function NuevoAnuncioScreen() {
               style={[s.tipoBtn, tipo === t && s.tipoBtnActive]}
               onPress={() => setTipo(t)}
             >
-              <Text style={s.tipoEmoji}>{ANUNCIO_TIPO_EMOJI[t]}</Text>
+              <Ionicons name={ANUNCIO_TIPO_ICONO[t] as React.ComponentProps<typeof Ionicons>['name']} size={24} color={Colors.dark[700]} />
               <Text style={[s.tipoLabel, tipo === t && s.tipoLabelActive]}>
                 {ANUNCIO_TIPO_LABEL[t]}
               </Text>
@@ -282,18 +283,18 @@ export default function NuevoAnuncioScreen() {
                 style={s.fotoRemove}
                 onPress={() => setFotos(prev => prev.filter((_, idx) => idx !== i))}
               >
-                <Text style={{ color: Colors.white, fontSize: 10, fontWeight: 'bold' }}>✕</Text>
+                <Ionicons name="close" size={12} color={Colors.white} />
               </Pressable>
             </View>
           ))}
           {fotos.length < 3 && (
             <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
               <TouchableOpacity style={s.fotoBtn} onPress={tomarFoto}>
-                <Text style={s.fotoBtnIcon}>📷</Text>
+                <Ionicons name="camera" size={20} color={Colors.dark[500]} style={s.fotoBtnIcon} />
                 <Text style={s.fotoBtnText}>Cámara</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.fotoBtn} onPress={agregarFotos}>
-                <Text style={s.fotoBtnIcon}>🖼️</Text>
+                <Ionicons name="image" size={20} color={Colors.dark[500]} style={s.fotoBtnIcon} />
                 <Text style={s.fotoBtnText}>Galería</Text>
               </TouchableOpacity>
             </View>
@@ -313,7 +314,7 @@ export default function NuevoAnuncioScreen() {
             </View>
           ) : (
             <Text style={s.saveBtnText}>
-              {online ? '📍 Registrar en mi ubicación actual' : '📋 Guardar sin conexión'}
+              {online ? 'Registrar en mi ubicación actual' : 'Guardar sin conexión'}
             </Text>
           )}
         </Pressable>

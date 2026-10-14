@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity,
   FlatList, TextInput, SafeAreaView,
@@ -18,7 +19,7 @@ interface Props {
  * Uso:
  *   <EstadoSelectModal value={estadoUso} onChange={setEstadoUso} placeholder="Ej: Hidalgo" />
  */
-export default function EstadoSelectModal({ value, onChange, placeholder = 'Seleccionar estado' }: Props) {
+export default function EstadoSelectModal({ value, onChange, placeholder = 'Elegir estado' }: Props) {
   const [open,  setOpen]  = useState(false);
   const [query, setQuery] = useState('');
 
@@ -38,7 +39,7 @@ export default function EstadoSelectModal({ value, onChange, placeholder = 'Sele
         <Text style={[styles.triggerText, !value && styles.placeholder]} numberOfLines={1}>
           {value || placeholder}
         </Text>
-        <Text style={styles.arrow}>▾</Text>
+        <Ionicons name="chevron-down" size={16} color={Colors.dark[400]} style={styles.arrow} />
       </TouchableOpacity>
 
       {/* ── Modal hoja ──────────────────────────────────────────────── */}
@@ -48,7 +49,7 @@ export default function EstadoSelectModal({ value, onChange, placeholder = 'Sele
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Seleccionar estado</Text>
             <TouchableOpacity onPress={() => setOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.close}>✕</Text>
+              <Ionicons name="close" size={18} color={Colors.dark[500]} style={styles.close} />
             </TouchableOpacity>
           </View>
 
@@ -71,7 +72,7 @@ export default function EstadoSelectModal({ value, onChange, placeholder = 'Sele
             onPress={() => { onChange(''); setOpen(false); }}
           >
             <Text style={styles.clearText}>Sin especificar</Text>
-            {!value && <Text style={styles.check}>✓</Text>}
+            {!value && <Ionicons name="checkmark" size={18} color={Colors.dark[500]} style={styles.check} />}
           </TouchableOpacity>
 
           {/* Lista de estados */}
@@ -87,7 +88,7 @@ export default function EstadoSelectModal({ value, onChange, placeholder = 'Sele
                 <Text style={[styles.optionText, value === item && styles.optionTextActive]}>
                   {item}
                 </Text>
-                {value === item ? <Text style={styles.check}>✓</Text> : null}
+                {value === item ? <Ionicons name="checkmark" size={18} color={Colors.dark[500]} style={styles.check} /> : null}
               </TouchableOpacity>
             )}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -99,15 +100,30 @@ export default function EstadoSelectModal({ value, onChange, placeholder = 'Sele
 }
 
 const styles = StyleSheet.create({
+  // Se ve como lista desplegable: fondo tintado y una flecha en su propio recuadro.
   trigger: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.xs,
+    flexDirection:   'row',
+    alignItems:      'stretch',
+    minHeight:       50,
+    backgroundColor: Colors.cream[100],
+    borderWidth:     1.5,
+    borderColor:     Colors.dark[300],
+    borderRadius:    Radius.md,
+    overflow:        'hidden',
   },
-  triggerText: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[900] },
+  triggerText: { flex: 1, alignSelf: 'center', paddingHorizontal: Spacing.base, fontSize: Typography.fontSize.base, color: Colors.dark[900] },
   placeholder: { color: Colors.dark[400] },
-  arrow:       { fontSize: 13, color: Colors.dark[400], marginLeft: 4 },
+  arrow: {
+    width:           44,
+    textAlign:       'center',
+    textAlignVertical: 'center',
+    lineHeight:      50,
+    fontSize:        16,
+    color:           Colors.dark[600],
+    backgroundColor: Colors.cream[200],
+    borderLeftWidth: 1.5,
+    borderLeftColor: Colors.dark[300],
+  },
 
   sheet:  { flex: 1, backgroundColor: Colors.white },
   header: {

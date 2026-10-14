@@ -24,9 +24,11 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
+import { renderPagareHtml } from '@/src/contratos/pagare';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '@/src/components/ui/Header';
+import AvisoCapturaIne from '@/src/components/AvisoCapturaIne';
 import Button from '@/src/components/ui/Button';
 import Input from '@/src/components/ui/Input';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
@@ -43,6 +45,7 @@ type Mode = 'captura' | 'ocr' | 'revision' | 'datos-tramite' | 'generando' | 'li
 type TamanoPapel = 'oficio' | 'carta';
 
 const CONTRATO_TIPO_DOCUMENTO = 'Contrato de Prestación de Servicios';
+const PAGARE_TIPO_DOCUMENTO = 'Pagaré';
 
 interface DatosPersona {
   nombre:    string;
@@ -94,6 +97,7 @@ export default function RegistrarContratoScreen() {
 
   // Expediente: opcional, solo para precargar datos si vino por parámetro.
   const [expediente, setExpediente] = useState<Expediente | null>(null);
+  const [avisoIne, setAvisoIne] = useState(true);   // cómo capturar la INE (se muestra al abrir)
   const [cargandoExpediente, setCargandoExpediente] = useState(!!expedienteIdParam);
 
   // Datos leídos por OCR del documento que se está capturando en este momento.
@@ -114,14 +118,15 @@ export default function RegistrarContratoScreen() {
   // Datos del trámite
   const [tramitePrefilled, setTramitePrefilled] = useState(false);
   const [folio,                setFolio]                = useState('');
-  const [tipoTramite,          setTipoTramite]          = useState('');
+  const [tipoTramite,          setTipoTramite]          = useState('FOVISSSTE');
   const [ciudad,               setCiudad]               = useState('Huejutla de Reyes');
   const [montoCredito,         setMontoCredito]         = useState('');
   const [honorariosPorcentaje, setHonorariosPorcentaje] = useState('10');
   const [honorariosMonto,      setHonorariosMonto]      = useState('');
-  const [tamanoPapel,          setTamanoPapel]          = useState<TamanoPapel>('oficio');
+  const [tamanoPapel,          setTamanoPapel]          = useState<TamanoPapel>('carta');
 
   const [pdfUri, setPdfUri] = useState<string | null>(null);
+  const [pagareUri, setPagareUri] = useState<string | null>(null);
   const [previsualizando, setPrevisualizando] = useState(false);
 
   // ── Cargar expediente cuando viene por parámetro (solo para precargar) ────
@@ -233,7 +238,7 @@ export default function RegistrarContratoScreen() {
     // Terminó de revisar al solidario → datos del trámite
     if (!tramitePrefilled) {
       setFolio(expediente?.folio || folioAuto());
-      setTipoTramite(expediente?.tipo_tramite?.nombre || '');
+      setTipoTramite(expediente?.tipo_tramite?.nombre || 'FOVISSSTE');
       if (expediente?.monto_credito != null) setMontoCredito(String(expediente.monto_credito));
       if (expediente?.honorarios_porcentaje != null) setHonorariosPorcentaje(String(expediente.honorarios_porcentaje));
       if (expediente?.honorarios_monto != null) setHonorariosMonto(String(expediente.honorarios_monto));
@@ -271,7 +276,7 @@ export default function RegistrarContratoScreen() {
       nss,
       claveElector,
       domAcreditado:         acreditado.domicilio,
-      tipoTramite:           tipoTramite || 'Crédito',
+      tipoTramite:           tipoTramite || 'FOVISSSTE',
       montoCredito:          montoCredito ? Number(montoCredito) : null,
       honorariosPorcentaje:  honorariosPorcentaje ? Number(honorariosPorcentaje) : null,
       honorariosMonto:       honorariosMontoFinal ? Number(honorariosMontoFinal) : null,
@@ -381,6 +386,22 @@ export default function RegistrarContratoScreen() {
         }
       }
 
+      // El pagaré es un documento aparte del contrato: PDF propio, y si hay
+      // expediente también se sube como su propio documento.
+      try {
+        const uriPagare = await persistirDocumento(await pagarePdf(), `pagare_${folio || Date.now()}.pdf`);
+        setPagareUri(uriPagare);
+        if (expediente) {
+          const paramsPagare = { expedienteId: expediente.id, uri: uriPagare, tipo: PAGARE_TIPO_DOCUMENTO, seccion: 'otros' as const, mimeType: 'application/pdf', notas: 'Generado desde la app' };
+          try {
+            if (online) await uploadDocumento(expediente.id, uriPagare, PAGARE_TIPO_DOCUMENTO, 'Generado desde la app', 'application/pdf', 'otros');
+            else await encolarDoc(paramsPagare);
+          } catch {
+            await encolarDoc(paramsPagare).catch(() => {});
+          }
+        }
+      } catch { /* el pagaré se puede regenerar desde los botones */ }
+
       setPdfUri(uriPersistida);
       setMode('listo');
     } catch (e: unknown) {
@@ -403,6 +424,26 @@ export default function RegistrarContratoScreen() {
     } catch { /* usuario canceló */ }
   }
 
+  // Pagaré con los datos del acreditado. Se genera al momento (no depende de
+  // la red) y no se guarda: el backend lo regenera desde los datos del contrato.
+  async function pagarePdf(): Promise<string> {
+    const html = renderPagareHtml({ acreditado: acreditado.nombre, domAcreditado: acreditado.domicilio, rfc: acreditado.rfc });
+    const { uri } = await Print.printToFileAsync({ html, ...DIMENSIONES_PAPEL[tamanoPapel], margins: MARGENES_PAGINA });
+    return uri;
+  }
+
+  async function verPagare() {
+    try { await Print.printAsync({ uri: pagareUri ?? await pagarePdf() }); } catch { /* usuario canceló */ }
+  }
+
+  async function compartirPagare() {
+    try {
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(pagareUri ?? await pagarePdf(), { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+      }
+    } catch { /* usuario canceló */ }
+  }
+
   // ── Render: captura de INE (acreditado o solidario) ───────────────────────
   if (mode === 'captura') {
     const esAcreditado = personaActual === 'acreditado';
@@ -413,6 +454,7 @@ export default function RegistrarContratoScreen() {
           subtitle={expediente?.folio ?? undefined}
           onBack={esAcreditado ? () => router.back() : volverAPersonaAnterior}
         />
+        <AvisoCapturaIne visible={avisoIne && !cargandoExpediente} onCerrar={() => setAvisoIne(false)} />
         <View style={s.body}>
           {cargandoExpediente ? (
             <ActivityIndicator size="large" color={Colors.gold[400]} />
@@ -429,15 +471,16 @@ export default function RegistrarContratoScreen() {
               </Text>
               {ocrDisponible() && (
                 <Text style={s.tipReflejo}>
-                  💡 La INE es de plástico brillante — inclínala un poco o aléjate de luces directas para
+                  <Ionicons name="bulb" size={16} color={Colors.gold[500]} />{' '}La INE es de plástico brillante — inclínala un poco o aléjate de luces directas para
                   evitar reflejos sobre el nombre y el CURP, si no el reconocimiento puede fallar ahí.
                 </Text>
               )}
 
               <View style={{ gap: Spacing.sm, marginTop: Spacing.xl, alignSelf: 'stretch' }}>
-                <Button label="📸 Tomar foto" onPress={tomarFoto} fullWidth />
-                <Button label="🖼 Elegir de galería" onPress={elegirGaleria} variant="outline" fullWidth />
-                <Button label="✍️ Capturar datos manualmente" onPress={capturarManual} variant="ghost" fullWidth />
+                <Button label="¿Cómo tomar la foto?" onPress={() => setAvisoIne(true)} variant="ghost" fullWidth />
+                <Button label="Tomar foto" onPress={tomarFoto} fullWidth />
+                <Button label="Elegir de galería" onPress={elegirGaleria} variant="outline" fullWidth />
+                <Button label="Capturar datos manualmente" onPress={capturarManual} variant="ghost" fullWidth />
               </View>
             </>
           )}
@@ -493,7 +536,7 @@ export default function RegistrarContratoScreen() {
                 style={s.fotoPreview}
                 resizeMode="contain"
               />
-              <Button label="🔄 Volver a tomar foto" onPress={volverACaptura} variant="ghost" size="sm" />
+              <Button label="Volver a tomar foto" onPress={volverACaptura} variant="ghost" size="sm" />
             </View>
           )}
 
@@ -611,12 +654,19 @@ export default function RegistrarContratoScreen() {
           </View>
 
           <Button
-            label="Vista previa"
+            label="Vista previa del contrato"
             onPress={previsualizar}
             variant="outline"
             fullWidth
             loading={previsualizando}
             style={{ marginTop: Spacing.xl }}
+          />
+          <Button
+            label="Vista previa del pagaré"
+            onPress={verPagare}
+            variant="outline"
+            fullWidth
+            style={{ marginTop: Spacing.sm }}
           />
           <Button label="Generar contrato" onPress={generar} fullWidth style={{ marginTop: Spacing.sm }} />
         </ScrollView>
@@ -646,6 +696,9 @@ export default function RegistrarContratoScreen() {
         <View style={{ gap: Spacing.sm, marginTop: Spacing.xl, alignSelf: 'stretch' }}>
           <Button label="Ver / Imprimir" onPress={verPdf} fullWidth />
           <Button label="Compartir" onPress={compartirPdf} variant="outline" fullWidth />
+          <Text style={[s.subtitle, { marginTop: Spacing.lg, fontWeight: '700' }]}>Pagaré (documento aparte)</Text>
+          <Button label="Ver / Imprimir pagaré" onPress={verPagare} fullWidth />
+          <Button label="Compartir pagaré" onPress={compartirPagare} variant="outline" fullWidth />
           <Button label="Volver a Contratos" onPress={() => router.replace('/contratos')} variant="ghost" fullWidth />
         </View>
       </View>

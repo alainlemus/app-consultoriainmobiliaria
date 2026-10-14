@@ -60,8 +60,7 @@
   "submit": {
     "production": {
       "android": {
-        "serviceAccountKeyPath": "./google-service-account.json",
-        "track": "internal"
+        "track": "alpha"
       },
       "ios": {
         "appleTeamId": "7CKS7PY2UG",
