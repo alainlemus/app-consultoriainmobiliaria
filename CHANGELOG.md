@@ -5,7 +5,7 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 ## [Sin publicar]
 
 ### Cambiado
-- App del acreditado: al no tener trámite solo se ofrece el botón "Crédito FOVISSSTE" para solicitar asesoría (antes salía la lista completa de servicios).
+- App del acreditado: al no tener trámite solo se ofrece el botón "Crédito FOVISSSTE" para solicitar asesoría (antes salía la lista completa de servicios). Al enviar la solicitud, o al volver a entrar, se le avisa que ya está registrado y que un asesor lo contactará (antes seguía viendo el botón).
 
 ## [2.4.0] - 2026-10-13
 

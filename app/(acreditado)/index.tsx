@@ -93,8 +93,8 @@ export default function MiTramiteScreen() {
       setMensajeAdicional('');
       setMostrarMensaje(false);
       Alert.alert(
-        '¡Solicitud enviada!',
-        `Tu solicitud de asesoría para "${servicio.nombre}" fue registrada. Un asesor se pondrá en contacto contigo a la brevedad.`,
+        '¡Ya estás registrado!',
+        'Recibimos tu solicitud de Crédito FOVISSSTE. Un asesor se pondrá en contacto contigo a la brevedad.',
         [{ text: 'Entendido' }],
       );
     } catch (e: unknown) {
@@ -143,17 +143,14 @@ export default function MiTramiteScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {solicitudEnviada ? (
+          {(solicitudEnviada || acreditado?.solicitud_enviada) ? (
             // ── Estado post-solicitud ──────────────────────────────────────
             <>
               <Ionicons name="checkmark-circle" size={64} color={Colors.success} />
-              <Text style={styles.emptyTitle}>Solicitud enviada</Text>
+              <Text style={styles.emptyTitle}>¡Ya estás registrado!</Text>
               <Text style={styles.emptySubtitle}>
-                Un asesor revisará tu solicitud y se pondrá en contacto contigo pronto. Puedes enviar otra solicitud si necesitas un servicio diferente.
+                Recibimos tu solicitud de Crédito FOVISSSTE y ya estás registrado con nosotros. Un asesor se pondrá en contacto contigo para iniciar tu trámite; cuando se abra tu expediente lo verás aquí.
               </Text>
-              <TouchableOpacity style={styles.linkBtn} onPress={() => setSolicitudEnviada(false)}>
-                <Text style={styles.linkBtnText}>Solicitar otro servicio</Text>
-              </TouchableOpacity>
             </>
           ) : (
             // ── Selección de servicio ──────────────────────────────────────

@@ -316,6 +316,8 @@ export interface Acreditado {
   foto_perfil_url?: string | null;
   curp_verificado:  boolean;
   tiene_expediente: boolean;
+  /** Ya pidió asesoría desde la app (está registrado como prospecto). */
+  solicitud_enviada?: boolean;
 }
 
 export interface AcreditadoAuthState {
