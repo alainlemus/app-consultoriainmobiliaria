@@ -4,6 +4,8 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+## [2.5.0] - 2026-10-14
+
 ### Cambiado
 - Iniciar el expediente de un prospecto ahora funciona sin señal: se guarda y se crea solo al recuperar internet (después se pueden subir sus documentos).
 - Documentos del acreditado guardados sin conexión: se reintentan al abrir el portal, al volver a la app y cada minuto, aunque la señal esté "conectada" pero débil, y un fallo de red ya no gasta los intentos ni los descarta.
