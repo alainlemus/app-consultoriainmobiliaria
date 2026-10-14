@@ -115,6 +115,7 @@ const SECCIONES: Seccion[] = [
     pasos: [
       { icono: 'id-card', titulo: 'Registrar contrato', desc: 'Desde Inicio → Contratos → Registrar contrato (disponible para todos los asesores). Escanea la INE del acreditado (y del obligado solidario si aplica) para leer sus datos automáticamente.' },
       { icono: 'eye', titulo: 'Revisar datos', desc: 'Confirma que los datos leídos de la INE sean correctos antes de continuar. Puedes corregirlos a mano.' },
+      { icono: 'help-circle', titulo: 'Foto o a mano', desc: 'Al empezar se abre un aviso con ejemplo: puedes subir los datos con foto de la INE o capturarlos a mano. Usa la credencial original (no una fotocopia) y céntrala completa en el cuadro de la cámara. Lo vuelves a ver con "¿Cómo tomar la foto?".' },
       { icono: 'document-text', titulo: 'Generar el PDF', desc: 'Elige el tipo de trámite y el tamaño de hoja, y toca Generar contrato. Queda en el historial de Contratos para consultarlo o compartirlo.' },
       { icono: 'document-text', titulo: 'Pagaré', desc: 'Al terminar el contrato aparecen los botones del pagaré para verlo, imprimirlo o compartirlo. Ya lleva los datos del acreditado y la fecha; el importe y el vencimiento se llenan a mano.' },
       { icono: 'cloud-offline', titulo: 'Funciona sin conexión', desc: 'Puedes registrar contratos sin internet; se guardan en tu dispositivo y se suben al recuperar la señal.' },

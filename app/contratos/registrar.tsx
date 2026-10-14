@@ -28,6 +28,7 @@ import { renderPagareHtml } from '@/src/contratos/pagare';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '@/src/components/ui/Header';
+import AvisoCapturaIne from '@/src/components/AvisoCapturaIne';
 import Button from '@/src/components/ui/Button';
 import Input from '@/src/components/ui/Input';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
@@ -96,6 +97,7 @@ export default function RegistrarContratoScreen() {
 
   // Expediente: opcional, solo para precargar datos si vino por parámetro.
   const [expediente, setExpediente] = useState<Expediente | null>(null);
+  const [avisoIne, setAvisoIne] = useState(true);   // cómo capturar la INE (se muestra al abrir)
   const [cargandoExpediente, setCargandoExpediente] = useState(!!expedienteIdParam);
 
   // Datos leídos por OCR del documento que se está capturando en este momento.
@@ -452,6 +454,7 @@ export default function RegistrarContratoScreen() {
           subtitle={expediente?.folio ?? undefined}
           onBack={esAcreditado ? () => router.back() : volverAPersonaAnterior}
         />
+        <AvisoCapturaIne visible={avisoIne && !cargandoExpediente} onCerrar={() => setAvisoIne(false)} />
         <View style={s.body}>
           {cargandoExpediente ? (
             <ActivityIndicator size="large" color={Colors.gold[400]} />
@@ -474,6 +477,7 @@ export default function RegistrarContratoScreen() {
               )}
 
               <View style={{ gap: Spacing.sm, marginTop: Spacing.xl, alignSelf: 'stretch' }}>
+                <Button label="¿Cómo tomar la foto?" onPress={() => setAvisoIne(true)} variant="ghost" fullWidth />
                 <Button label="Tomar foto" onPress={tomarFoto} fullWidth />
                 <Button label="Elegir de galería" onPress={elegirGaleria} variant="outline" fullWidth />
                 <Button label="Capturar datos manualmente" onPress={capturarManual} variant="ghost" fullWidth />
