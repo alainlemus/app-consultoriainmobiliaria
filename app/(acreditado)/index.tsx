@@ -348,15 +348,6 @@ export default function MiTramiteScreen() {
                       <Text style={styles.asesorBtnText}>WhatsApp</Text>
                     </TouchableOpacity>
                   )}
-                  {expediente.asesor.email && (
-                    <TouchableOpacity
-                      style={styles.asesorBtn}
-                      onPress={() => Linking.openURL(`mailto:${expediente.asesor!.email}`)}
-                    >
-                      <Ionicons name="mail-outline" size={18} color={Colors.gold[400]} />
-                      <Text style={styles.asesorBtnText}>Email</Text>
-                    </TouchableOpacity>
-                  )}
                 </View>
               </View>
             )}
