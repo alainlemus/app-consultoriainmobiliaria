@@ -4,6 +4,9 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+### Cambiado
+- App del acreditado: al no tener trámite solo se ofrece el botón "Crédito FOVISSSTE" para solicitar asesoría (antes salía la lista completa de servicios).
+
 ## [2.4.0] - 2026-10-13
 
 ### Agregado

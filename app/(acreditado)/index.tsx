@@ -49,6 +49,11 @@ export default function MiTramiteScreen() {
   const [mensajeAdicional, setMensajeAdicional] = useState('');
   const [mostrarMensaje, setMostrarMensaje] = useState(false);
 
+  // Por ahora el acreditado solo pide Crédito FOVISSSTE (el tradicional); el resto de servicios no se ofrece.
+  const servicioFovissste =
+    servicios.find(s => /tradicional.*fovissste/i.test(s.nombre)) ??
+    servicios.find(s => /fovissste/i.test(s.nombre)) ?? null;
+
   const cargar = useCallback(async () => {
     try {
       // Optimización: si sabemos desde el perfil del usuario que no hay expediente,
@@ -174,19 +179,18 @@ export default function MiTramiteScreen() {
                 </View>
               ) : (
                 <>
-                  {servicios.map(s => (
+                  {servicioFovissste ? (
                     <TouchableOpacity
-                      key={s.id}
-                      style={[styles.servicioBtn, solicitandoId === s.id && styles.servicioBtnDisabled]}
-                      onPress={() => handleSolicitarAsesoria(s)}
+                      style={[styles.servicioBtn, solicitandoId === servicioFovissste.id && styles.servicioBtnDisabled]}
+                      onPress={() => handleSolicitarAsesoria(servicioFovissste)}
                       disabled={solicitandoId !== null}
                     >
-                      {solicitandoId === s.id
+                      {solicitandoId === servicioFovissste.id
                         ? <ActivityIndicator color={Colors.gold[400]} />
-                        : <Text style={styles.servicioBtnText}>{s.nombre}</Text>
+                        : <Text style={styles.servicioBtnText}>Crédito FOVISSSTE</Text>
                       }
                     </TouchableOpacity>
-                  ))}
+                  ) : null}
 
                   {/* Mensaje adicional opcional */}
                   <TouchableOpacity
