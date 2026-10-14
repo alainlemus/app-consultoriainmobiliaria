@@ -557,6 +557,15 @@ export async function rechazarDocumento(expedienteId: number, documentoId: numbe
   return { ...res.data, url: resolveStorageUrl(res.data.url) };
 }
 
+/** Solo administradores: pide al acreditado un documento que faltaba, con una nota que explica cuál. Le llega un push. */
+export async function solicitarDocumentoFaltante(expedienteId: number, nota: string): Promise<Documento> {
+  const res = await apiFetch<ApiResponse<Documento>>(`/expedientes/${expedienteId}/documentos-solicitados`, {
+    method: 'POST',
+    body:   JSON.stringify({ nota }),
+  });
+  return res.data;
+}
+
 // ── Ubicaciones ────────────────────────────────────────────────────────────
 
 export async function registrarUbicacion(data: Omit<Ubicacion, 'id'>): Promise<Ubicacion> {

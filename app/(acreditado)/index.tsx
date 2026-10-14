@@ -294,6 +294,24 @@ export default function MiTramiteScreen() {
               <Text style={styles.guiaText}>{expediente.guia_paso_actual}</Text>
             </View>
 
+            {/* Documento que un administrador pidió: la nota explica cuál falta */}
+            {(expediente.documentos_solicitados ?? []).map(d => (
+              <View key={d.id} style={[styles.card, styles.solicitadoCard]}>
+                <View style={styles.guiaHeader}>
+                  <Ionicons name="document-attach" size={20} color={Colors.gold[400]} />
+                  <Text style={styles.guiaTitle}>Te falta un documento</Text>
+                </View>
+                <Text style={styles.guiaText}>{d.nota}</Text>
+                <TouchableOpacity
+                  style={styles.solicitadoBtn}
+                  onPress={() => router.push({ pathname: '/subir-documento-acreditado', params: { tipoLabel: d.tipo } })}
+                >
+                  <Ionicons name="cloud-upload-outline" size={18} color={Colors.dark[900]} />
+                  <Text style={styles.solicitadoBtnText}>Subir este documento</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+
             {/* Documentos pendientes */}
             {expediente.documentos_pendientes > 0 && (
               <View style={[styles.card, styles.pendientesCard]}>
@@ -384,6 +402,9 @@ const styles = StyleSheet.create({
   guiaTitle:  { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold, color: Colors.gold[400] },
   guiaText:   { fontSize: Typography.fontSize.sm, color: Colors.cream[300], lineHeight: Typography.fontSize.sm * 1.6 },
 
+  solicitadoCard: { borderWidth: 1.5, borderColor: Colors.gold[400] },
+  solicitadoBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: Colors.gold[400], borderRadius: Radius.md, paddingVertical: Spacing.sm, marginTop: Spacing.md },
+  solicitadoBtnText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   pendientesCard: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start', backgroundColor: '#431407', borderWidth: 1, borderColor: '#7c2d12' },
   pendientesText: { flex: 1, fontSize: Typography.fontSize.sm, color: '#fed7aa', lineHeight: Typography.fontSize.sm * 1.5 },
 

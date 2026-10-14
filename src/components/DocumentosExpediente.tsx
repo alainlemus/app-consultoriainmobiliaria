@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Colors, Radius, Spacing, Typography } from '../theme';
-import { deleteDocumento, getDocumentosExpediente, getDocumentoUrl, rechazarDocumento, validarDocumento } from '../services/api';
+import { deleteDocumento, getDocumentosExpediente, getDocumentoUrl, rechazarDocumento, solicitarDocumentoFaltante, validarDocumento } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useSyncContext } from '../contexts/SyncContext';
 import type { Documento } from '../types';
@@ -34,6 +34,8 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
   const [aRechazar, setARechazar] = useState<Documento | null>(null);
   const [motivo, setMotivo]       = useState('');
   const [enviando, setEnviando]   = useState(false);
+  const [solicitando, setSolicitando] = useState(false);   // modal "solicitar documento faltante"
+  const [notaFalta, setNotaFalta]     = useState('');
 
   // Se recarga al volver de subir/reemplazar y cuando la cola offline se vacía.
   useFocusEffect(
@@ -101,6 +103,22 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
     }
   };
 
+  const confirmarSolicitud = async () => {
+    if (!notaFalta.trim()) return;
+    setEnviando(true);
+    try {
+      await solicitarDocumentoFaltante(expedienteId, notaFalta.trim());
+      setSolicitando(false);
+      setNotaFalta('');
+      Alert.alert('Documento solicitado', 'Se avisó al acreditado: verá tu nota en Mi Trámite y le llegó una notificación.');
+      getDocumentosExpediente(expedienteId).then(setDocs).catch(() => {});
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo solicitar el documento');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
   const eliminar = (doc: Documento) => {
     if (!doc.id) return;
     Alert.alert('Eliminar documento', `¿Eliminar "${nombreLegible(doc)}"? Esta acción no se puede deshacer.`, [
@@ -133,6 +151,17 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
         </View>
         <Ionicons name="add-circle" size={30} color={Colors.gold[400]} />
       </TouchableOpacity>
+
+      {/* Solo administradores: pedir al acreditado un documento que faltaba */}
+      {isSuperAdmin && (
+        <TouchableOpacity style={styles.solicitarBtn} activeOpacity={0.85} onPress={() => { setNotaFalta(''); setSolicitando(true); }}>
+          <Ionicons name="document-attach" size={22} color={Colors.gold[700]} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.solicitarLabel}>Solicitar documento faltante</Text>
+            <Text style={styles.solicitarSub}>Escribe cuál falta; el acreditado recibe un aviso</Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {cargando ? (
         <ActivityIndicator color={Colors.gold[400]} style={{ marginTop: Spacing.md }} />
@@ -212,6 +241,37 @@ export default function DocumentosExpediente({ expedienteId }: { expedienteId: n
         </>
       )}
 
+      {/* Documento faltante (solo administradores) */}
+      <Modal visible={solicitando} transparent animationType="fade" onRequestClose={() => setSolicitando(false)}>
+        <View style={styles.modalFondo}>
+          <View style={styles.modalCard}>
+            <Ionicons name="document-attach" size={44} color={Colors.gold[500]} style={{ alignSelf: 'center' }} />
+            <Text style={styles.modalTitulo}>Solicitar documento faltante</Text>
+            <Text style={styles.modalTexto}>Explica cuál documento falta. El acreditado verá tu nota en Mi Trámite y recibirá una notificación.</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={notaFalta}
+              onChangeText={setNotaFalta}
+              placeholder="Ej: Falta el acta de matrimonio, en la escritura aparece como casado"
+              placeholderTextColor={Colors.dark[400]}
+              multiline
+              maxLength={500}
+              autoFocus
+            />
+            <TouchableOpacity
+              style={[styles.modalBtn, { backgroundColor: Colors.dark[900] }, (!notaFalta.trim() || enviando) && { opacity: 0.5 }]}
+              onPress={confirmarSolicitud}
+              disabled={!notaFalta.trim() || enviando}
+            >
+              {enviando ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.modalBtnText}>Solicitar y avisar</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancelar} onPress={() => setSolicitando(false)}>
+              <Text style={styles.modalCancelarText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Motivo del rechazo (solo administradores) */}
       <Modal visible={!!aRechazar} transparent animationType="fade" onRequestClose={() => setARechazar(null)}>
         <View style={styles.modalFondo}>
@@ -283,6 +343,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark[900], borderRadius: Radius.md,
     paddingVertical: Spacing.md, paddingHorizontal: Spacing.base,
   },
+  solicitarBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm,
+    backgroundColor: Colors.gold[50], borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.gold[400],
+    paddingVertical: Spacing.md, paddingHorizontal: Spacing.base,
+  },
+  solicitarLabel: { color: Colors.gold[700], fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
+  solicitarSub:   { color: Colors.dark[500], fontSize: Typography.fontSize.xs, marginTop: 1 },
   addIcon:  { fontSize: 22 },
   addLabel: { color: Colors.white, fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold },
   addSub:   { color: Colors.cream[300], fontSize: Typography.fontSize.xs, marginTop: 1 },

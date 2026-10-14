@@ -16,6 +16,7 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 ## [2.4.0] - 2026-10-13
 
 ### Agregado
+- **Documento faltante:** el administrador, desde el expediente, puede solicitar al acreditado un documento que faltaba escribiendo una nota; le llega una notificación y le aparece el aviso "Te falta un documento" en Mi Trámite con un botón para subirlo. El administrador ve también los expedientes completos para poder hacerlo. Requiere el backend con esta función.
 - **Cómo capturar la INE:** al registrar un contrato se abre un aviso que explica que los datos se pueden subir con foto o capturar a mano, que no se debe fotografiar una fotocopia y cómo centrar la credencial en la cámara, con un ejemplo dibujado. Se puede volver a ver con "¿Cómo tomar la foto?".
 - **Ruta olvidada:** si dejas la ruta activa, te llega un aviso a las 7 pm y a las 9 pm para desactivarla; si sigue activa pasadas las 10 pm (o al día siguiente), se desactiva sola al abrir la app.
 - **Pagaré:** al generar un contrato ahora puedes ver, imprimir y compartir también el pagaré, con el formato oficial y llenado con nombre, domicilio y RFC del acreditado y la fecha del día. Importe y vencimiento quedan en blanco para llenarlos a mano.

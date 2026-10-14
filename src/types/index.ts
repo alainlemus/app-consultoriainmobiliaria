@@ -342,6 +342,8 @@ export interface ExpedienteAcreditado {
   fecha_esperada_pago?:  string;
   guia_paso_actual:      string;
   documentos_pendientes: number;
+  /** Documentos que un administrador pidió y aún no sube (con la nota que explica cuál falta). */
+  documentos_solicitados?: { id: number; tipo: string; nota: string; solicitado_at?: string }[];
   asesor?: {
     name:      string;
     telefono?: string;
@@ -358,6 +360,8 @@ export interface DocumentoAcreditado {
   tiene_archivo:          boolean;
   subido_por_acreditado:  boolean;
   notas?:                 string;
+  /** Nota del administrador cuando el documento fue solicitado. */
+  solicitud_nota?:        string | null;
 }
 
 export interface ServicioTramite {

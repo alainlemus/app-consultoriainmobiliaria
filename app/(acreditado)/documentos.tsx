@@ -164,6 +164,9 @@ export default function DocumentosScreen() {
               {item.subido_por_acreditado && (
                 <Text style={styles.docSubidoPor}>Subido por ti</Text>
               )}
+              {item.solicitud_nota && !item.tiene_archivo && (
+                <Text style={styles.docMotivoRechazo} numberOfLines={3}>Solicitado: {item.solicitud_nota}</Text>
+              )}
               {item.estado === 'rechazado' && item.notas && (
                 <Text style={styles.docMotivoRechazo} numberOfLines={2}>Motivo: {item.notas}</Text>
               )}

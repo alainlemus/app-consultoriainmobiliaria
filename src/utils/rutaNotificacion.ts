@@ -20,6 +20,8 @@ export function rutaParaNotificacion(data: DatosNotificacion | undefined | null,
   const d = data ?? {};
 
   if (esAcreditado) {
+    // Aviso de documento solicitado: el aviso está en Mi Trámite
+    if (d.screen === 'tramite') return INICIO_ACREDITADO;
     // Documentos (subida, validación, rechazo, expediente completo) traen expediente_id;
     // cambios de etapa o cierre solo traen `id` y se ven en Mi Trámite.
     if (d.expediente_id || d.screen === 'documentos') return '/(acreditado)/documentos';

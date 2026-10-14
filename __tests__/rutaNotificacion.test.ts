@@ -22,3 +22,10 @@ describe('rutaParaNotificacion', () => {
     expect(rutaParaNotificacion(undefined, true)).toBe('/(acreditado)');
   });
 });
+
+describe('documento solicitado', () => {
+  it('al acreditado lo lleva a Mi Trámite y al asesor al expediente', () => {
+    expect(rutaParaNotificacion({ screen: 'tramite', expediente_id: '14' }, true)).toBe('/(acreditado)');
+    expect(rutaParaNotificacion({ screen: 'expedientes', expediente_id: '14' }, false)).toBe('/expedientes/14');
+  });
+});

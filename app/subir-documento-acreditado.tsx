@@ -82,8 +82,13 @@ export default function SubirDocumentoAcreditadoScreen() {
   const { tipoLabel } = useLocalSearchParams<{ tipoLabel?: string }>();
   const reemplazando = false;
 
+  // Un documento solicitado por un administrador trae su propio nombre: se agrega como opción
+  const TIPOS = tipoLabel && !TIPOS_DOCUMENTO.some(t => t.value === tipoLabel)
+    ? [{ value: tipoLabel, label: tipoLabel, requisitos: ['Legible y completo.', 'Que sea el documento que te pidieron en la nota.'] }, ...TIPOS_DOCUMENTO]
+    : TIPOS_DOCUMENTO;
+
   const [tipo,  setTipo]  = useState<string>(
-    TIPOS_DOCUMENTO.find(t => t.value === tipoLabel)?.value ?? TIPOS_DOCUMENTO[0].value,
+    TIPOS.find(t => t.value === tipoLabel)?.value ?? TIPOS[0].value,
   );
   const [confirmar, setConfirmar] = useState(false);
   const [notas, setNotas] = useState('');
@@ -256,7 +261,7 @@ export default function SubirDocumentoAcreditadoScreen() {
 
           <Text style={s.sectionLabel}>Tipo de documento · elige uno</Text>
           <View style={s.chipWrap}>
-            {TIPOS_DOCUMENTO.map(t => (
+            {TIPOS.map(t => (
               <Pressable
                 key={t.value}
                 style={[s.chip, tipo === t.value && s.chipActivo, reemplazando && tipo !== t.value && s.chipBloqueado]}
@@ -339,7 +344,7 @@ export default function SubirDocumentoAcreditadoScreen() {
       >
         <Text style={s.sectionLabel}>Tipo de documento · elige uno</Text>
         <View style={s.chipWrap}>
-          {TIPOS_DOCUMENTO.map(t => (
+          {TIPOS.map(t => (
             <Pressable
               key={t.value}
               style={[s.chip, tipo === t.value && s.chipActivo, reemplazando && tipo !== t.value && s.chipBloqueado]}
@@ -388,7 +393,7 @@ export default function SubirDocumentoAcreditadoScreen() {
 
 /** Lo que hay que revisar del tipo de documento elegido (aparece con un fundido al cambiar de tipo). */
 function RequisitosCard({ tipo }: { tipo: string }) {
-  const def  = TIPOS_DOCUMENTO.find(t => t.value === tipo);
+  const def  = TIPOS_DOCUMENTO.find(t => t.value === tipo) ?? { value: tipo, label: tipo, requisitos: ['Legible y completo.', 'Que sea el documento que te pidieron en la nota.'] };
   const fade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -420,7 +425,7 @@ function RequisitosCard({ tipo }: { tipo: string }) {
 function AvisoRequisitos({ visible, tipo, accion, onCancelar, onAceptar }: {
   visible: boolean; tipo: string; accion: 'subir' | 'reemplazar'; onCancelar: () => void; onAceptar: () => void;
 }) {
-  const def        = TIPOS_DOCUMENTO.find(t => t.value === tipo);
+  const def        = TIPOS_DOCUMENTO.find(t => t.value === tipo) ?? { value: tipo, label: tipo, requisitos: ['Legible y completo.', 'Que sea el documento que te pidieron en la nota.'] };
   const requisitos = [...(def?.requisitos ?? []), ...REQUISITOS_GENERALES];
 
   const entrada = useRef(new Animated.Value(0)).current;

@@ -60,6 +60,7 @@ const SECCIONES: Seccion[] = [
     subtitulo: 'Sube los documentos que te piden',
     pasos: [
       { icono: 'clipboard', titulo: 'Ver tu checklist', desc: 'En la pestaña Documentos verás la lista de documentos requeridos y su estado: Pendiente, Recibido o Rechazado (con el motivo para corregirlo).' },
+      { icono: 'document-attach', titulo: 'Si te piden un documento', desc: 'Si tu asesor o el administrador necesita un documento más, te llega una notificación y en Mi Trámite aparece "Te falta un documento" con una nota que explica cuál. Toca Subir este documento, súbelo y espera la validación.' },
       { icono: 'list', titulo: 'Qué documentos subir', desc: 'Arriba en Documentos verás la lista de lo que debes entregar (acta de nacimiento, INE, CURP, constancia fiscal, comprobante de domicilio, 3 talones y estado de cuenta AFORE), con lo que debe cumplir cada uno y dónde obtenerlo. Se marcan como Entregado cuando los subes.' },
       { icono: 'cloud-upload', titulo: 'Subir un documento', desc: 'Toca Subir: se abre una pantalla donde eliges qué documento es, agregas una nota si quieres y lo escaneas (varias fotos se juntan en un PDF) o eliges un archivo PDF o una foto. Antes de enviarlo confirmas que cumple los requisitos. Sin internet se guarda y se envía solo al recuperar la señal.' },
       { icono: 'repeat', titulo: 'Documento rechazado', desc: 'Si un documento aparece como "Rechazado", vuelve a subirlo — tu asesor te indicará qué corregir.' },
