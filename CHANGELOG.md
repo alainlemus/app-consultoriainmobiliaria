@@ -4,6 +4,9 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+### Corregido
+- Contrato de prestación de servicios: el encabezado ahora es idéntico al del contrato del panel (título en una sola línea con las mismas proporciones, y el folio "Expediente: …" alineado a la derecha, que salía a la izquierda).
+
 ## [2.3.0] - 2026-10-13
 
 ### Cambiado
