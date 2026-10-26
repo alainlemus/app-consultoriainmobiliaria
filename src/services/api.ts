@@ -492,8 +492,8 @@ export async function getContratosGeneradosRemoto(): Promise<ContratoGeneradoRem
 }
 
 /** URLs firmadas (5 min) para ver/compartir el PDF y las INEs de un contrato ya subido al backend. */
-export async function getContratoGeneradoUrls(id: number): Promise<{ pdf_url?: string; ine_acreditado_url?: string; ine_solidario_url?: string }> {
-  const res = await apiFetch<{ pdf_url?: string; ine_acreditado_url?: string; ine_solidario_url?: string; expira_en: number }>(
+export async function getContratoGeneradoUrls(id: number): Promise<{ pdf_url?: string; ine_acreditado_url?: string; ine_solidario_url?: string; pagare_url?: string }> {
+  const res = await apiFetch<{ pdf_url?: string; ine_acreditado_url?: string; ine_solidario_url?: string; pagare_url?: string; expira_en: number }>(
     `/contratos/generados/${id}/ver`
   );
   return {
