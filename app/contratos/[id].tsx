@@ -14,7 +14,7 @@ import Header from '@/src/components/ui/Header';
 import Button from '@/src/components/ui/Button';
 import { Colors, Typography, Spacing } from '@/src/theme';
 import { getContratoGenerado, eliminarContratoGenerado, type ContratoGenerado } from '@/src/services/contratosGenerados';
-import { getContratoGeneradoUrls } from '@/src/services/api';
+import { getContratoGeneradoUrls, getContratosGeneradosRemoto } from '@/src/services/api';
 
 export default function VerContratoGeneradoScreen() {
   const router = useRouter();
@@ -23,6 +23,7 @@ export default function VerContratoGeneradoScreen() {
   const [loading,  setLoading]  = useState(true);
   const [urls, setUrls] = useState<{ pdf_url?: string; ine_acreditado_url?: string; ine_solidario_url?: string } | null>(null);
   const [cargandoUrl, setCargandoUrl] = useState(false);
+  const [cargandoPagare, setCargandoPagare] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -84,6 +85,59 @@ export default function VerContratoGeneradoScreen() {
         await Sharing.shareAsync(contrato.fileUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
       }
     } catch { /* usuario canceló */ }
+  }
+
+  // Pagaré: si se guardó al generar el contrato está en el dispositivo; si no
+  // (contratos anteriores o recuperados del servidor), lo arma el servidor.
+  async function obtenerPagareUrl(): Promise<string | null> {
+    if (!contrato) return null;
+    setCargandoPagare(true);
+    try {
+      let remotoId = contrato.remotoId;
+      if (!remotoId) {
+        const remotos = await getContratosGeneradosRemoto();
+        remotoId = remotos.find(r => r.local_id === contrato.id)?.id;
+      }
+      if (!remotoId) {
+        Alert.alert('Pagaré no disponible', 'Este contrato aún no se sube al servidor. Podrás ver el pagaré en cuanto se sincronice.');
+        return null;
+      }
+      const res = await getContratoGeneradoUrls(remotoId);
+      if (!res.pagare_url) {
+        Alert.alert('Pagaré no disponible', 'El servidor no devolvió el pagaré. Intenta más tarde.');
+        return null;
+      }
+      return res.pagare_url;
+    } catch {
+      Alert.alert('Sin conexión', 'No se pudo obtener el pagaré del servidor. Intenta de nuevo con internet.');
+      return null;
+    } finally {
+      setCargandoPagare(false);
+    }
+  }
+
+  async function verPagare() {
+    if (!contrato) return;
+    if (contrato.pagareUri) {
+      try { await Print.printAsync({ uri: contrato.pagareUri }); } catch { /* usuario canceló */ }
+      return;
+    }
+    const url = await obtenerPagareUrl();
+    if (url) await WebBrowser.openBrowserAsync(url);
+  }
+
+  async function compartirPagare() {
+    if (!contrato) return;
+    if (contrato.pagareUri) {
+      try {
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(contrato.pagareUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+        }
+      } catch { /* usuario canceló */ }
+      return;
+    }
+    const url = await obtenerPagareUrl();
+    if (url) await WebBrowser.openBrowserAsync(url);
   }
 
   function eliminar() {
@@ -152,6 +206,15 @@ export default function VerContratoGeneradoScreen() {
         <View style={{ gap: Spacing.sm, marginTop: Spacing.xl, alignSelf: 'stretch' }}>
           <Button label="Ver / Imprimir" onPress={verPdf} fullWidth loading={cargandoUrl} />
           <Button label="Compartir" onPress={compartirPdf} variant="outline" fullWidth loading={cargandoUrl} />
+        </View>
+
+        <Text style={[s.inesTitulo, { marginTop: Spacing.xl }]}>Pagaré</Text>
+        <View style={{ gap: Spacing.sm, marginTop: Spacing.sm, alignSelf: 'stretch' }}>
+          <Button label="Ver / Imprimir pagaré" onPress={verPagare} fullWidth loading={cargandoPagare} />
+          <Button label="Compartir pagaré" onPress={compartirPagare} variant="outline" fullWidth loading={cargandoPagare} />
+        </View>
+
+        <View style={{ marginTop: Spacing.xl, alignSelf: 'stretch' }}>
           <Button label="Eliminar" onPress={eliminar} variant="danger" fullWidth />
         </View>
 

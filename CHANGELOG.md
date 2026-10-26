@@ -4,6 +4,9 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+### Agregado
+- **Pagaré en el historial de contratos:** al abrir un contrato generado ahora aparecen "Ver / Imprimir pagaré" y "Compartir pagaré". Los contratos nuevos guardan su pagaré en el teléfono (se abre sin internet); los anteriores o recuperados del servidor lo piden al servidor, que lo arma con los datos del contrato. Requiere el backend con esta función.
+
 ## [2.5.0] - 2026-10-14
 
 ### Cambiado

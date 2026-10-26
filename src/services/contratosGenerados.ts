@@ -18,6 +18,8 @@ export interface ContratoGenerado {
   folio?:              string | null;
   clienteNombre:       string;
   fileUri:             string;
+  /** PDF del pagaré en el dispositivo. Los contratos anteriores no lo tienen: se pide al servidor. */
+  pagareUri?:          string | null;
   ineAcreditadoUri?:   string | null;
   ineSolidarioUri?:    string | null;
   sincronizado?:       boolean;

@@ -312,11 +312,19 @@ export default function RegistrarContratoScreen() {
       const nombreArchivo  = `contrato_${folio || Date.now()}.pdf`;
       const uriPersistida  = await persistirDocumento(uri, nombreArchivo);
 
+      // PDF propio del pagaré, guardado en el historial para reabrirlo después.
+      let uriPagare: string | null = null;
+      try {
+        uriPagare = await persistirDocumento(await pagarePdf(), `pagare_${folio || Date.now()}.pdf`);
+        setPagareUri(uriPagare);
+      } catch { /* el pagaré se puede regenerar desde los botones */ }
+
       const entradaHistorial = await guardarContratoGenerado({
         expedienteId:      expediente?.id ?? null,
         folio,
         clienteNombre:     acreditado.nombre || 'Sin nombre',
         fileUri:           uriPersistida,
+        pagareUri:         uriPagare,
         ineAcreditadoUri:  acreditadoFotoUri,
         ineSolidarioUri:   solidarioFotoUri,
       });
@@ -386,21 +394,17 @@ export default function RegistrarContratoScreen() {
         }
       }
 
-      // El pagaré es un documento aparte del contrato: PDF propio, y si hay
-      // expediente también se sube como su propio documento.
-      try {
-        const uriPagare = await persistirDocumento(await pagarePdf(), `pagare_${folio || Date.now()}.pdf`);
-        setPagareUri(uriPagare);
-        if (expediente) {
-          const paramsPagare = { expedienteId: expediente.id, uri: uriPagare, tipo: PAGARE_TIPO_DOCUMENTO, seccion: 'otros' as const, mimeType: 'application/pdf', notas: 'Generado desde la app' };
-          try {
-            if (online) await uploadDocumento(expediente.id, uriPagare, PAGARE_TIPO_DOCUMENTO, 'Generado desde la app', 'application/pdf', 'otros');
-            else await encolarDoc(paramsPagare);
-          } catch {
-            await encolarDoc(paramsPagare).catch(() => {});
-          }
+      // El pagaré es un documento aparte del contrato: si hay expediente
+      // también se sube como su propio documento.
+      if (uriPagare && expediente) {
+        const paramsPagare = { expedienteId: expediente.id, uri: uriPagare, tipo: PAGARE_TIPO_DOCUMENTO, seccion: 'otros' as const, mimeType: 'application/pdf', notas: 'Generado desde la app' };
+        try {
+          if (online) await uploadDocumento(expediente.id, uriPagare, PAGARE_TIPO_DOCUMENTO, 'Generado desde la app', 'application/pdf', 'otros');
+          else await encolarDoc(paramsPagare);
+        } catch {
+          await encolarDoc(paramsPagare).catch(() => {});
         }
-      } catch { /* el pagaré se puede regenerar desde los botones */ }
+      }
 
       setPdfUri(uriPersistida);
       setMode('listo');
@@ -425,7 +429,7 @@ export default function RegistrarContratoScreen() {
   }
 
   // Pagaré con los datos del acreditado. Se genera al momento (no depende de
-  // la red) y no se guarda: el backend lo regenera desde los datos del contrato.
+  // la red); al generar el contrato se guarda en el historial con él.
   async function pagarePdf(): Promise<string> {
     const html = renderPagareHtml({ acreditado: acreditado.nombre, domAcreditado: acreditado.domicilio, rfc: acreditado.rfc });
     const { uri } = await Print.printToFileAsync({ html, ...DIMENSIONES_PAPEL[tamanoPapel], margins: MARGENES_PAGINA });
