@@ -4,6 +4,17 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+## [2.7.0] - 2026-10-30
+
+### Agregado
+- **Regresión de fases:** al generar un contrato también se arma el oficio de regresión de fases para FOVISSSTE (AT'N Hipotecaria Hogar) con los nombres del acreditado y del obligado solidario, la ciudad y la fecha; el número de crédito se llena a mano. Tiene vista previa, se puede ver, imprimir y compartir al terminar y después desde el historial de contratos (los contratos anteriores lo piden al servidor). Requiere el backend 1.7.0.
+
+### Cambiado
+- **Pagaré con el formato nuevo:** ahora incluye al deudor (nombre, domicilio e INE con clave de elector), al aval (el obligado solidario), lugar y fecha de suscripción, el acreedor con su domicilio de pago y espacio para dos testigos. El importe, el vencimiento, el % de intereses mensual y las firmas se llenan a mano.
+
+### Corregido
+- El pagaré de contratos anteriores o recuperados del servidor no se podía abrir ("no disponible"); ya se descarga del servidor.
+
 ## [2.6.0] - 2026-10-26
 
 ### Agregado

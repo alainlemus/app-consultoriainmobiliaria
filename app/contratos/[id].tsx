@@ -16,6 +16,14 @@ import { Colors, Typography, Spacing } from '@/src/theme';
 import { getContratoGenerado, eliminarContratoGenerado, type ContratoGenerado } from '@/src/services/contratosGenerados';
 import { getContratoGeneradoUrls, getContratosGeneradosRemoto } from '@/src/services/api';
 
+/** Documentos que acompañan al contrato y se pueden armar en el servidor si no están en el dispositivo. */
+type DocAparte = 'pagare' | 'regresion';
+
+const DOCS: Record<DocAparte, { nombre: string; campoUri: 'pagareUri' | 'regresionUri'; campoUrl: 'pagare_url' | 'regresion_fases_url' }> = {
+  pagare:    { nombre: 'Pagaré',             campoUri: 'pagareUri',    campoUrl: 'pagare_url' },
+  regresion: { nombre: 'Regresión de fases', campoUri: 'regresionUri', campoUrl: 'regresion_fases_url' },
+};
+
 export default function VerContratoGeneradoScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,7 +31,7 @@ export default function VerContratoGeneradoScreen() {
   const [loading,  setLoading]  = useState(true);
   const [urls, setUrls] = useState<{ pdf_url?: string; ine_acreditado_url?: string; ine_solidario_url?: string } | null>(null);
   const [cargandoUrl, setCargandoUrl] = useState(false);
-  const [cargandoPagare, setCargandoPagare] = useState(false);
+  const [cargandoDoc, setCargandoDoc] = useState<DocAparte | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -87,11 +95,13 @@ export default function VerContratoGeneradoScreen() {
     } catch { /* usuario canceló */ }
   }
 
-  // Pagaré: si se guardó al generar el contrato está en el dispositivo; si no
-  // (contratos anteriores o recuperados del servidor), lo arma el servidor.
-  async function obtenerPagareUrl(): Promise<string | null> {
+  // Pagaré y regresión de fases: si se guardaron al generar el contrato están
+  // en el dispositivo; si no (contratos anteriores o recuperados del
+  // servidor), los arma el servidor.
+  async function obtenerDocUrl(doc: DocAparte): Promise<string | null> {
     if (!contrato) return null;
-    setCargandoPagare(true);
+    const { nombre, campoUrl } = DOCS[doc];
+    setCargandoDoc(doc);
     try {
       let remotoId = contrato.remotoId;
       if (!remotoId) {
@@ -99,44 +109,46 @@ export default function VerContratoGeneradoScreen() {
         remotoId = remotos.find(r => r.local_id === contrato.id)?.id;
       }
       if (!remotoId) {
-        Alert.alert('Pagaré no disponible', 'Este contrato aún no se sube al servidor. Podrás ver el pagaré en cuanto se sincronice.');
+        Alert.alert(`${nombre} no disponible`, `Este contrato aún no se sube al servidor. Podrás verlo en cuanto se sincronice.`);
         return null;
       }
       const res = await getContratoGeneradoUrls(remotoId);
-      if (!res.pagare_url) {
-        Alert.alert('Pagaré no disponible', 'El servidor no devolvió el pagaré. Intenta más tarde.');
+      if (!res[campoUrl]) {
+        Alert.alert(`${nombre} no disponible`, 'El servidor no devolvió el documento. Intenta más tarde.');
         return null;
       }
-      return res.pagare_url;
+      return res[campoUrl]!;
     } catch {
-      Alert.alert('Sin conexión', 'No se pudo obtener el pagaré del servidor. Intenta de nuevo con internet.');
+      Alert.alert('Sin conexión', 'No se pudo obtener el documento del servidor. Intenta de nuevo con internet.');
       return null;
     } finally {
-      setCargandoPagare(false);
+      setCargandoDoc(null);
     }
   }
 
-  async function verPagare() {
+  async function verDoc(doc: DocAparte) {
     if (!contrato) return;
-    if (contrato.pagareUri) {
-      try { await Print.printAsync({ uri: contrato.pagareUri }); } catch { /* usuario canceló */ }
+    const uri = contrato[DOCS[doc].campoUri];
+    if (uri) {
+      try { await Print.printAsync({ uri }); } catch { /* usuario canceló */ }
       return;
     }
-    const url = await obtenerPagareUrl();
+    const url = await obtenerDocUrl(doc);
     if (url) await WebBrowser.openBrowserAsync(url);
   }
 
-  async function compartirPagare() {
+  async function compartirDoc(doc: DocAparte) {
     if (!contrato) return;
-    if (contrato.pagareUri) {
+    const uri = contrato[DOCS[doc].campoUri];
+    if (uri) {
       try {
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(contrato.pagareUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+          await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
         }
       } catch { /* usuario canceló */ }
       return;
     }
-    const url = await obtenerPagareUrl();
+    const url = await obtenerDocUrl(doc);
     if (url) await WebBrowser.openBrowserAsync(url);
   }
 
@@ -208,11 +220,15 @@ export default function VerContratoGeneradoScreen() {
           <Button label="Compartir" onPress={compartirPdf} variant="outline" fullWidth loading={cargandoUrl} />
         </View>
 
-        <Text style={[s.inesTitulo, { marginTop: Spacing.xl }]}>Pagaré</Text>
-        <View style={{ gap: Spacing.sm, marginTop: Spacing.sm, alignSelf: 'stretch' }}>
-          <Button label="Ver / Imprimir pagaré" onPress={verPagare} fullWidth loading={cargandoPagare} />
-          <Button label="Compartir pagaré" onPress={compartirPagare} variant="outline" fullWidth loading={cargandoPagare} />
-        </View>
+        {(Object.keys(DOCS) as DocAparte[]).map(doc => (
+          <React.Fragment key={doc}>
+            <Text style={[s.inesTitulo, { marginTop: Spacing.xl }]}>{DOCS[doc].nombre}</Text>
+            <View style={{ gap: Spacing.sm, marginTop: Spacing.sm, alignSelf: 'stretch' }}>
+              <Button label={`Ver / Imprimir ${DOCS[doc].nombre.toLowerCase()}`} onPress={() => verDoc(doc)} fullWidth loading={cargandoDoc === doc} />
+              <Button label={`Compartir ${DOCS[doc].nombre.toLowerCase()}`} onPress={() => compartirDoc(doc)} variant="outline" fullWidth loading={cargandoDoc === doc} />
+            </View>
+          </React.Fragment>
+        ))}
 
         <View style={{ marginTop: Spacing.xl, alignSelf: 'stretch' }}>
           <Button label="Eliminar" onPress={eliminar} variant="danger" fullWidth />
