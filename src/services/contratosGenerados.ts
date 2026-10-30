@@ -20,6 +20,8 @@ export interface ContratoGenerado {
   fileUri:             string;
   /** PDF del pagaré en el dispositivo. Los contratos anteriores no lo tienen: se pide al servidor. */
   pagareUri?:          string | null;
+  /** PDF del oficio de regresión de fases en el dispositivo; igual que el pagaré, si falta se pide al servidor. */
+  regresionUri?:       string | null;
   ineAcreditadoUri?:   string | null;
   ineSolidarioUri?:    string | null;
   sincronizado?:       boolean;

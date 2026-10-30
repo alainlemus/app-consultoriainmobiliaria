@@ -25,6 +25,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import { renderPagareHtml } from '@/src/contratos/pagare';
+import { renderRegresionFasesHtml } from '@/src/contratos/regresionFases';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '@/src/components/ui/Header';
@@ -127,6 +128,7 @@ export default function RegistrarContratoScreen() {
 
   const [pdfUri, setPdfUri] = useState<string | null>(null);
   const [pagareUri, setPagareUri] = useState<string | null>(null);
+  const [regresionUri, setRegresionUri] = useState<string | null>(null);
   const [previsualizando, setPrevisualizando] = useState(false);
 
   // ── Cargar expediente cuando viene por parámetro (solo para precargar) ────
@@ -312,12 +314,17 @@ export default function RegistrarContratoScreen() {
       const nombreArchivo  = `contrato_${folio || Date.now()}.pdf`;
       const uriPersistida  = await persistirDocumento(uri, nombreArchivo);
 
-      // PDF propio del pagaré, guardado en el historial para reabrirlo después.
+      // PDF propio del pagaré y del oficio de regresión de fases, guardados en el historial para reabrirlos después.
       let uriPagare: string | null = null;
+      let uriRegresion: string | null = null;
       try {
-        uriPagare = await persistirDocumento(await pagarePdf(), `pagare_${folio || Date.now()}.pdf`);
+        uriPagare = await persistirDocumento(await documentoPdf('pagare'), `pagare_${folio || Date.now()}.pdf`);
         setPagareUri(uriPagare);
       } catch { /* el pagaré se puede regenerar desde los botones */ }
+      try {
+        uriRegresion = await persistirDocumento(await documentoPdf('regresion'), `regresion_fases_${folio || Date.now()}.pdf`);
+        setRegresionUri(uriRegresion);
+      } catch { /* el oficio se puede regenerar desde los botones */ }
 
       const entradaHistorial = await guardarContratoGenerado({
         expedienteId:      expediente?.id ?? null,
@@ -325,6 +332,7 @@ export default function RegistrarContratoScreen() {
         clienteNombre:     acreditado.nombre || 'Sin nombre',
         fileUri:           uriPersistida,
         pagareUri:         uriPagare,
+        regresionUri:      uriRegresion,
         ineAcreditadoUri:  acreditadoFotoUri,
         ineSolidarioUri:   solidarioFotoUri,
       });
@@ -428,22 +436,30 @@ export default function RegistrarContratoScreen() {
     } catch { /* usuario canceló */ }
   }
 
-  // Pagaré con los datos del acreditado. Se genera al momento (no depende de
-  // la red); al generar el contrato se guarda en el historial con él.
-  async function pagarePdf(): Promise<string> {
-    const html = renderPagareHtml({ acreditado: acreditado.nombre, domAcreditado: acreditado.domicilio, rfc: acreditado.rfc });
+  // Pagaré y oficio de regresión de fases con los datos del acreditado y del
+  // solidario. Se generan al momento (no dependen de la red); al generar el
+  // contrato se guardan en el historial con él.
+  async function documentoPdf(doc: 'pagare' | 'regresion'): Promise<string> {
+    const html = doc === 'pagare'
+      ? renderPagareHtml({
+          acreditado: acreditado.nombre, domAcreditado: acreditado.domicilio, claveElector,
+          solidario: solidario.nombre, domSolidario: solidario.domicilio, ciudad,
+        })
+      : renderRegresionFasesHtml({ acreditado: acreditado.nombre, solidario: solidario.nombre, ciudad });
     const { uri } = await Print.printToFileAsync({ html, ...DIMENSIONES_PAPEL[tamanoPapel], margins: MARGENES_PAGINA });
     return uri;
   }
 
-  async function verPagare() {
-    try { await Print.printAsync({ uri: pagareUri ?? await pagarePdf() }); } catch { /* usuario canceló */ }
+  const uriGuardada = (doc: 'pagare' | 'regresion') => (doc === 'pagare' ? pagareUri : regresionUri);
+
+  async function verDocumento(doc: 'pagare' | 'regresion') {
+    try { await Print.printAsync({ uri: uriGuardada(doc) ?? await documentoPdf(doc) }); } catch { /* usuario canceló */ }
   }
 
-  async function compartirPagare() {
+  async function compartirDocumento(doc: 'pagare' | 'regresion') {
     try {
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(pagareUri ?? await pagarePdf(), { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+        await Sharing.shareAsync(uriGuardada(doc) ?? await documentoPdf(doc), { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
       }
     } catch { /* usuario canceló */ }
   }
@@ -667,7 +683,14 @@ export default function RegistrarContratoScreen() {
           />
           <Button
             label="Vista previa del pagaré"
-            onPress={verPagare}
+            onPress={() => verDocumento('pagare')}
+            variant="outline"
+            fullWidth
+            style={{ marginTop: Spacing.sm }}
+          />
+          <Button
+            label="Vista previa de regresión de fases"
+            onPress={() => verDocumento('regresion')}
             variant="outline"
             fullWidth
             style={{ marginTop: Spacing.sm }}
@@ -701,8 +724,11 @@ export default function RegistrarContratoScreen() {
           <Button label="Ver / Imprimir" onPress={verPdf} fullWidth />
           <Button label="Compartir" onPress={compartirPdf} variant="outline" fullWidth />
           <Text style={[s.subtitle, { marginTop: Spacing.lg, fontWeight: '700' }]}>Pagaré (documento aparte)</Text>
-          <Button label="Ver / Imprimir pagaré" onPress={verPagare} fullWidth />
-          <Button label="Compartir pagaré" onPress={compartirPagare} variant="outline" fullWidth />
+          <Button label="Ver / Imprimir pagaré" onPress={() => verDocumento('pagare')} fullWidth />
+          <Button label="Compartir pagaré" onPress={() => compartirDocumento('pagare')} variant="outline" fullWidth />
+          <Text style={[s.subtitle, { marginTop: Spacing.lg, fontWeight: '700' }]}>Regresión de fases (documento aparte)</Text>
+          <Button label="Ver / Imprimir regresión de fases" onPress={() => verDocumento('regresion')} fullWidth />
+          <Button label="Compartir regresión de fases" onPress={() => compartirDocumento('regresion')} variant="outline" fullWidth />
           <Button label="Volver a Contratos" onPress={() => router.replace('/contratos')} variant="ghost" fullWidth />
         </View>
       </View>
