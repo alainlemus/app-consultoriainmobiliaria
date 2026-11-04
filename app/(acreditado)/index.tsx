@@ -3,15 +3,19 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, AppState,
   TouchableOpacity, RefreshControl, Linking, Alert,
-  ActivityIndicator, TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
-import { getExpedienteAcreditado, solicitarAsesoria, getServiciosDisponibles, logoutAcreditado } from '@/src/services/acreditadoApi';
+import { getExpedienteAcreditado, logoutAcreditado } from '@/src/services/acreditadoApi';
 import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
-import type { ExpedienteAcreditado, ServicioTramite } from '@/src/types';
+import type { ExpedienteAcreditado } from '@/src/types';
+import PrimerosPasos from '@/src/screens/primerosPasos/PrimerosPasos';
+import {
+  cargarProgreso, borrarProgreso, haySolicitudPendiente, NUMERO_PASO, NOMBRE_PASO, NOMBRE_CREDITO,
+  type ProgresoPrimerosPasos,
+} from '@/src/services/primerosPasos';
 
 const ESTADO_COLOR: Record<string, string> = {
   en_revision: '#1d4ed8',
@@ -38,21 +42,23 @@ export default function MiTramiteScreen() {
   const router               = useRouter();
   const { acreditado, clearAcreditado, refresh } = useAcreditadoAuth();
   const [expediente, setExpediente]   = useState<ExpedienteAcreditado | null>(null);
-  const [servicios, setServicios]     = useState<ServicioTramite[]>([]);
   const [loading,  setLoading]        = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
-  const [errorServicios, setErrorServicios] = useState(false);
 
-  // Estado para el flujo de solicitar asesoría
-  const [solicitandoId, setSolicitandoId] = useState<number | null>(null);
+  // Primeros pasos (acreditado sin expediente)
   const [solicitudEnviada, setSolicitudEnviada] = useState(false);
-  const [mensajeAdicional, setMensajeAdicional] = useState('');
-  const [mostrarMensaje, setMostrarMensaje] = useState(false);
+  const [solicitudEnCola, setSolicitudEnCola]   = useState(false);
+  const [progreso, setProgreso]                 = useState<ProgresoPrimerosPasos | null>(null);
+  const [flujo, setFlujo]                       = useState<null | 'normal' | 'llamada'>(null);
 
-  // Por ahora el acreditado solo pide Crédito FOVISSSTE (el tradicional); el resto de servicios no se ofrece.
-  const servicioFovissste =
-    servicios.find(s => /tradicional.*fovissste/i.test(s.nombre)) ??
-    servicios.find(s => /fovissste/i.test(s.nombre)) ?? null;
+  const cargarPrimerosPasos = useCallback(async () => {
+    if (!acreditado) return;
+    const [p, pendiente] = await Promise.all([cargarProgreso(acreditado.id), haySolicitudPendiente()]);
+    setProgreso(p);
+    setSolicitudEnCola(pendiente);
+  }, [acreditado]);
+
+  useEffect(() => { cargarPrimerosPasos(); }, [cargarPrimerosPasos]);
 
   const cargar = useCallback(async (forzar = false) => {
     try {
@@ -61,20 +67,10 @@ export default function MiTramiteScreen() {
       // Al jalar para recargar (forzar) siempre se consulta: el asesor pudo abrir el expediente después.
       const yaTenemosQueNoHayExpediente = !forzar && acreditado !== null && acreditado.tiene_expediente === false;
 
-      const [exp, svcs] = await Promise.all([
-        yaTenemosQueNoHayExpediente ? Promise.resolve(null) : getExpedienteAcreditado(),
-        getServiciosDisponibles().catch(() => null),
-      ]);
+      const exp = yaTenemosQueNoHayExpediente ? null : await getExpedienteAcreditado();
       setExpediente(exp);
-      if (svcs === null) {
-        setErrorServicios(true);
-        setServicios([]);
-      } else {
-        setErrorServicios(false);
-        setServicios(svcs);
-      }
     } catch {
-      setErrorServicios(true);
+      // Sin señal: se queda lo que ya había en pantalla
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -103,30 +99,12 @@ export default function MiTramiteScreen() {
     return () => { sub.remove(); clearInterval(t); };
   }, [loading, expediente, refresh, cargar]);
 
-  async function handleSolicitarAsesoria(servicio: ServicioTramite) {
-    setSolicitandoId(servicio.id);
-    try {
-      await solicitarAsesoria({
-        tipo_tramite_id: servicio.id,
-        mensaje: mensajeAdicional.trim() || undefined,
-      });
-      setSolicitudEnviada(true);
-      setMensajeAdicional('');
-      setMostrarMensaje(false);
-      Alert.alert(
-        '¡Ya estás registrado!',
-        'Recibimos tu solicitud de Crédito FOVISSSTE. Un asesor se pondrá en contacto contigo a la brevedad.',
-        [{ text: 'Entendido' }],
-      );
-    } catch (e: unknown) {
-      Alert.alert(
-        'Error al enviar',
-        e instanceof Error ? e.message : 'No se pudo enviar la solicitud. Intenta de nuevo.',
-        [{ text: 'OK' }],
-      );
-    } finally {
-      setSolicitandoId(null);
-    }
+  function terminarPrimerosPasos() {
+    setFlujo(null);
+    setSolicitudEnviada(true);
+    if (acreditado) borrarProgreso(acreditado.id);
+    setProgreso(null);
+    refresh().then(() => cargarPrimerosPasos());
   }
 
   function handleLogout() {
@@ -166,85 +144,77 @@ export default function MiTramiteScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {(solicitudEnviada || acreditado?.solicitud_enviada) ? (
+          {(solicitudEnviada || solicitudEnCola || acreditado?.solicitud_enviada) ? (
             // ── Estado post-solicitud ──────────────────────────────────────
             <>
               <Ionicons name="checkmark-circle" size={64} color={Colors.success} />
               <Text style={styles.emptyTitle}>¡Ya estás registrado!</Text>
               <Text style={styles.emptySubtitle}>
-                Recibimos tu solicitud de Crédito FOVISSSTE y ya estás registrado con nosotros. Un asesor se pondrá en contacto contigo para iniciar tu trámite; cuando se abra tu expediente lo verás aquí.
+                Recibimos tu solicitud y ya estás registrado con nosotros. Un asesor se pondrá en contacto contigo para iniciar tu trámite; cuando se abra tu expediente lo verás aquí.
               </Text>
+              {solicitudEnCola && (
+                <View style={[styles.card, styles.guiaCard, styles.ppCard]}>
+                  <View style={styles.guiaHeader}>
+                    <Ionicons name="cloud-offline-outline" size={20} color={Colors.gold[400]} />
+                    <Text style={styles.guiaTitle}>Pendiente de envío</Text>
+                  </View>
+                  <Text style={styles.guiaText}>Tu solicitud está guardada en el teléfono y se envía sola cuando regrese la señal.</Text>
+                </View>
+              )}
             </>
           ) : (
-            // ── Selección de servicio ──────────────────────────────────────
+            // ── Primeros pasos ─────────────────────────────────────────────
             <>
-              <Ionicons name="home-outline" size={64} color={Colors.dark[600]} />
-              <Text style={styles.emptyTitle}>Aún no tienes un trámite activo</Text>
-              <Text style={styles.emptySubtitle}>
-                Solicita una asesoría para iniciar tu proceso de crédito. Un asesor te contactará pronto.
-              </Text>
-
-              {errorServicios ? (
-                <View style={styles.errorCard}>
-                  <Ionicons name="wifi-outline" size={24} color={Colors.dark[400]} />
-                  <Text style={styles.errorCardText}>No se pudieron cargar los servicios disponibles.</Text>
-                  <TouchableOpacity style={styles.retryBtn} onPress={() => cargar()}>
-                    <Text style={styles.retryBtnText}>Reintentar</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : servicios.length === 0 ? (
-                <View style={styles.errorCard}>
-                  <ActivityIndicator color={Colors.gold[400]} />
-                  <Text style={styles.errorCardText}>Cargando servicios disponibles…</Text>
-                </View>
-              ) : (
-                <>
-                  {servicioFovissste ? (
-                    <TouchableOpacity
-                      style={[styles.servicioBtn, solicitandoId === servicioFovissste.id && styles.servicioBtnDisabled]}
-                      onPress={() => handleSolicitarAsesoria(servicioFovissste)}
-                      disabled={solicitandoId !== null}
-                    >
-                      {solicitandoId === servicioFovissste.id
-                        ? <ActivityIndicator color={Colors.gold[400]} />
-                        : <Text style={styles.servicioBtnText}>Crédito FOVISSSTE</Text>
-                      }
-                    </TouchableOpacity>
-                  ) : null}
-
-                  {/* Mensaje adicional opcional */}
-                  <TouchableOpacity
-                    style={styles.linkBtn}
-                    onPress={() => setMostrarMensaje(v => !v)}
-                  >
-                    <Ionicons
-                      name={mostrarMensaje ? 'chevron-up-outline' : 'chatbubble-ellipses-outline'}
-                      size={16}
-                      color={Colors.gold[400]}
-                    />
-                    <Text style={styles.linkBtnText}>
-                      {mostrarMensaje ? 'Ocultar mensaje' : 'Agregar un mensaje (opcional)'}
+              <View style={[styles.card, styles.ppCard]}>
+                <Text style={styles.sectionTitle}>PRIMEROS PASOS</Text>
+                {progreso && progreso.historial.length > 0 ? (
+                  <>
+                    <Text style={styles.ppTitulo}>Continúa donde te quedaste</Text>
+                    <Text style={styles.ppTexto}>
+                      Paso {NUMERO_PASO[progreso.paso]} de 5 · {NOMBRE_PASO[progreso.paso]}
+                      {progreso.datos.credito && progreso.datos.credito !== 'por_definir' ? ` ${NOMBRE_CREDITO[progreso.datos.credito]}` : ''}
                     </Text>
-                  </TouchableOpacity>
+                    <View style={styles.ppSegmentos}>
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <View key={i} style={[styles.ppSegmento, i <= NUMERO_PASO[progreso.paso] && styles.ppSegmentoOn]} />
+                      ))}
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.ppTitulo}>Averigua cuánto te prestan</Text>
+                    <Text style={styles.ppTexto}>
+                      En 5 pasos sabrás si te toca Infonavit o Fovissste, te ayudamos a registrarte y a precalificarte en el portal oficial.
+                    </Text>
+                  </>
+                )}
+                <TouchableOpacity style={styles.ppBtn} onPress={() => setFlujo('normal')}>
+                  <Text style={styles.ppBtnText}>{progreso && progreso.historial.length > 0 ? 'Continuar' : 'Empezar'}</Text>
+                </TouchableOpacity>
+              </View>
 
-                  {mostrarMensaje && (
-                    <TextInput
-                      style={styles.mensajeInput}
-                      placeholder="Cuéntanos más sobre tu situación, municipio, tipo de crédito…"
-                      placeholderTextColor={Colors.dark[500]}
-                      value={mensajeAdicional}
-                      onChangeText={setMensajeAdicional}
-                      multiline
-                      numberOfLines={4}
-                      maxLength={500}
-                    />
-                  )}
-                </>
-              )}
+              <TouchableOpacity style={[styles.card, styles.ppLlamada]} onPress={() => setFlujo('llamada')}>
+                <View style={styles.ppIcono}><Ionicons name="call-outline" size={22} color={Colors.gold[400]} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.ppLlamadaTitulo}>¿Prefieres que te llamen?</Text>
+                  <Text style={styles.ppLlamadaTexto}>Un asesor te ayuda con todo el proceso.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={Colors.dark[500]} />
+              </TouchableOpacity>
             </>
           )}
           <Text style={styles.version}>v{APP_VERSION}</Text>
         </ScrollView>
+        {acreditado && (
+          <PrimerosPasos
+            visible={flujo !== null}
+            entrada={flujo ?? 'normal'}
+            acreditadoId={acreditado.id}
+            telefono={acreditado.telefono}
+            onClose={() => { setFlujo(null); cargarPrimerosPasos(); }}
+            onTerminado={terminarPrimerosPasos}
+          />
+        )}
       </View>
     );
   }
@@ -421,22 +391,24 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing['3xl'],
+    padding: Spacing.base,
     gap: Spacing.base,
     paddingBottom: Spacing['3xl'] * 2,
   },
   emptyTitle:    { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.cream[50], textAlign: 'center' },
   emptySubtitle: { fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center', lineHeight: Typography.fontSize.sm * 1.6 },
-  servicioBtn:         { width: '100%', backgroundColor: Colors.dark[800], borderRadius: Radius.md, padding: Spacing.lg, alignItems: 'center', borderWidth: 1, borderColor: Colors.gold[400], minHeight: 52, justifyContent: 'center' },
-  servicioBtnDisabled: { opacity: 0.5 },
-  servicioBtnText:     { fontSize: Typography.fontSize.base, color: Colors.gold[400], fontWeight: Typography.fontWeight.semibold },
-  errorCard:     { width: '100%', backgroundColor: Colors.dark[800], borderRadius: Radius.md, padding: Spacing.lg, alignItems: 'center', gap: Spacing.sm },
-  errorCardText: { fontSize: Typography.fontSize.sm, color: Colors.dark[400], textAlign: 'center' },
-  retryBtn:      { marginTop: Spacing.xs, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, backgroundColor: Colors.dark[700], borderRadius: Radius.md },
-  retryBtnText:  { fontSize: Typography.fontSize.sm, color: Colors.gold[400], fontWeight: Typography.fontWeight.semibold },
-  linkBtn:       { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
-  linkBtnText:   { fontSize: Typography.fontSize.sm, color: Colors.gold[400] },
-  mensajeInput:  { width: '100%', backgroundColor: Colors.dark[800], borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.dark[600], padding: Spacing.base, color: Colors.cream[100], fontSize: Typography.fontSize.sm, minHeight: 100, textAlignVertical: 'top' },
+  ppCard:          { width: '100%' },
+  ppTitulo:        { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.cream[50] },
+  ppTexto:         { fontSize: Typography.fontSize.sm, color: Colors.cream[300], lineHeight: Typography.fontSize.sm * 1.5, marginTop: Spacing.xs },
+  ppSegmentos:     { flexDirection: 'row', gap: 6, marginTop: Spacing.md },
+  ppSegmento:      { flex: 1, height: 4, borderRadius: 2, backgroundColor: Colors.dark[700] },
+  ppSegmentoOn:    { backgroundColor: Colors.gold[400] },
+  ppBtn:           { backgroundColor: Colors.gold[400], borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.lg, minHeight: 48, justifyContent: 'center' },
+  ppBtnText:       { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
+  ppLlamada:       { width: '100%', flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg },
+  ppIcono:         { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.dark[700], alignItems: 'center', justifyContent: 'center' },
+  ppLlamadaTitulo: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.cream[50] },
+  ppLlamadaTexto:  { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2 },
 
   version: { fontSize: Typography.fontSize.xs, color: Colors.dark[500], textAlign: 'center', marginTop: Spacing.xl },
 });

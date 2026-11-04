@@ -23,6 +23,9 @@ const API_BASE: string =
     : (extra?.apiUrlAndroid ?? 'http://10.0.2.2:8082/api/v1');
 
 const ACREDITADO_BASE = API_BASE.replace('/v1', '/v1/acreditado');
+
+/** URL pública del sitio (sin /api/v1), p.ej. para archivos en public/ del backend */
+export const urlPublica = (ruta: string) => `${API_BASE.replace(/\/api\/v1\/?$/, '')}/${ruta.replace(/^\//, '')}`;
 const TOKEN_KEY       = 'acreditado_token';
 
 /** Key de SecureStore donde AcreditadoAuthContext cachea el perfil — se limpia junto con el token al expirar la sesión */
@@ -284,9 +287,18 @@ export async function solicitarAsesoria(data: {
   mensaje?: string;
   municipio?: string;
   estado?: string;
+  /** Captura del simulador oficial (archivo local) — se manda como multipart */
+  screenshotUri?: string;
 }): Promise<void> {
-  await acreditadoFetch('/solicitudes', {
-    method: 'POST',
-    body:   JSON.stringify(data),
-  });
+  const { screenshotUri, ...campos } = data;
+  if (!screenshotUri) {
+    await acreditadoFetch('/solicitudes', { method: 'POST', body: JSON.stringify(campos) });
+    return;
+  }
+  const form = new FormData();
+  for (const [k, v] of Object.entries(campos)) {
+    if (v !== undefined && v !== null && v !== '') form.append(k, String(v));
+  }
+  form.append('screenshot', { uri: screenshotUri, name: 'captura_precalificacion.jpg', type: 'image/jpeg' } as any);
+  await acreditadoFetch('/solicitudes', { method: 'POST', body: form });
 }

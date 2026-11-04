@@ -7,6 +7,7 @@ import { AuthProvider } from '../src/contexts/AuthContext';
 import { registrarPushToken, registrarPushTokenAcreditado, registrarListeners, limpiarBadge, obtenerNotificacionInicial } from '../src/services/notifications';
 import { rutaParaNotificacion, esInicio, type DatosNotificacion } from '../src/utils/rutaNotificacion';
 import { getAcreditadoToken, removeAcreditadoToken } from '../src/services/acreditadoApi';
+import { inicioStaffCacheado } from '../src/utils/rolStaff';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -34,14 +35,14 @@ export default function RootLayout() {
       // huérfano y mandamos al asesor a su home.
       if (asesorToken && acreditadoToken) {
         await removeAcreditadoToken();
-        router.replace('/(tabs)');
+        router.replace(await inicioStaffCacheado());
         await abrirNotificacionInicial(false);
         return;
       }
 
-      // ── Asesor con token → su home ────────────────────────────────────────
+      // ── Asesor (o gestor) con token → su home según el rol ────────────────
       if (asesorToken) {
-        router.replace('/(tabs)');
+        router.replace(await inicioStaffCacheado());
         await abrirNotificacionInicial(false);
         return;
       }
@@ -92,6 +93,10 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)"                           options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)"                           options={{ headerShown: false }} />
         <Stack.Screen name="(acreditado)"                     options={{ headerShown: false }} />
+        <Stack.Screen name="(gestor)"                         options={{ headerShown: false }} />
+        <Stack.Screen name="ayuda-gestor"                     options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="gestor/[id]"                      options={{ headerShown: false }} />
+        <Stack.Screen name="gestor/subir"                     options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="prospectos/[id]"                  options={{ headerShown: false }} />
         <Stack.Screen name="prospectos/nuevo"                 options={{ headerShown: false }} />
         <Stack.Screen name="expedientes/[id]"                 options={{ headerShown: false }} />

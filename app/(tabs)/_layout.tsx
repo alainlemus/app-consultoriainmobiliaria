@@ -1,10 +1,13 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { View, Text, StyleSheet, Platform, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Colors, Spacing, Typography } from '../../src/theme';
 import { useSyncContext } from '../../src/contexts/SyncContext';
+import { useAuth } from '../../src/contexts/AuthContext';
+import { esGestor } from '../../src/utils/rolStaff';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -233,6 +236,18 @@ const ftb = StyleSheet.create({
 // ── Layout principal ────────────────────────────────────────────────────────
 
 export default function TabsLayout() {
+  // Una sesión de gestor no usa las pantallas del asesor (p. ej. perfil
+  // cacheado viejo al abrir la app): mandarla a las suyas.
+  const router = useRouter();
+  const { user, refresh } = useAuth();
+  // El AuthContext solo carga el perfil al abrir la app: tras iniciar sesión
+  // (o cambiar de cuenta) hay que refrescarlo, si no `user` queda vacío y
+  // pantallas como Mi ruta o las opciones de administrador no aparecen.
+  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    if (esGestor(user)) router.replace('/(gestor)');
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <View style={{ flex: 1, backgroundColor: Colors.dark[900] }}>
       <SyncStatusBar />

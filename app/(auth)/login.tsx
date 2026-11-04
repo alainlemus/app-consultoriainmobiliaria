@@ -23,8 +23,9 @@ import {
   type BiometricTipo,
 } from '../../src/services/biometrics';
 import { isSmallScreen, screenHeight } from '../../src/utils/responsive';
+import { inicioStaff } from '../../src/utils/rolStaff';
 
-type Modo = 'selector' | 'asesor' | 'acreditado';
+type Modo = 'selector' | 'asesor' | 'acreditado' | 'gestor';
 
 // Módulo (no estado/ref del componente) para que sobreviva a que esta
 // pantalla se desmonte y remonte (p. ej. al cerrar sesión) dentro de la
@@ -103,9 +104,10 @@ export default function LoginScreen() {
         registrarPushTokenAcreditado().catch(() => {});
         router.replace('/(acreditado)');
       } else {
-        await loginWithToken(result.token);
+        // Asesor y gestor comparten sesión; el rol decide a qué pantallas va
+        const state = await loginWithToken(result.token);
         registrarPushToken().catch(() => {});
-        router.replace('/(tabs)');
+        router.replace(inicioStaff(state.user));
       }
     } catch {
       // El token guardado ya no sirve (expiró/fue revocado). Si dejamos la
@@ -160,17 +162,22 @@ export default function LoginScreen() {
     [biometricLabel],
   );
 
+  // Asesor y gestor usan el mismo login (/v1/auth/login). A dónde va depende
+  // del rol que devuelve el backend, no del botón que tocó: un gestor que
+  // entra por "Soy Asesor" igual termina en sus pantallas.
   async function handleLoginAsesor() {
     if (!email || !password) { setError('Ingresa correo y contraseña.'); return; }
     setError('');
     setLoading(true);
     try {
       const state = await login(email.trim().toLowerCase(), password);
-      if (biometricAvailable && biometricTipo !== 'asesor' && state.token) {
-        await preguntarGuardarBiometria('asesor', email.trim().toLowerCase());
+      const destino = inicioStaff(state.user);
+      const tipoBio: BiometricTipo = destino === '/(gestor)' ? 'gestor' : 'asesor';
+      if (biometricAvailable && biometricTipo !== tipoBio && state.token) {
+        await preguntarGuardarBiometria(tipoBio, email.trim().toLowerCase());
       }
       registrarPushToken().catch(() => {});
-      router.replace('/(tabs)');
+      router.replace(destino);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Credenciales incorrectas.');
     } finally {
@@ -260,7 +267,20 @@ export default function LoginScreen() {
               </View>
               <View style={styles.selectorText}>
                 <Text style={styles.selectorTitle}>Soy Acreditado</Text>
-                <Text style={styles.selectorDesc}>Consulta el estado de tu trámite de crédito</Text>
+                <Text style={styles.selectorDesc}>Consulta el estado de tu trámite de crédito o verifica tu préstamo Infonavit/Fovissste</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.dark[400]} />
+            </TouchableOpacity>
+
+            <View style={styles.selectorSeparator} />
+
+            <TouchableOpacity style={styles.selectorBtn} onPress={() => { setModo('gestor'); setError(''); }}>
+              <View style={[styles.selectorIcon, styles.selectorIconGestor]}>
+                <Ionicons name="business-outline" size={28} color={Colors.gold[700]} />
+              </View>
+              <View style={styles.selectorText}>
+                <Text style={styles.selectorTitle}>Soy Gestor</Text>
+                <Text style={styles.selectorDesc}>Recibe expedientes, descarga sus documentos y sube los que tramites</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={Colors.dark[400]} />
             </TouchableOpacity>
@@ -277,7 +297,8 @@ export default function LoginScreen() {
   }
 
   // ── Login asesor / acreditado ───────────────────────────────────────────────
-  const esAsesor = modo === 'asesor';
+  const esStaff  = modo === 'asesor' || modo === 'gestor';
+  const tituloAcceso = modo === 'asesor' ? 'ACCESO ASESOR' : modo === 'gestor' ? 'ACCESO GESTOR' : 'ACCESO ACREDITADO';
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -298,7 +319,7 @@ export default function LoginScreen() {
               <Ionicons name="arrow-back" size={20} color={Colors.dark[500]} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{esAsesor ? 'ACCESO ASESOR' : 'ACCESO ACREDITADO'}</Text>
+              <Text style={styles.cardTitle}>{tituloAcceso}</Text>
               <View style={styles.cardDivider} />
             </View>
           </View>
@@ -338,7 +359,7 @@ export default function LoginScreen() {
 
           <Button
             label="Iniciar sesión"
-            onPress={esAsesor ? handleLoginAsesor : handleLoginAcreditado}
+            onPress={esStaff ? handleLoginAsesor : handleLoginAcreditado}
             loading={loading}
             fullWidth
             size="lg"
@@ -352,7 +373,14 @@ export default function LoginScreen() {
             </TouchableOpacity>
           )}
 
-          {!esAsesor && (
+          {modo === 'gestor' && (
+            <View style={styles.gestorNota}>
+              <Ionicons name="information-circle-outline" size={18} color={Colors.dark[600]} />
+              <Text style={styles.gestorNotaText}>Tu cuenta la crea la consultoría. Si no la tienes, pídesela a tu administrador.</Text>
+            </View>
+          )}
+
+          {modo === 'acreditado' && (
             <TouchableOpacity
               style={styles.registerRow}
               onPress={() => router.push('/(auth)/registro-acreditado')}
@@ -406,6 +434,9 @@ const styles = StyleSheet.create({
   selectorBtn:      { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.lg, gap: Spacing.base },
   selectorIcon:     { width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.cream[50], alignItems: 'center', justifyContent: 'center' },
   selectorIconAlt:  { backgroundColor: '#f0fdf4' },
+  selectorIconGestor: { backgroundColor: Colors.gold[100] },
+  gestorNota:     { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start', backgroundColor: Colors.cream[100], borderRadius: 8, padding: Spacing.md, marginTop: Spacing.lg },
+  gestorNotaText: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[600], lineHeight: Typography.fontSize.sm * 1.4 },
   selectorText:     { flex: 1 },
   selectorTitle:    { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   selectorDesc:     { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },

@@ -41,6 +41,34 @@ export function rutaOlvidada(desde: Date, ahora: Date = new Date()): boolean {
   return ahora.getTime() >= cierre.getTime();
 }
 
+/**
+ * Posición para el punto de inicio/fin sin colgar el interruptor: en la sierra
+ * el GPS puede tardar mucho en fijar. Espera 15 s y si no, usa la última
+ * posición conocida (solo si tiene menos de 30 min); si no hay, devuelve null
+ * y la ruta se activa/apaga igual.
+ */
+async function posicionRapida(): Promise<Location.LocationObject | null> {
+  try {
+    const loc = await Promise.race<Location.LocationObject | null>([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      new Promise<null>(resolve => setTimeout(() => resolve(null), 15_000)),
+    ]);
+    if (loc) return loc;
+  } catch {}
+  return Location.getLastKnownPositionAsync({ maxAge: 30 * 60_000 }).catch(() => null);
+}
+
+/** El punto lleva la hora del momento (activar/apagar), no la de la lectura del GPS. */
+async function guardarPunto(loc: Location.LocationObject): Promise<void> {
+  await guardarPuntoOffline({
+    lat:       loc.coords.latitude,
+    lng:       loc.coords.longitude,
+    precision: loc.coords.accuracy ?? 0,
+    velocidad: Math.max(0, (loc.coords.speed ?? 0) * 3.6),
+    timestamp: new Date().toISOString(),
+  });
+}
+
 interface UseRouteTrackingReturn {
   estaActivo:  boolean;
   pendientes:  number;
@@ -143,22 +171,10 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
         return;
       }
 
-      // Registrar el punto de inicio de la ruta
-      try {
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        await guardarPuntoOffline({
-          lat:       loc.coords.latitude,
-          lng:       loc.coords.longitude,
-          precision: loc.coords.accuracy ?? 0,
-          velocidad: (loc.coords.speed ?? 0) * 3.6,
-          timestamp: new Date(loc.timestamp).toISOString(),
-        });
-        await syncRoutePoints();
-      } catch {
-        // Punto inicial falla silenciosamente — no bloquea la activación
-      }
+      // Punto de inicio: se guarda en el teléfono y se envía aparte, sin
+      // esperar a la red (con 2G/3G o sin señal el interruptor no se traba).
+      const loc = await posicionRapida();
+      if (loc) await guardarPunto(loc);
 
       await AsyncStorage.setItem(KEY_TRACKING_ENABLED, '1');
       await AsyncStorage.setItem(KEY_TRACKING_SINCE, new Date().toISOString());
@@ -169,6 +185,7 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
         setIniciando(false);
         await actualizarPendientes();
       }
+      syncRoutePoints().then(actualizarPendientes).catch(() => {});
     } catch (e: unknown) {
       if (isMountedRef.current) {
         setError(e instanceof Error ? e.message : 'Error al activar tracking');
@@ -180,26 +197,11 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
   // ── Desactivar ─────────────────────────────────────────────────────────────
 
   const desactivar = useCallback(async () => {
+    setIniciando(true);
     try {
-      // Registrar el punto final antes de detener — así la ruta del día
-      // queda con inicio y fin explícitos.
-      try {
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        await guardarPuntoOffline({
-          lat:       loc.coords.latitude,
-          lng:       loc.coords.longitude,
-          precision: loc.coords.accuracy ?? 0,
-          velocidad: (loc.coords.speed ?? 0) * 3.6,
-          timestamp: new Date(loc.timestamp).toISOString(),
-        });
-      } catch {
-        // Punto final falla silenciosamente — no bloquea la desactivación
-      }
-
-      await syncRoutePoints();
-      await actualizarPendientes();
+      // Punto final (misma regla que el de inicio: nunca traba el apagado)
+      const loc = await posicionRapida();
+      if (loc) await guardarPunto(loc);
     } catch {}
 
     await AsyncStorage.setItem(KEY_TRACKING_ENABLED, '0');
@@ -208,7 +210,11 @@ export function useRouteTracking(isAsesor: boolean): UseRouteTrackingReturn {
     if (isMountedRef.current) {
       setEstaActivo(false);
       setError(null);
+      setIniciando(false);
+      await actualizarPendientes();
     }
+    // Se envía en segundo plano; si no hay señal queda en cola y sale solo después
+    syncRoutePoints().then(actualizarPendientes).catch(() => {});
   }, [actualizarPendientes]);
 
   // ── Forzar sync manual ─────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 /**
- * Aviso antes de activar la Ruta: explica qué pasará con la ubicación del asesor.
+ * Aviso antes de activar la Ruta: instrucciones de qué hacer (activar, registrar
+ * cada visita en el Mapa, apagar). No hay rastreo en segundo plano: la ruta son
+ * el inicio, las visitas registradas y el fin.
  * Entra con un resorte, el icono late y cada punto aparece uno tras otro.
  */
 import React, { useEffect, useRef } from 'react';
@@ -10,11 +12,11 @@ import { Colors, Radius, Spacing, Typography } from '../theme';
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 const PUNTOS: { icono: IconName; texto: string }[] = [
-  { icono: 'navigate',      texto: 'Guardaremos tu recorrido con tu ubicación mientras trabajas, aunque la app esté en segundo plano.' },
-  { icono: 'eye',           texto: 'Tu administrador podrá ver tu ruta del día en el mapa.' },
-  { icono: 'battery-half',  texto: 'Puede gastar un poco más de batería.' },
-  { icono: 'cloud-offline', texto: 'Sin internet los puntos se guardan y se envían solos al volver la señal.' },
-  { icono: 'power',         texto: 'Puedes apagarla cuando quieras con el mismo interruptor.' },
+  { icono: 'play-circle',   texto: 'Al salir: activa tu ruta. Se guarda tu punto de inicio.' },
+  { icono: 'location',      texto: 'En cada visita: entra a Mapa, toca el botón + y registra la visita (cliente, propiedad o escuela). Esas son las paradas de tu ruta.' },
+  { icono: 'stop-circle',   texto: 'Al terminar: apaga tu ruta. Se guarda tu punto final. Si se te olvida, se apaga sola a las 10 pm.' },
+  { icono: 'eye',           texto: 'Tu administrador verá tu ruta del día en el mapa.' },
+  { icono: 'cloud-offline', texto: 'Sin señal todo se guarda y se envía solo al volver el internet.' },
 ];
 
 export default function AvisoRuta({ visible, onActivar, onCancelar }: {
@@ -49,7 +51,7 @@ export default function AvisoRuta({ visible, onActivar, onCancelar }: {
             <Ionicons name="navigate" size={40} color={Colors.gold[400]} />
           </Animated.View>
           <Text style={s.titulo}>Activar tu ruta</Text>
-          <Text style={s.intro}>Esto es lo que va a pasar:</Text>
+          <Text style={s.intro}>Así funciona:</Text>
 
           {/* Si la pantalla es chica, el contenido se desplaza y los botones siempre se ven */}
           <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
@@ -64,7 +66,7 @@ export default function AvisoRuta({ visible, onActivar, onCancelar }: {
               </Animated.View>
             ))}
           </View>
-          <Text style={s.permiso}>Tu teléfono te pedirá permiso para usar la ubicación: elige «Permitir siempre» para que la ruta no se corte.</Text>
+          <Text style={s.permiso}>Tu teléfono te pedirá permiso para usar la ubicación: elige «Permitir mientras se usa la app».</Text>
           </ScrollView>
 
           <Pressable style={s.btnActivar} onPress={onActivar}>
