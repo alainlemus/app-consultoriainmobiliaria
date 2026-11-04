@@ -4,6 +4,19 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+## [2.8.0] - 2026-11-04
+
+### Agregado
+- **Primeros pasos del acreditado:** quien aún no tiene trámite elige Infonavit o Fovissste (o «No sé» y contesta dónde trabaja), revisa si ya tiene cuenta en Mi Cuenta Infonavit o Mi Portal FOVISSSTE (con guía para crearla), simula su crédito en el simulador oficial dentro de la app, ve el video y el PDF de su crédito y pide que lo llamen, con su monto, puntos o salario y la captura del resultado. Sin señal la solicitud se guarda y se envía sola. Requiere el backend 1.9.0.
+- **Rol gestor:** nuevo acceso «Soy Gestor». Ve los expedientes que le envía la administración, revisa cada documento (correcto o incorrecto con nota), empieza el trámite cuando todo está bien y sube lo que obtiene (escanear, foto, PDF o Word; sin señal queda en cola). Le llegan avisos que abren su encargo. Requiere el backend 1.10.0.
+
+### Cambiado
+- **Ruta:** el aviso al activarla explica qué hacer (activar al salir, registrar cada visita en el Mapa, apagar al terminar) y pide «Permitir mientras se usa la app». La guía de uso dice lo mismo.
+
+### Corregido
+- Al activar o apagar la ruta con GPS débil o 2G el interruptor ya no se queda «Activando…»: espera el GPS máximo 15 s y el envío corre aparte.
+- Después de iniciar sesión, «Mi ruta» salía vacía y el administrador no veía sus opciones hasta reiniciar la app.
+
 ## [2.7.0] - 2026-10-30
 
 ### Agregado
