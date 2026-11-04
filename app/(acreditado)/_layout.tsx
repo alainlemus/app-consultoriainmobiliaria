@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing } from '@/src/theme';
 import { sincronizarDocsAcreditado } from '@/src/services/offline';
+import { sincronizarSolicitudPendiente } from '@/src/services/primerosPasos';
 import { AcreditadoAuthProvider } from '@/src/contexts/AcreditadoAuthContext';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
@@ -50,9 +51,13 @@ export default function AcreditadoLayout() {
   // Documentos guardados sin conexión: se reintentan al abrir el portal, al volver a la app y cada
   // minuto (la señal puede estar "conectada" pero débil, y entonces no hay evento de red).
   useEffect(() => {
-    sincronizarDocsAcreditado().catch(() => {});
-    const sub = AppState.addEventListener('change', st => { if (st === 'active') sincronizarDocsAcreditado().catch(() => {}); });
-    const t = setInterval(() => { sincronizarDocsAcreditado().catch(() => {}); }, 60_000);
+    const sincronizarTodo = () => {
+      sincronizarDocsAcreditado().catch(() => {});
+      sincronizarSolicitudPendiente().catch(() => {}); // solicitud de "Primeros pasos" hecha sin señal
+    };
+    sincronizarTodo();
+    const sub = AppState.addEventListener('change', st => { if (st === 'active') sincronizarTodo(); });
+    const t = setInterval(sincronizarTodo, 60_000);
     return () => { sub.remove(); clearInterval(t); };
   }, []);
 
