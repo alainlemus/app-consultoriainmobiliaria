@@ -1,5 +1,5 @@
 /**
- * Login biométrico (Face ID / huella) — asesor y acreditado.
+ * Login biométrico (Face ID / huella) — asesor, acreditado y gestor.
  *
  * Almacenamiento de un solo slot (un email/token a la vez) etiquetado con
  * `tipo`: si se activa biometría para un modo, reemplaza lo que hubiera
@@ -13,7 +13,7 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 
-export type BiometricTipo = 'asesor' | 'acreditado';
+export type BiometricTipo = 'asesor' | 'acreditado' | 'gestor';
 
 const BIOMETRIC_ENABLED_KEY = 'biometric_enabled';
 const BIOMETRIC_EMAIL_KEY   = 'biometric_email';

@@ -8,13 +8,15 @@ export interface DatosNotificacion {
   id?:            string | number;
   expediente_id?: string | number;
   contacto_id?:   string | number;
+  encargo_id?:    string | number;
 }
 
 export const INICIO_ASESOR    = '/(tabs)';
 export const INICIO_ACREDITADO = '/(acreditado)';
+export const INICIO_GESTOR    = '/(gestor)';
 
 /** ¿Es un inicio (se usa navigate) y no un detalle (se usa push)? */
-export const esInicio = (ruta: string) => ruta === INICIO_ASESOR || ruta === INICIO_ACREDITADO;
+export const esInicio = (ruta: string) => ruta === INICIO_ASESOR || ruta === INICIO_ACREDITADO || ruta === INICIO_GESTOR;
 
 export function rutaParaNotificacion(data: DatosNotificacion | undefined | null, esAcreditado: boolean): string {
   const d = data ?? {};
@@ -28,6 +30,8 @@ export function rutaParaNotificacion(data: DatosNotificacion | undefined | null,
     return INICIO_ACREDITADO;
   }
 
+  // Avisos del gestor: abrir su encargo (los del super_admin traen screen 'expedientes')
+  if (d.screen === 'gestor_encargo') return d.encargo_id ? `/gestor/${d.encargo_id}` : INICIO_GESTOR;
   if (d.expediente_id) return `/expedientes/${d.expediente_id}`;
   if (d.contacto_id)   return `/prospectos/${d.contacto_id}`;
   if (d.id && (d.screen === 'expedientes' || d.screen === 'expediente')) return `/expedientes/${d.id}`;

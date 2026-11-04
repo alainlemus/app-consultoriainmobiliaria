@@ -8,7 +8,7 @@ import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse,
 // iOS simulador  → 127.0.0.1:8080
 // Android emulador → 10.0.2.2:8082
 const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
-const API_BASE: string =
+export const API_BASE: string =
   Platform.OS === 'ios'
     ? (extra?.apiUrlIos  ?? 'http://127.0.0.1:8080/api/v1')
     : (extra?.apiUrlAndroid ?? 'http://10.0.2.2:8082/api/v1');
@@ -24,7 +24,7 @@ const TOKEN_KEY = 'auth_token';
  *   http://consultoriaInmobiliaria.test/storage/expedientes/1/docs/ine.jpg
  *   → http://192.168.100.7:8080/storage/expedientes/1/docs/ine.jpg
  */
-function resolveStorageUrl(url: string | null | undefined): string | undefined {
+export function resolveStorageUrl(url: string | null | undefined): string | undefined {
   if (!url) return undefined;
   try {
     const apiOrigin = new URL(API_BASE).origin;          // http://192.168.100.7:8080
@@ -100,6 +100,7 @@ export async function login(email: string, password: string): Promise<AuthState>
     body:   JSON.stringify({ email, password }),
   });
   await saveToken(res.token!);
+  await SecureStore.setItemAsync('cached_user', JSON.stringify(res.user)).catch(() => {});
   return { user: res.user, token: res.token, isAuthenticated: true };
 }
 
@@ -118,6 +119,7 @@ export async function loginWithToken(biometricToken: string): Promise<AuthState>
     method: 'POST',
   });
   await saveToken(res.token);
+  await SecureStore.setItemAsync('cached_user', JSON.stringify(res.user)).catch(() => {});
   return { user: res.user, token: res.token, isAuthenticated: true };
 }
 

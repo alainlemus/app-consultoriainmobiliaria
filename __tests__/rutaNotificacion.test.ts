@@ -29,3 +29,12 @@ describe('documento solicitado', () => {
     expect(rutaParaNotificacion({ screen: 'expedientes', expediente_id: '14' }, false)).toBe('/expedientes/14');
   });
 });
+
+describe('rutaParaNotificacion — gestor', () => {
+  it('abre el encargo del gestor', () => {
+    expect(rutaParaNotificacion({ screen: 'gestor_encargo', encargo_id: '7', expediente_id: '3' }, false)).toBe('/gestor/7');
+  });
+  it('sin encargo_id va a su inicio', () => {
+    expect(rutaParaNotificacion({ screen: 'gestor_encargo' }, false)).toBe('/(gestor)');
+  });
+});
