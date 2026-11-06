@@ -4,7 +4,7 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
-Se publica como update OTA sobre la 2.8.0 (sin cambiar versión).
+## [2.9.0] - 2026-11-06
 
 ### Agregado
 - Gestor: botón «Ya terminé» para avisar que entregó todo, estado «Por validar» y «Reabrir» si olvidó algo. Requiere backend 1.11.0.
