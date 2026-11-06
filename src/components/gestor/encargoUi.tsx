@@ -8,6 +8,7 @@ const COLORES: Record<EstadoEncargo, [string, string]> = {
   por_revisar:       [Colors.gold[100], Colors.gold[700]],
   con_observaciones: ['#fee2e2', '#b91c1c'],
   en_tramite:        ['#dbeafe', '#1d4ed8'],
+  por_validar:       [Colors.gold[100], Colors.gold[700]],
   terminado:         ['#dcfce7', '#15803d'],
   cancelado:         [Colors.cream[200], Colors.dark[600]],
 };
@@ -37,7 +38,7 @@ export function fechaCorta(iso: string | null | undefined): string {
 
 /** Texto de la fecha de entrega ("Vence hoy", "Entrega 8 nov"…) para encargos abiertos */
 export function venceInfo(fecha: string | null, estado: EstadoEncargo): { texto: string; urgente: boolean } | null {
-  if (!fecha || estado === 'terminado' || estado === 'cancelado') return null;
+  if (!fecha || estado === 'por_validar' || estado === 'terminado' || estado === 'cancelado') return null;
   const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
   const [y, m, d] = fecha.slice(0, 10).split('-').map(Number);
   const f = new Date(y, m - 1, d);

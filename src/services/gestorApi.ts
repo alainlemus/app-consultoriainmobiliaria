@@ -11,7 +11,7 @@ import * as SecureStore from 'expo-secure-store';
 import { apiFetch, API_BASE, getToken, resolveStorageUrl } from './api';
 import { limpiarArchivoLocal } from '../utils/comprimirFoto';
 
-export type EstadoEncargo = 'por_revisar' | 'con_observaciones' | 'en_tramite' | 'terminado' | 'cancelado';
+export type EstadoEncargo = 'por_revisar' | 'con_observaciones' | 'en_tramite' | 'por_validar' | 'terminado' | 'cancelado';
 export type Revision = 'pendiente' | 'correcto' | 'incorrecto';
 
 export interface EncargoResumen {
@@ -110,6 +110,20 @@ export async function enviarRevision(
   await guardar(KEY_DETALLE + encargoId, res.data);
   return res.data;
 }
+
+// ── «Ya terminé» y reabrir (requieren señal) ─────────────────────────────────
+
+async function accionEncargo(encargoId: number, accion: 'entregar' | 'reabrir'): Promise<EncargoDetalle> {
+  const res = await apiFetch<{ data: EncargoDetalle }>(`/gestor/encargos/${encargoId}/${accion}`, { method: 'POST' });
+  await guardar(KEY_DETALLE + encargoId, res.data);
+  return res.data;
+}
+
+/** El gestor avisa que ya subió todo. */
+export const entregarEncargo = (encargoId: number) => accionEncargo(encargoId, 'entregar');
+
+/** Olvidó algo: el encargo vuelve a En trámite mientras la administración no lo cierre. */
+export const reabrirEncargo = (encargoId: number) => accionEncargo(encargoId, 'reabrir');
 
 // ── Subidas (con cola sin señal) ─────────────────────────────────────────────
 
