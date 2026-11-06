@@ -4,6 +4,17 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+Se publica como update OTA sobre la 2.8.0 (sin cambiar versión).
+
+### Agregado
+- Gestor: botón «Ya terminé» para avisar que entregó todo, estado «Por validar» y «Reabrir» si olvidó algo. Requiere backend 1.11.0.
+- Gestor: «Cancelar mi cuenta» en su Perfil.
+
+### Corregido
+- Cerrar y abrir la app ya no saca a quien tiene la misma cuenta abierta en otro celular: cada instalación tiene su propia sesión.
+- Acreditado: el nombre del documento ya no se corta en «Rechazado»; el estado va debajo del nombre.
+- Gestor: el texto del botón «Empezar trámite» ya no se sale del botón.
+
 ## [2.8.0] - 2026-11-04
 
 ### Agregado

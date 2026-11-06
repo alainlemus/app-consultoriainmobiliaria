@@ -89,7 +89,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     //   eas update --channel staging   (o production)
     // y llegan a la app instalada sin reinstalar. 'fingerprint' cambia el
     // runtime solo cuando cambia algo nativo, así un update nunca llega a un
-    // binario incompatible (y subir `version` no corta los updates).
+    // binario incompatible. Ojo: `version` es parte del fingerprint, así que
+    // subirla (aunque sea patch) genera un build nuevo, no un update OTA.
     runtimeVersion: { policy: 'fingerprint' },
     updates: {
       url: 'https://u.expo.dev/0e90bae8-ab6a-412f-a91d-01433afe689d',
