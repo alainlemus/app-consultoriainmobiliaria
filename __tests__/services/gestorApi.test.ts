@@ -1,6 +1,6 @@
 /** API del gestor: caché sin señal y cola de subidas. */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getEncargos, subirDocumento, subidasPendientes, sincronizarSubidasGestor } from '../../src/services/gestorApi';
+import { getEncargos, getEncargo, entregarEncargo, reabrirEncargo, subirDocumento, subidasPendientes, sincronizarSubidasGestor } from '../../src/services/gestorApi';
 import { apiFetch } from '../../src/services/api';
 
 jest.mock('../../src/services/api', () => ({ apiFetch: jest.fn(), API_BASE: 'http://test/api/v1', getToken: jest.fn().mockResolvedValue('tok'), resolveStorageUrl: (u: string) => u }));
@@ -45,4 +45,17 @@ it('si el servidor rechaza la subida avisa en vez de encolarla', async () => {
   await expect(subirDocumento({ encargoId: 1, uri: 'file:///a.pdf', nombreArchivo: 'a.pdf', mimeType: 'application/pdf', tipo: 'CLG' }))
     .rejects.toThrow('Podrás subir');
   expect(await subidasPendientes()).toHaveLength(0);
+});
+
+it('«Ya terminé» y reabrir llaman al servidor y actualizan el encargo guardado', async () => {
+  api.mockResolvedValueOnce({ data: { ...encargo, estado: 'por_validar' } });
+  expect((await entregarEncargo(1)).estado).toBe('por_validar');
+  expect(api).toHaveBeenLastCalledWith('/gestor/encargos/1/entregar', { method: 'POST' });
+
+  api.mockRejectedValueOnce(new Error('Network request failed'));
+  expect((await getEncargo(1)).data.estado).toBe('por_validar');
+
+  api.mockResolvedValueOnce({ data: { ...encargo, estado: 'en_tramite' } });
+  expect((await reabrirEncargo(1)).estado).toBe('en_tramite');
+  expect(api).toHaveBeenLastCalledWith('/gestor/encargos/1/reabrir', { method: 'POST' });
 });

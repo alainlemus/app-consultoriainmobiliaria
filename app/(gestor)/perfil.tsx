@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { logout } from '@/src/services/api';
+import { logout, solicitarCancelacionCuenta } from '@/src/services/api';
 import { APP_VERSION } from '@/src/version';
 
 export default function GestorPerfilScreen() {
@@ -25,6 +25,33 @@ export default function GestorPerfilScreen() {
         },
       },
     ]);
+  }
+
+  // Requisito de App Store: el usuario debe poder pedir que se elimine su cuenta desde la app.
+  function eliminarCuenta() {
+    Alert.alert(
+      'Cancelar cuenta',
+      'Tu cuenta será desactivada y se cerrará la sesión en todos tus dispositivos. Tus datos (encargos y trámites subidos) se conservan y un administrador procesará tu solicitud.\n\n¿Deseas continuar?',
+      [
+        { text: 'No, mantener cuenta', style: 'cancel' },
+        {
+          text: 'Sí, cancelar mi cuenta', style: 'destructive',
+          onPress: async () => {
+            try {
+              await solicitarCancelacionCuenta();
+              clearUser();
+              Alert.alert(
+                'Cuenta cancelada',
+                'Tu cuenta ha sido desactivada. Si fue un error, contacta a tu administrador.',
+                [{ text: 'Aceptar', onPress: () => router.replace('/(auth)/login') }],
+              );
+            } catch (e: any) {
+              Alert.alert('Error', e?.message ?? 'No se pudo enviar la solicitud. Revisa tu conexión e intenta de nuevo.');
+            }
+          },
+        },
+      ],
+    );
   }
 
   const inicial = user?.name?.trim()?.[0]?.toUpperCase() ?? '?';
@@ -57,6 +84,16 @@ export default function GestorPerfilScreen() {
           <Text style={[s.rowText, { color: Colors.error }]}>Cerrar sesión</Text>
         </TouchableOpacity>
 
+        <View style={s.danger}>
+          <Text style={s.dangerTitulo}>Zona de peligro</Text>
+          <Text style={s.dangerInfo}>
+            Al cancelar tu cuenta se cerrará la sesión en todos tus dispositivos y tu cuenta quedará desactivada. Tus encargos y trámites subidos se conservan. Un administrador procesará tu solicitud.
+          </Text>
+          <TouchableOpacity style={s.dangerBtn} onPress={eliminarCuenta}>
+            <Text style={s.dangerBtnText}>Cancelar mi cuenta</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={s.version}>v{APP_VERSION}</Text>
       </ScrollView>
     </View>
@@ -79,5 +116,10 @@ const s = StyleSheet.create({
   row:         { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.white, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.cream[300], padding: Spacing.base, minHeight: 52 },
   rowText:     { flex: 1, fontSize: Typography.fontSize.base, color: Colors.dark[800], fontWeight: Typography.fontWeight.medium },
   logout:      { marginTop: Spacing.lg },
+  danger:      { marginTop: Spacing.xl, backgroundColor: Colors.white, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.cream[300], padding: Spacing.base, gap: Spacing.sm },
+  dangerTitulo:{ fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[800] },
+  dangerInfo:  { fontSize: Typography.fontSize.sm, color: Colors.dark[500], lineHeight: Typography.fontSize.sm * 1.5 },
+  dangerBtn:   { borderWidth: 1.5, borderColor: Colors.error, borderRadius: Radius.sm, padding: Spacing.md, alignItems: 'center', marginTop: Spacing.xs },
+  dangerBtnText:{ color: Colors.error, fontWeight: Typography.fontWeight.bold, fontSize: Typography.fontSize.sm },
   version:     { fontSize: Typography.fontSize.xs, color: Colors.dark[400], textAlign: 'center', marginTop: Spacing.xl },
 });

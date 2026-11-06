@@ -159,7 +159,13 @@ export default function DocumentosScreen() {
               />
             </View>
             <View style={styles.docInfo}>
-              <Text style={styles.docNombre} numberOfLines={1}>{item.nombre}</Text>
+              <Text style={styles.docNombre} numberOfLines={2}>{item.nombre}</Text>
+              {/* El estado va debajo del nombre: en la misma fila, «Rechazado — vuelve a subirlo» dejaba sin espacio al nombre. */}
+              <View style={[styles.docEstado, { backgroundColor: ESTADO_COLOR[item.estado] + '33' }]}>
+                <Text style={[styles.docEstadoText, { color: ESTADO_COLOR[item.estado] }]}>
+                  {ESTADO_LABEL[item.estado]}
+                </Text>
+              </View>
               <Text style={styles.docSeccion}>{item.seccion}</Text>
               {item.subido_por_acreditado && (
                 <Text style={styles.docSubidoPor}>Subido por ti</Text>
@@ -170,11 +176,6 @@ export default function DocumentosScreen() {
               {item.estado === 'rechazado' && item.notas && (
                 <Text style={styles.docMotivoRechazo} numberOfLines={2}>Motivo: {item.notas}</Text>
               )}
-            </View>
-            <View style={[styles.docEstado, { backgroundColor: ESTADO_COLOR[item.estado] + '33' }]}>
-              <Text style={[styles.docEstadoText, { color: ESTADO_COLOR[item.estado] }]}>
-                {ESTADO_LABEL[item.estado]}
-              </Text>
             </View>
             {item.tiene_archivo && (
               <Ionicons name="chevron-forward" size={16} color={Colors.dark[500]} />
@@ -251,7 +252,7 @@ const styles = StyleSheet.create({
   docSeccion:   { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2 },
   docSubidoPor: { fontSize: Typography.fontSize.xs, color: Colors.gold[400], marginTop: 2 },
   docMotivoRechazo: { fontSize: Typography.fontSize.xs, color: '#dc2626', marginTop: 2, lineHeight: 15 },
-  docEstado:    { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
+  docEstado:    { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full },
   docEstadoText:{ fontSize: 10, fontWeight: Typography.fontWeight.bold },
   empty:        { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: Spacing.base, paddingHorizontal: Spacing['2xl'] },
   emptyText:    { fontSize: Typography.fontSize.base, color: Colors.cream[200], fontWeight: Typography.fontWeight.semibold },

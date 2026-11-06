@@ -14,9 +14,22 @@ Guía única de versiones y despliegues. Punto de partida: **v2.2.1**.
 
 ## 2. Qué número subir (SemVer)
 
-- **patch** `2.2.1 → 2.2.2` — correcciones de errores.
-- **minor** `2.2.1 → 2.3.0` — funciones nuevas que no rompen nada.
-- **major** `2.2.1 → 3.0.0` — cambios grandes / incompatibles (p. ej. requiere backend nuevo).
+**Por defecto se sube patch.** Solo se sube minor o major cuando el cambio lo amerita.
+
+| Comando | Ejemplo | Cuándo |
+|---|---|---|
+| `npm run release:patch` | `2.8.0 → 2.8.1 → 2.8.2` | **Cambios pequeños**: correcciones, textos, estilos, botones o pantallas que se ven mal, ajustes a algo que ya existe. |
+| `npm run release:minor` | `2.8.2 → 2.9.0` | **Cambio grande**: una función o pantalla nueva, un rol nuevo, un flujo nuevo. |
+| `npm run release:major` | `2.9.0 → 3.0.0` | **Cambio mayor**: rediseño completo o algo incompatible (p. ej. exige un backend nuevo y la versión anterior deja de funcionar). |
+
+En duda entre patch y minor → patch. Minor y major reinician los números de la
+derecha (`2.8.2 → 2.9.0`, `2.9.3 → 3.0.0`).
+
+**Ojo:** subir la versión (aunque sea patch) cambia el fingerprint, así que al
+llegar a `main` genera **build nuevo + envío a App Store** (no update OTA). Si
+el cambio es solo de JS y debe llegar ya a los usuarios sin pasar por revisión
+de Apple, usa el flujo C (update OTA, sin cambiar versión) y súmalo al siguiente
+patch.
 
 ## 3. ¿Update OTA o build nuevo?
 
@@ -57,7 +70,7 @@ git push origin develop        # EAS decide solo: update OTA o build nuevo
 ### B. Lanzamiento a App Store
 ```bash
 git checkout main && git merge develop
-npm run release:patch          # o release:minor / release:major → commit "chore(release): vX.Y.Z" + tag
+npm run release:patch          # por defecto; release:minor / release:major solo si aplica (ver §2) → commit "chore(release): vX.Y.Z" + tag
 # anotar los cambios en CHANGELOG.md (y amend al commit de release)
 git push origin main --follow-tags     # la versión nueva cambia el fingerprint → build + envío a App Store
 git checkout develop && git merge main && git push origin develop

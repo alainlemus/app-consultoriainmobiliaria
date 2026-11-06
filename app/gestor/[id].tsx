@@ -10,7 +10,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import {
-  getEncargo, urlDocumento, enviarRevision, subidasPendientes, esErrorDeRed,
+  getEncargo, urlDocumento, enviarRevision, entregarEncargo, reabrirEncargo, subidasPendientes, esErrorDeRed,
   type EncargoDetalle, type SubidaGestor,
 } from '@/src/services/gestorApi';
 import { Badge, BadgeEstadoEncargo, fechaCorta, venceInfo } from '@/src/components/gestor/encargoUi';
@@ -21,7 +21,7 @@ const EVENTOS: Record<string, string> = {
   enviado: 'Encargo recibido', revision_con_observaciones: 'Revisión enviada con observaciones',
   reenviado: 'La administración corrigió y te lo regresó', tramite_iniciado: 'Todo correcto: empezaste el trámite',
   documento_subido: 'Subiste un documento', documento_validado: 'Documento validado',
-  documento_rechazado: 'Documento rechazado', terminado: 'Encargo terminado', cancelado: 'Encargo cancelado',
+  documento_rechazado: 'Documento rechazado', entregado: 'Avisaste que terminaste', reabierto: 'Reabriste el encargo', terminado: 'Encargo terminado', cancelado: 'Encargo cancelado',
 };
 
 const VALIDACION: Record<string, [string, string, string]> = {
@@ -109,6 +109,48 @@ export default function EncargoGestorScreen() {
     }
   }
 
+  // «Ya terminé» solo cuando ya subió algo, sin rechazados por corregir y sin nada en cola.
+  const rechazados = (e?.subidos ?? []).filter(d => d.validacion === 'rechazado').length;
+  const motivoNoTerminar = pendientes.length > 0 ? 'Espera a que se suba lo que está pendiente'
+    : rechazados > 0 ? 'Vuelve a subir lo que te rechazaron para poder terminar'
+    : (e?.subidos.length ?? 0) === 0 ? 'Sube al menos un documento para poder terminar'
+    : null;
+
+  async function cambiarEstado(accion: () => Promise<EncargoDetalle>, titulo: (nuevo: EncargoDetalle) => string, texto: (nuevo: EncargoDetalle) => string) {
+    setEnviando(true);
+    try {
+      const nuevo = await accion();
+      setE(nuevo);
+      Alert.alert(titulo(nuevo), texto(nuevo));
+    } catch (err) {
+      Alert.alert(esErrorDeRed(err) ? 'Sin conexión' : 'No se pudo completar', esErrorDeRed(err) ? 'Para esto necesitas señal. Intenta de nuevo cuando tengas.' : (err instanceof Error ? err.message : ''));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  function terminar() {
+    Alert.alert('¿Ya subiste todo?', 'Le avisaremos a la administración para que valide tus documentos.', [
+      { text: 'Todavía no', style: 'cancel' },
+      {
+        text: 'Sí, ya terminé',
+        onPress: () => cambiarEstado(
+          () => entregarEncargo(encargoId),
+          n => n.estado === 'terminado' ? '¡Encargo terminado!' : 'Listo, avisamos a la administración',
+          n => n.estado === 'terminado'
+            ? 'La administración ya había validado todo lo que subiste. ¡Gracias!'
+            : 'Te llegará una notificación cuando valide o si te rechaza algún documento. Si olvidaste algo, puedes reabrir el encargo.',
+        ),
+      },
+    ]);
+  }
+
+  const reabrir = () => cambiarEstado(
+    () => reabrirEncargo(encargoId),
+    () => 'Encargo reabierto',
+    () => 'Sube lo que te faltó y toca «Ya terminé» otra vez.',
+  );
+
   const irASubir = (extra: Record<string, string> = {}) =>
     router.push({ pathname: '/gestor/subir', params: { encargoId: String(encargoId), folio: e?.expediente.folio ?? '', ...extra } });
 
@@ -172,6 +214,7 @@ export default function EncargoGestorScreen() {
             </View>
           )}
           {e.estado === 'en_tramite' && <Aviso icon="checkmark-circle" tipo="ok" texto="Todos los documentos están correctos. Ya puedes tramitar y subir lo que obtengas." />}
+          {e.estado === 'por_validar' && <Aviso icon="hourglass-outline" tipo="oro" texto="Avisaste que terminaste. La administración está validando tus documentos; te avisaremos cuando termine o si rechaza alguno." />}
           {e.estado === 'terminado' && <Aviso icon="trophy-outline" tipo="ok" texto="Encargo terminado: la administración validó todo lo que subiste. ¡Gracias!" />}
           {e.estado === 'cancelado' && <Aviso icon="close-circle-outline" tipo="neutro" texto="La administración canceló este encargo. Ya no tienes que tramitarlo." />}
 
@@ -232,7 +275,7 @@ export default function EncargoGestorScreen() {
           </View>
 
           {/* Lo que subió */}
-          {(e.estado === 'en_tramite' || e.estado === 'terminado' || e.subidos.length > 0 || pendientes.length > 0) && (
+          {(e.estado === 'en_tramite' || e.estado === 'por_validar' || e.estado === 'terminado' || e.subidos.length > 0 || pendientes.length > 0) && (
             <>
               <Text style={s.seccion}>LO QUE HAS SUBIDO</Text>
               <View style={s.box0}>
@@ -327,7 +370,7 @@ export default function EncargoGestorScreen() {
                   : hayIncorrectos ? 'Se avisará a la administración para que lo corrija' : 'Todos correctos'}
               </Text>
               <Boton
-                label={hayIncorrectos || !listos ? 'ENVIAR REVISIÓN' : 'TODO CORRECTO · EMPEZAR TRÁMITE'}
+                label={hayIncorrectos || !listos ? 'ENVIAR REVISIÓN' : 'EMPEZAR TRÁMITE'}
                 icon={hayIncorrectos || !listos ? 'send' : 'checkmark-circle'}
                 disabled={!listos} loading={enviando} onPress={enviar}
               />
@@ -339,7 +382,19 @@ export default function EncargoGestorScreen() {
               <Boton label="SUBIR DOCUMENTO" icon="lock-closed" disabled onPress={() => {}} />
             </>
           )}
-          {e.estado === 'en_tramite' && <Boton label="SUBIR DOCUMENTO" icon="cloud-upload" onPress={() => irASubir()} />}
+          {e.estado === 'en_tramite' && (
+            <>
+              <Boton label="SUBIR DOCUMENTO" icon="cloud-upload" onPress={() => irASubir()} />
+              {!!motivoNoTerminar && <Text style={s.footHint}>{motivoNoTerminar}</Text>}
+              <Boton label="YA TERMINÉ" icon="checkmark-done" outline disabled={!!motivoNoTerminar} loading={enviando} onPress={terminar} />
+            </>
+          )}
+          {e.estado === 'por_validar' && (
+            <>
+              <Text style={s.footHint}>¿Olvidaste algo? Reábrelo para subirlo</Text>
+              <Boton label="REABRIR" icon="lock-open-outline" outline loading={enviando} onPress={reabrir} />
+            </>
+          )}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -371,12 +426,12 @@ function Aviso({ icon, texto, tipo }: { icon: React.ComponentProps<typeof Ionico
   );
 }
 
-function Boton({ label, icon, onPress, disabled, loading }: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; onPress: () => void; disabled?: boolean; loading?: boolean }) {
+function Boton({ label, icon, onPress, disabled, loading, outline }: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; onPress: () => void; disabled?: boolean; loading?: boolean; outline?: boolean }) {
   return (
-    <TouchableOpacity style={[s.btn, (disabled || loading) && s.btnOff]} onPress={onPress} disabled={disabled || loading} activeOpacity={0.85}>
+    <TouchableOpacity style={[s.btn, outline && s.btnOutline, (disabled || loading) && s.btnOff]} onPress={onPress} disabled={disabled || loading} activeOpacity={0.85}>
       {loading ? <ActivityIndicator color={Colors.dark[900]} /> : (
         <><Ionicons name={icon} size={18} color={disabled ? Colors.dark[400] : Colors.dark[900]} />
-          <Text style={[s.btnText, disabled && { color: Colors.dark[400] }]}>{label}</Text></>
+          <Text style={[s.btnText, disabled && { color: Colors.dark[400] }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{label}</Text></>
       )}
     </TouchableOpacity>
   );
@@ -429,9 +484,10 @@ const s = StyleSheet.create({
 
   footer:     { paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, gap: 6, borderTopWidth: 1, borderTopColor: Colors.cream[300], backgroundColor: Colors.cream[50] },
   footHint:   { fontSize: Typography.fontSize.xs, color: Colors.dark[500], textAlign: 'center' },
-  btn:        { flexDirection: 'row', gap: Spacing.sm, backgroundColor: Colors.gold[400], borderRadius: Radius.sm, minHeight: 52, alignItems: 'center', justifyContent: 'center' },
+  btn:        { flexDirection: 'row', gap: Spacing.sm, backgroundColor: Colors.gold[400], borderRadius: Radius.sm, minHeight: 52, paddingHorizontal: Spacing.base, alignItems: 'center', justifyContent: 'center' },
+  btnOutline: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: Colors.gold[700] },
   btnOff:     { backgroundColor: Colors.cream[200] },
-  btnText:    { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.extrabold, letterSpacing: 0.5, color: Colors.dark[900] },
+  btnText:    { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.extrabold, letterSpacing: 0.5, color: Colors.dark[900], flexShrink: 1 },
   retry:      { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderRadius: Radius.sm, backgroundColor: Colors.dark[800] },
   retryText:  { color: Colors.gold[400], fontWeight: Typography.fontWeight.semibold },
 });

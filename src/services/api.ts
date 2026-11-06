@@ -52,6 +52,28 @@ export async function removeToken(): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
+/**
+ * Nombre de sesión propio de esta instalación (`app-movil-<id>`).
+ *
+ * Al iniciar sesión el backend borra los tokens que tengan el mismo nombre.
+ * Antes todos los teléfonos usaban `app-movil`, así que entrar con la misma
+ * cuenta en otro dispositivo revocaba la sesión del primero: al cerrar y
+ * reabrir la app, /auth/me respondía 401 y lo mandaba al login. Con un nombre
+ * por instalación, cada teléfono conserva su propia sesión.
+ */
+const DEVICE_NAME_KEY = 'device_session_name';
+async function nombreDispositivo(): Promise<string> {
+  try {
+    const guardado = await SecureStore.getItemAsync(DEVICE_NAME_KEY);
+    if (guardado) return guardado;
+    const nuevo = `app-movil-${Platform.OS}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    await SecureStore.setItemAsync(DEVICE_NAME_KEY, nuevo);
+    return nuevo;
+  } catch {
+    return 'app-movil';
+  }
+}
+
 // ── Fetch base con auth ────────────────────────────────────────────────────
 
 export async function apiFetch<T>(
@@ -97,7 +119,7 @@ export async function apiFetch<T>(
 export async function login(email: string, password: string): Promise<AuthState> {
   const res = await apiFetch<{ token: string; user: AuthState['user'] }>('/auth/login', {
     method: 'POST',
-    body:   JSON.stringify({ email, password }),
+    body:   JSON.stringify({ email, password, device_name: await nombreDispositivo() }),
   });
   await saveToken(res.token!);
   await SecureStore.setItemAsync('cached_user', JSON.stringify(res.user)).catch(() => {});
@@ -117,6 +139,7 @@ export async function loginWithToken(biometricToken: string): Promise<AuthState>
   await saveToken(biometricToken);
   const res = await apiFetch<{ token: string; user: AuthState['user'] }>('/auth/session-from-biometric', {
     method: 'POST',
+    body:   JSON.stringify({ device_name: await nombreDispositivo() }),
   });
   await saveToken(res.token);
   await SecureStore.setItemAsync('cached_user', JSON.stringify(res.user)).catch(() => {});
@@ -649,7 +672,7 @@ export async function actualizarSemaforoEscuela(
 
 // ── Anuncios ───────────────────────────────────────────────────────────────
 
-/** Todos los anuncios activos para mostrar en el mapa (todos los asesores ven todos) */
+/** Anuncios para el mapa: el asesor recibe solo los suyos; el super_admin, los de todos. */
 export async function getAnunciosMapa(): Promise<Anuncio[]> {
   const res = await apiFetch<ApiResponse<Anuncio[]>>('/anuncios/mapa');
   return res.data.map(a => ({

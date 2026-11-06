@@ -14,6 +14,7 @@ const PASOS: { icon: IoniconsName; titulo: string; texto: string }[] = [
   { icon: 'send-outline',          titulo: 'Envía tu revisión',     texto: 'Si marcaste alguno mal, la administración lo cambia y te lo regresa. Solo revisas lo que cambió.' },
   { icon: 'checkmark-circle-outline', titulo: 'Todo correcto: empieza el trámite', texto: 'Cuando todos estén bien, toca “Empezar trámite”. Hasta entonces no puedes subir documentos.' },
   { icon: 'cloud-upload-outline',  titulo: 'Sube lo que obtengas',  texto: 'Escanéalo, tómale foto o sube el PDF o Word. Si te lo rechazan, verás el motivo y lo vuelves a subir.' },
+  { icon: 'checkmark-done-outline', titulo: 'Avisa que terminaste',  texto: 'Cuando subas todo, toca “Ya terminé”. La administración valida y el encargo se cierra. Si olvidaste algo, puedes reabrirlo mientras tanto.' },
 ];
 
 export default function AyudaGestorScreen() {
@@ -29,7 +30,7 @@ export default function AyudaGestorScreen() {
           </TouchableOpacity>
           <Text style={s.headerTitle}>¿Cómo funciona?</Text>
         </View>
-        <Text style={s.headerSub}>Tu trabajo como gestor, en 5 pasos.</Text>
+        <Text style={s.headerSub}>Tu trabajo como gestor, en 6 pasos.</Text>
       </View>
 
       <ScrollView contentContainerStyle={s.content}>
