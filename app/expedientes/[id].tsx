@@ -163,8 +163,8 @@ export default function DetalleExpedienteScreen() {
           {/* Seguimiento del trámite (igual que lo ve el acreditado) */}
           {exp.seguimiento ? <View style={{ marginTop: Spacing.md }}><SeguimientoTramite seguimiento={exp.seguimiento} /></View> : null}
 
-          {/* CUV: el asesor la ve; el super admin la registra */}
-          {(exp.cuv_info || isSuperAdmin) ? (
+          {/* CUV: el asesor la ve; el super admin la registra cuando el expediente está en la unidad de valuación */}
+          {(exp.cuv_info || (isSuperAdmin && exp.seguimiento?.paso === 'en_unidad_valuacion')) ? (
             <View style={styles.cuvCard}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cuvLabel}>CUV · CLAVE ÚNICA DE VIVIENDA</Text>
@@ -176,7 +176,7 @@ export default function DetalleExpedienteScreen() {
                 ) : <Text style={styles.cuvSub}>Aún no se registra. La entrega la unidad de valuación.</Text>}
               </View>
               {isSuperAdmin ? (
-                <TouchableOpacity style={styles.cuvBtn} onPress={() => { setCuv(exp.cuv_info?.valor ?? ''); setCuvModal(true); }}>
+                <TouchableOpacity style={styles.cuvBtn} onPress={() => { setCuv(exp.cuv_info?.valor ?? ''); setCuvModal(true); }} disabled={!isSuperAdmin}>
                   <Ionicons name="home-outline" size={16} color={Colors.dark[900]} /><Text style={styles.cuvBtnText}>{exp.cuv_info ? 'Corregir' : 'Registrar'}</Text>
                 </TouchableOpacity>
               ) : null}
@@ -186,12 +186,12 @@ export default function DetalleExpedienteScreen() {
           {/* Pasos que marca el super admin (no tienen evento en el sistema) */}
           {isSuperAdmin && exp.seguimiento ? (
             <View style={styles.pasosManuales}>
-              {exp.seguimiento.orden < 4 ? (
+              {(exp.seguimiento.paso === 'tramites_gestionados' || exp.seguimiento.paso === 'tramites_en_gestion') ? (
                 <TouchableOpacity style={styles.pasoBtn} onPress={() => marcarPaso('en_unidad_valuacion', 'Enviado a unidad de valuación')}>
                   <Ionicons name="business-outline" size={16} color={Colors.dark[900]} /><Text style={styles.pasoBtnText}>Enviado a unidad de valuación</Text>
                 </TouchableOpacity>
               ) : null}
-              {exp.seguimiento.orden < 6 ? (
+              {exp.seguimiento.paso === 'recurso_en_gestion' ? (
                 <TouchableOpacity style={styles.pasoBtn} onPress={() => marcarPaso('firma', 'Marcar firma')}>
                   <Ionicons name="create-outline" size={16} color={Colors.dark[900]} /><Text style={styles.pasoBtnText}>Marcar firma</Text>
                 </TouchableOpacity>
