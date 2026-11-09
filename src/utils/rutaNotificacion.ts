@@ -21,6 +21,9 @@ export const esInicio = (ruta: string) => ruta === INICIO_ASESOR || ruta === INI
 export function rutaParaNotificacion(data: DatosNotificacion | undefined | null, esAcreditado: boolean): string {
   const d = data ?? {};
 
+  // Citas: misma pantalla para los tres roles
+  if (d.screen === 'cita') return d.id ? `/citas/${d.id}` : '/citas';
+
   if (esAcreditado) {
     // Aviso de documento solicitado: el aviso está en Mi Trámite
     if (d.screen === 'tramite') return INICIO_ACREDITADO;
@@ -30,6 +33,8 @@ export function rutaParaNotificacion(data: DatosNotificacion | undefined | null,
     return INICIO_ACREDITADO;
   }
 
+  // Alguien se registró en la app con el código QR del asesor: su lista de registrados
+  if (d.screen === 'registros_qr') return '/registros-qr';
   // Avisos del gestor: abrir su encargo (los del super_admin traen screen 'expedientes')
   if (d.screen === 'gestor_encargo') return d.encargo_id ? `/gestor/${d.encargo_id}` : INICIO_GESTOR;
   if (d.expediente_id) return `/expedientes/${d.expediente_id}`;

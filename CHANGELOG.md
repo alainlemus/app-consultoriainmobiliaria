@@ -4,6 +4,21 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+## [2.11.0] - 2026-11-09
+
+### Agregado
+- Notificaciones: campana con contador en el inicio del asesor, del gestor y del acreditado, y bandeja con el historial completo (leídas y no leídas, texto íntegro). Solo lectura: se marcan al abrir, no se borran. Requiere backend 1.15.0.
+- Seguimiento del trámite en 7 pasos, igual para el acreditado (en Mi trámite) y el asesor (en el expediente): Validación de documentos → Trámites en gestión → Trámites gestionados → En unidad de valuación → Recurso en gestión → Firma → Crédito entregado. El texto de cada paso lo edita la oficina.
+- CUV: el acreditado y el asesor la ven en el expediente; el super admin la registra desde la app (16 dígitos y foto opcional) igual que el gestor desde su encargo. Al registrarla avisa a todos.
+- Super admin: botones «Enviado a unidad de valuación», «Registrar CUV» y «Marcar firma» en el expediente, cada uno visible solo en el paso del seguimiento que le toca.
+- Llamar y WhatsApp en la ficha del prospecto y del expediente, y «Agendar cita» desde ambas.
+- Citas: el asesor agenda para su cliente y el acreditado con su asesor (oficina o domicilio, eligiendo día y hora libre); el super admin ve su agenda, confirma, reagenda, cancela y marca asistencia. Recordatorios automáticos. Requiere backend 1.16.0.
+- Documentos validados, de gestor o la CUV: el asesor solo los ve; ya no aparecen Reemplazar ni Eliminar.
+- Acreditado: si se registró sin código, puede ligar su «código de asesor» después desde Perfil → Mi asesor (y un aviso en el inicio se lo recuerda). Requiere backend 1.13.0.
+- Acreditado: la tarjeta «Tu asesor» ya permite llamar o escribir por WhatsApp, también antes de tener expediente.
+- Asesor: pantalla «Registrados QR» con las cuentas creadas con su código y en qué paso van (solo registrado, pidió asesoría, con expediente), con llamar, WhatsApp y acceso al prospecto. La notificación «Se registró con tu código QR» abre esa lista.
+- Quien es gestor y asesor a la vez entra con el botón que elija («Soy Asesor» o «Soy Gestor») y puede cambiar de interfaz desde Perfil sin cerrar sesión. La app recuerda la última interfaz al volver a abrirla. Requiere backend 1.12.3.
+
 ## [2.10.0] - 2026-11-09
 
 ### Agregado

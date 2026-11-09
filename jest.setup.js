@@ -39,6 +39,8 @@ jest.mock('expo-router', () => ({
   }),
   useLocalSearchParams: () => ({}),
   useSegments: () => [],
+  // Igual que useEffect: ejecuta el callback al montar (y su limpieza al desmontar)
+  useFocusEffect: (cb) => { require('react').useEffect(cb, []); },
   router: {
     push:    jest.fn(),
     replace: jest.fn(),

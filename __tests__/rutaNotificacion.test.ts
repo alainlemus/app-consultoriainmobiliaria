@@ -9,6 +9,14 @@ describe('rutaParaNotificacion', () => {
     expect(rutaParaNotificacion({ screen: 'prospectos', id: '7' }, false)).toBe('/prospectos/7');                // prospecto asignado
     expect(rutaParaNotificacion({ contacto_id: 3 }, false)).toBe('/prospectos/3');
   });
+  it('citas: abre el detalle para asesor y acreditado', () => {
+    expect(rutaParaNotificacion({ screen: 'cita', id: '5' }, false)).toBe('/citas/5');
+    expect(rutaParaNotificacion({ screen: 'cita', id: '5' }, true)).toBe('/citas/5');
+    expect(rutaParaNotificacion({ screen: 'cita' }, true)).toBe('/citas');
+  });
+  it('asesor: registro con su QR abre la lista de registrados', () => {
+    expect(rutaParaNotificacion({ screen: 'registros_qr', id: '12' }, false)).toBe('/registros-qr');
+  });
   it('asesor: visitas al mapa; comisiones, cuentas o sin datos al inicio', () => {
     expect(rutaParaNotificacion({ screen: 'visitas', id: '5' }, false)).toBe('/mapa');
     expect(rutaParaNotificacion({ screen: 'comisiones' }, false)).toBe('/(tabs)');

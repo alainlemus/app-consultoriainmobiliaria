@@ -16,7 +16,7 @@ import {
   loginAcreditado, loginWithTokenAcreditado, getMeAcreditado,
   getExpedienteAcreditado,
   registrarDispositivoAcreditado,
-  consultarCodigoAsesor, registrarAcreditado,
+  consultarCodigoAsesor, registrarAcreditado, ligarCodigoAsesor,
   ACREDITADO_CACHE_KEY,
 } from '../../src/services/acreditadoApi';
 
@@ -172,5 +172,25 @@ describe('registrarAcreditado con código de asesor', () => {
     expect(JSON.parse(opts.body).codigo_asesor).toBe('K7M2PX');
     expect(res.acreditado?.asesor?.nombre).toBe('Juan Pérez');
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith('acreditado_token', 'tok-nuevo');
+  });
+});
+
+describe('ligarCodigoAsesor (después de registrarse)', () => {
+  it('manda el código normalizado con PUT y regresa el acreditado con su asesor', async () => {
+    mockFetch(200, { message: 'Listo. Tu asesor será Juan Pérez.', acreditado: { ...MOCK_ACREDITADO, asesor: { id: 3, nombre: 'Juan Pérez', telefono: '7711112222' } } });
+
+    const res = await ligarCodigoAsesor(' juan-01 ');
+
+    const [url, opts] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toMatch(/\/acreditado\/auth\/codigo-asesor$/);
+    expect(opts.method).toBe('PUT');
+    expect(JSON.parse(opts.body)).toEqual({ codigo_asesor: 'JUAN01' });
+    expect(res.acreditado.asesor?.telefono).toBe('7711112222');
+  });
+
+  it('si ya tiene asesor el backend responde 422 y se propaga el mensaje', async () => {
+    mockFetch(422, { message: 'Ya tienes asesor asignado (Ana López).' });
+    await expect(ligarCodigoAsesor('JUAN01')).rejects.toThrow('Ya tienes asesor asignado (Ana López).');
+    expect(router.replace).not.toHaveBeenCalled();
   });
 });

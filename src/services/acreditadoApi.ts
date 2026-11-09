@@ -16,6 +16,11 @@ import {
   ServicioTramite,
   CodigoAsesor,
   OrigenCodigoAsesor,
+  Notificacion,
+  NotificacionesPagina,
+  OficinaCita,
+  HuecoCita,
+  Cita,
 } from '../types';
 
 const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
@@ -140,6 +145,59 @@ export async function atribuirInstalacion(data: {
     body:   JSON.stringify(data),
   });
   return res?.codigo && res.asesor ? { codigo: res.codigo, asesor: res.asesor } : null;
+}
+
+/**
+ * Liga la cuenta (ya creada) al asesor de un código QR. Solo si aún no tiene
+ * asesor; el backend responde 422 si ya tiene uno o si el código no existe.
+ */
+export async function ligarCodigoAsesor(codigo: string): Promise<{ message: string; acreditado: Acreditado }> {
+  const limpio = codigo.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return acreditadoFetch<{ message: string; acreditado: Acreditado }>('/auth/codigo-asesor', {
+    method: 'PUT',
+    body:   JSON.stringify({ codigo_asesor: limpio }),
+  });
+}
+
+// ── Bandeja de notificaciones del acreditado (solo lectura) ───────────────
+
+export async function getNotificacionesAcreditado(pagina = 1): Promise<NotificacionesPagina> {
+  return acreditadoFetch<NotificacionesPagina>(`/notificaciones?page=${pagina}`);
+}
+
+export async function getNoLeidasAcreditado(): Promise<number> {
+  const r = await acreditadoFetch<{ no_leidas: number }>('/notificaciones/no-leidas');
+  return r.no_leidas ?? 0;
+}
+
+export async function marcarLeidaAcreditado(id: string): Promise<Notificacion> {
+  return (await acreditadoFetch<{ data: Notificacion }>(`/notificaciones/${id}/leer`, { method: 'PUT' })).data;
+}
+
+export async function marcarTodasLeidasAcreditado(): Promise<void> {
+  await acreditadoFetch('/notificaciones/leer-todas', { method: 'PUT' });
+}
+
+// ── Citas del acreditado con su asesor ────────────────────────────────────
+
+export async function getOficinasCitasAcreditado(): Promise<OficinaCita[]> {
+  return (await acreditadoFetch<{ data: OficinaCita[] }>('/citas/oficinas')).data;
+}
+
+export async function getDisponibilidadAcreditado(coberturaId: number, fecha: string, tipo: 'oficina' | 'domicilio'): Promise<HuecoCita[]> {
+  return (await acreditadoFetch<{ data: HuecoCita[] }>(`/citas/disponibilidad?cobertura_id=${coberturaId}&fecha=${fecha}&tipo=${tipo}`)).data;
+}
+
+export async function getCitasAcreditado(): Promise<Cita[]> {
+  return (await acreditadoFetch<{ data: Cita[] }>('/citas')).data;
+}
+
+export async function crearCitaAcreditado(d: { cobertura_id: number; tipo: 'oficina' | 'domicilio'; inicia_at: string; direccion?: string; notas?: string }): Promise<Cita> {
+  return (await acreditadoFetch<{ data: Cita }>('/citas', { method: 'POST', body: JSON.stringify(d) })).data;
+}
+
+export async function cancelarCitaAcreditado(id: number, motivo?: string): Promise<Cita> {
+  return (await acreditadoFetch<{ data: Cita }>(`/citas/${id}/cancelar`, { method: 'PUT', body: JSON.stringify({ motivo }) })).data;
 }
 
 export async function loginAcreditado(email: string, password: string): Promise<AcreditadoAuthState> {

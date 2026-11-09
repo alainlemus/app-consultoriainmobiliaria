@@ -21,6 +21,7 @@ import {
 import { encolarFotos, desencolarFotos } from '@/src/services/offline';
 import { comprimirFoto, limpiarArchivoLocal } from '@/src/utils/comprimirFoto';
 import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
+import { ligarCodigoAsesor } from '@/src/services/acreditadoApi';
 import { isBiometricEnabled, disableBiometric, getBiometricLabel } from '@/src/services/biometrics';
 
 export default function PerfilAcreditadoScreen() {
@@ -49,6 +50,28 @@ export default function PerfilAcreditadoScreen() {
   const [cambiandoPw,     setCambiandoPw]     = useState(false);
 
   const [biometriaActiva, setBiometriaActiva] = useState(false);
+
+  // Código de asesor (QR impreso) para quien se registró sin él
+  const [codigoAsesor,  setCodigoAsesor]  = useState('');
+  const [ligando,       setLigando]       = useState(false);
+  const [codigoError,   setCodigoError]   = useState('');
+
+  async function handleLigarCodigo() {
+    const limpio = codigoAsesor.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (limpio.length < 4) { setCodigoError('Escribe el código tal como viene junto al QR.'); return; }
+    setCodigoError('');
+    setLigando(true);
+    try {
+      const res = await ligarCodigoAsesor(limpio);
+      await refresh();
+      setCodigoAsesor('');
+      Alert.alert('Asesor asignado', res.message);
+    } catch (e: unknown) {
+      setCodigoError(e instanceof Error ? e.message : 'No se pudo ligar el código.');
+    } finally {
+      setLigando(false);
+    }
+  }
   const [biometricLabel,  setBiometricLabel]  = useState('Face ID');
 
   useEffect(() => {
@@ -323,6 +346,53 @@ export default function PerfilAcreditadoScreen() {
                 <Text style={styles.dataValue}>{f.value}</Text>
               </View>
             ))
+          )}
+        </View>
+
+        {/* Mi asesor (QR impreso) */}
+        <View style={styles.card}>
+          <Text style={[styles.sectionTitle, { marginBottom: Spacing.base }]}>MI ASESOR</Text>
+          {acreditado?.asesor?.nombre ? (
+            <>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Nombre</Text>
+                <Text style={styles.dataValue}>{acreditado.asesor.nombre}</Text>
+              </View>
+              {acreditado.asesor.telefono ? (
+                <View style={styles.editBtns}>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={() => Linking.openURL(`tel:${acreditado.asesor!.telefono}`)}>
+                    <Text style={styles.cancelBtnText}>Llamar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.cancelBtn} onPress={() => Linking.openURL(`https://wa.me/52${acreditado.asesor!.telefono!.replace(/\D/g, '')}`)}>
+                    <Text style={styles.cancelBtnText}>WhatsApp</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+              <Text style={[styles.inputLabel, { marginTop: Spacing.base }]}>Si necesitas cambiar de asesor, pídeselo a tu asesor o a la oficina.</Text>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.inputLabel, { marginBottom: Spacing.base }]}>
+                ¿Tienes una tarjeta, volante o lona con un código? Escríbelo aquí y ese asesor llevará tu trámite.
+              </Text>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Código de asesor</Text>
+                <TextInput
+                  style={styles.input}
+                  value={codigoAsesor}
+                  onChangeText={v => { setCodigoAsesor(v.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10)); setCodigoError(''); }}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={10}
+                  placeholder="El que viene junto al QR"
+                  placeholderTextColor={Colors.dark[500]}
+                />
+                {codigoError ? <Text style={[styles.inputLabel, { color: '#fca5a5', marginTop: Spacing.xs }]}>{codigoError}</Text> : null}
+              </View>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleLigarCodigo} disabled={ligando}>
+                {ligando ? <ActivityIndicator color={Colors.dark[900]} size="small" /> : <Text style={styles.saveBtnText}>Ligar a mi asesor</Text>}
+              </TouchableOpacity>
+            </>
           )}
         </View>
 

@@ -6,12 +6,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { logout, solicitarCancelacionCuenta } from '@/src/services/api';
+import { tieneAmbasInterfaces, guardarInterfaz, limpiarInterfaz } from '@/src/utils/rolStaff';
 import { APP_VERSION } from '@/src/version';
 
 export default function GestorPerfilScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, clearUser } = useAuth();
+
+  // Gestor y asesor a la vez: pasar a las pantallas de asesor sin cerrar sesión
+  async function cambiarAAsesor() {
+    await guardarInterfaz('asesor');
+    router.replace('/(tabs)');
+  }
 
   function cerrarSesion() {
     Alert.alert('Cerrar sesión', '¿Seguro que quieres salir?', [
@@ -21,6 +28,7 @@ export default function GestorPerfilScreen() {
         onPress: async () => {
           await logout();
           clearUser();
+          limpiarInterfaz().catch(() => {});
           router.replace('/(auth)/login');
         },
       },
@@ -78,6 +86,14 @@ export default function GestorPerfilScreen() {
           <Text style={s.rowText}>¿Cómo funciona?</Text>
           <Ionicons name="chevron-forward" size={18} color={Colors.dark[400]} />
         </TouchableOpacity>
+
+        {tieneAmbasInterfaces(user) && (
+          <TouchableOpacity style={s.row} onPress={cambiarAAsesor}>
+            <Ionicons name="swap-horizontal-outline" size={20} color={Colors.gold[700]} />
+            <Text style={s.rowText}>Cambiar a Asesor</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.dark[400]} />
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity style={[s.row, s.logout]} onPress={cerrarSesion}>
           <Ionicons name="log-out-outline" size={20} color={Colors.error} />

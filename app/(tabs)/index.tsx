@@ -14,6 +14,7 @@ import { getContactos, getExpedientes, getMe, logout } from '../../src/services/
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useRouteTracking } from '../../src/hooks/useRouteTracking';
 import AvisoRuta from '../../src/components/AvisoRuta';
+import CampanaNotificaciones from '../../src/components/CampanaNotificaciones';
 import type { User, Contacto } from '../../src/types';
 
 interface Stats {
@@ -112,7 +113,8 @@ export default function DashboardScreen() {
                 </Text>
               </View>
             </View>
-            {/* Botón salir: posición absoluta para nunca encimarse */}
+            {/* Campana de notificaciones + botón salir (posición absoluta para nunca encimarse) */}
+            <View style={styles.campana}><CampanaNotificaciones tipo="staff" /></View>
             <TouchableOpacity
               style={styles.logoutBtn}
               onPress={async () => {
@@ -152,6 +154,8 @@ export default function DashboardScreen() {
               <ActionTile icon="document-text" label="Contratos" onPress={() => router.push('/contratos')} />
             )}
             <ActionTile icon="map" label="Mapa"            onPress={() => router.push('/mapa')} />
+            <ActionTile icon="qr-code" label="Registrados QR" onPress={() => router.push('/registros-qr')} />
+            <ActionTile icon="calendar" label={isSuperAdmin ? 'Mi agenda' : 'Citas'} onPress={() => router.push('/citas')} />
             {mostrarRutas && (
               <ActionTile icon="trail-sign" label="Rutas" onPress={() => router.push('/rutas')} />
             )}
@@ -316,6 +320,7 @@ const styles = StyleSheet.create({
   headerGreeting: { fontSize: Typography.fontSize.xs, color: Colors.gold[400], letterSpacing: 2, fontWeight: Typography.fontWeight.semibold, textTransform: 'uppercase' },
   headerName:     { fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.black, color: Colors.cream[50], marginTop: 2 },
   goldBar:        { width: 28, height: 2, backgroundColor: Colors.gold[400], marginTop: Spacing.sm },
+  campana: { position: 'absolute', right: 64, top: 0 },
   logoutBtn: {
     borderWidth:       1,
     borderColor:       Colors.dark[600],

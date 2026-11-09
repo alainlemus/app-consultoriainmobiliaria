@@ -106,6 +106,11 @@ export default function RootLayout() {
         <Stack.Screen name="(acreditado)"                     options={{ headerShown: false }} />
         <Stack.Screen name="(gestor)"                         options={{ headerShown: false }} />
         <Stack.Screen name="a/[codigo]"                       options={{ headerShown: false }} />
+        <Stack.Screen name="registros-qr"                     options={{ headerShown: false }} />
+        <Stack.Screen name="notificaciones"                   options={{ headerShown: false }} />
+        <Stack.Screen name="citas/index"                      options={{ headerShown: false }} />
+        <Stack.Screen name="citas/nueva"                      options={{ headerShown: false }} />
+        <Stack.Screen name="citas/[id]"                       options={{ headerShown: false }} />
         <Stack.Screen name="ayuda-gestor"                     options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="gestor/[id]"                      options={{ headerShown: false }} />
         <Stack.Screen name="gestor/subir"                     options={{ headerShown: false, presentation: 'modal' }} />

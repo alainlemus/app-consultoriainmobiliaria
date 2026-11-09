@@ -20,6 +20,7 @@ jest.mock('../../src/services/api', () => ({
   getExpedientes: jest.fn(),
   getUbicacionesMapa: jest.fn(() => Promise.resolve([])),
   registrarUbicacion: jest.fn(() => Promise.resolve({ id: 1 })),
+  getNotificacionesNoLeidas: jest.fn(() => Promise.resolve(0)),   // campana del inicio
 }));
 import * as api from '../../src/services/api';
 const mockLogin          = api.login as jest.Mock;
@@ -31,6 +32,7 @@ const mockGetExpedientes = api.getExpedientes as jest.Mock;
 jest.mock('../../src/services/acreditadoApi', () => ({
   loginAcreditado:       jest.fn(),
   loginWithTokenAcreditado: jest.fn(),
+  getNoLeidasAcreditado: jest.fn(() => Promise.resolve(0)),
 }));
 import * as acreditadoApi from '../../src/services/acreditadoApi';
 const mockLoginAcreditado = acreditadoApi.loginAcreditado as jest.Mock;
@@ -105,6 +107,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => ({}),
   useSegments: () => [],
+  useFocusEffect: (cb: () => void | (() => void)) => { require('react').useEffect(cb, []); },
   router: mockRouter,
   Link: ({ children }: { children: React.ReactNode }) => children,
   Stack: { Screen: () => null },
