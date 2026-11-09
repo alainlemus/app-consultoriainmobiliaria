@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
-import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Escuela, SemaforoEscuela, Anuncio, EstadoAnuncio, RutaAsesor, RutaDia, RutaPunto } from '../types';
+import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Escuela, SemaforoEscuela, Anuncio, EstadoAnuncio, RutaAsesor, RutaDia, RutaPunto, AcreditadoQr, AcreditadosQrMeta } from '../types';
 
 // Selecciona la URL según plataforma en desarrollo
 // iOS simulador  → 127.0.0.1:8080
@@ -240,6 +240,13 @@ export interface AsesorBasico { id: number; name: string; email: string; }
 export async function getAsesores(): Promise<AsesorBasico[]> {
   const res = await apiFetch<{ data: AsesorBasico[] }>('/auth/asesores');
   return res.data;
+}
+
+// ── Registrados con mi QR (cuentas de la app ligadas al asesor) ────────────
+
+export async function getAcreditadosQr(asesorId?: number): Promise<{ data: AcreditadoQr[]; meta: AcreditadosQrMeta }> {
+  const qs = asesorId ? `?asesor_id=${asesorId}` : '';
+  return apiFetch<{ data: AcreditadoQr[]; meta: AcreditadosQrMeta }>(`/acreditados-qr${qs}`);
 }
 
 // ── Prospectos ─────────────────────────────────────────────────────────────

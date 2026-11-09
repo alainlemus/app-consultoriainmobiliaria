@@ -152,6 +152,7 @@ export default function DashboardScreen() {
               <ActionTile icon="document-text" label="Contratos" onPress={() => router.push('/contratos')} />
             )}
             <ActionTile icon="map" label="Mapa"            onPress={() => router.push('/mapa')} />
+            <ActionTile icon="qr-code" label="Registrados QR" onPress={() => router.push('/registros-qr')} />
             {mostrarRutas && (
               <ActionTile icon="trail-sign" label="Rutas" onPress={() => router.push('/rutas')} />
             )}

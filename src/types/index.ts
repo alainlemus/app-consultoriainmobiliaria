@@ -323,7 +323,26 @@ export interface Acreditado {
   /** Ya pidió asesoría desde la app (está registrado como prospecto). */
   solicitud_enviada?: boolean;
   /** Asesor ligado por el código del QR impreso (lona, tarjeta…); null si llegó sin código. */
-  asesor?: { id: number; nombre: string | null } | null;
+  asesor?: { id: number; nombre: string | null; telefono?: string | null } | null;
+}
+
+/** Cuenta de la app ligada a un asesor por su QR, vista desde el lado del asesor (GET /acreditados-qr). */
+export interface AcreditadoQr {
+  id:               number;
+  nombre:           string;
+  telefono?:        string | null;
+  email?:           string | null;
+  codigo?:          string | null;
+  asesor?:          string | null;
+  /** sin_solicitud: solo creó la cuenta · solicitud: ya pidió asesoría · expediente: ya tiene trámite */
+  paso:             'sin_solicitud' | 'solicitud' | 'expediente';
+  estado_prospecto?: string | null;
+  contacto_id?:     number | null;
+  registrado_en?:   string | null;
+}
+
+export interface AcreditadosQrMeta {
+  total: number; sin_solicitud: number; con_solicitud: number; con_expediente: number;
 }
 
 /** De dónde salió el código de asesor que se manda al registrarse. */

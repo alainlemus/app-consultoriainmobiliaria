@@ -142,6 +142,18 @@ export async function atribuirInstalacion(data: {
   return res?.codigo && res.asesor ? { codigo: res.codigo, asesor: res.asesor } : null;
 }
 
+/**
+ * Liga la cuenta (ya creada) al asesor de un código QR. Solo si aún no tiene
+ * asesor; el backend responde 422 si ya tiene uno o si el código no existe.
+ */
+export async function ligarCodigoAsesor(codigo: string): Promise<{ message: string; acreditado: Acreditado }> {
+  const limpio = codigo.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return acreditadoFetch<{ message: string; acreditado: Acreditado }>('/auth/codigo-asesor', {
+    method: 'PUT',
+    body:   JSON.stringify({ codigo_asesor: limpio }),
+  });
+}
+
 export async function loginAcreditado(email: string, password: string): Promise<AcreditadoAuthState> {
   const res = await acreditadoFetch<any>('/auth/login', {
     method: 'POST',

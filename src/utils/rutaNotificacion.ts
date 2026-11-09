@@ -30,6 +30,8 @@ export function rutaParaNotificacion(data: DatosNotificacion | undefined | null,
     return INICIO_ACREDITADO;
   }
 
+  // Alguien se registró en la app con el código QR del asesor: su lista de registrados
+  if (d.screen === 'registros_qr') return '/registros-qr';
   // Avisos del gestor: abrir su encargo (los del super_admin traen screen 'expedientes')
   if (d.screen === 'gestor_encargo') return d.encargo_id ? `/gestor/${d.encargo_id}` : INICIO_GESTOR;
   if (d.expediente_id) return `/expedientes/${d.expediente_id}`;

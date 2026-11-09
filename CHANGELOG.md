@@ -5,6 +5,9 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 ## [Sin publicar]
 
 ### Agregado
+- Acreditado: si se registró sin código, puede ligar su «código de asesor» después desde Perfil → Mi asesor (y un aviso en el inicio se lo recuerda). Requiere backend 1.13.0.
+- Acreditado: la tarjeta «Tu asesor» ya permite llamar o escribir por WhatsApp, también antes de tener expediente.
+- Asesor: pantalla «Registrados QR» con las cuentas creadas con su código y en qué paso van (solo registrado, pidió asesoría, con expediente), con llamar, WhatsApp y acceso al prospecto. La notificación «Se registró con tu código QR» abre esa lista.
 - Quien es gestor y asesor a la vez entra con el botón que elija («Soy Asesor» o «Soy Gestor») y puede cambiar de interfaz desde Perfil sin cerrar sesión. La app recuerda la última interfaz al volver a abrirla. Requiere backend 1.12.3.
 
 ## [2.10.0] - 2026-11-09

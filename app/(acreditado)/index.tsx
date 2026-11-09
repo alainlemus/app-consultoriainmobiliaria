@@ -144,7 +144,7 @@ export default function MiTramiteScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {acreditado?.asesor?.nombre && (
+          {acreditado?.asesor?.nombre ? (
             // Asesor ligado por el código del QR impreso (lona, tarjeta…): él lleva el trámite.
             <View style={[styles.card, styles.asesorCard]}>
               <View style={styles.asesorIcono}><Ionicons name="person-outline" size={22} color={Colors.gold[400]} /></View>
@@ -152,9 +152,31 @@ export default function MiTramiteScreen() {
                 <Text style={styles.asesorLabel}>TU ASESOR</Text>
                 <Text style={styles.asesorCardNombre}>{acreditado.asesor.nombre}</Text>
                 <Text style={styles.asesorTexto}>Te acompaña en todo el trámite.</Text>
+                {acreditado.asesor.telefono ? (
+                  <View style={styles.asesorAcciones}>
+                    <TouchableOpacity style={styles.asesorBtn} onPress={() => Linking.openURL(`tel:${acreditado.asesor!.telefono}`)}>
+                      <Ionicons name="call-outline" size={18} color={Colors.gold[400]} />
+                      <Text style={styles.asesorBtnText}>Llamar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.asesorBtn} onPress={() => Linking.openURL(`https://wa.me/52${acreditado.asesor!.telefono!.replace(/\D/g, '')}`)}>
+                      <Ionicons name="logo-whatsapp" size={18} color="#25d366" />
+                      <Text style={styles.asesorBtnText}>WhatsApp</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
               </View>
             </View>
-          )}
+          ) : acreditado && !acreditado.tiene_expediente ? (
+            // Sin asesor: si tiene una tarjeta o volante con código, puede ligarlo desde Perfil
+            <TouchableOpacity style={[styles.card, styles.asesorCard]} onPress={() => router.push('/(acreditado)/perfil')}>
+              <View style={styles.asesorIcono}><Ionicons name="qr-code-outline" size={22} color={Colors.gold[400]} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.asesorLabel}>¿TIENES UN CÓDIGO DE ASESOR?</Text>
+                <Text style={styles.asesorTexto}>Viene junto al QR de la lona, tarjeta o volante. Agrégalo en Perfil y ese asesor lleva tu trámite.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.dark[500]} />
+            </TouchableOpacity>
+          ) : null}
           {(solicitudEnviada || solicitudEnCola || acreditado?.solicitud_enviada) ? (
             // ── Estado post-solicitud ──────────────────────────────────────
             <>
