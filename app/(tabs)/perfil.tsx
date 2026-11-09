@@ -14,13 +14,14 @@ import { getMe, logout, updatePerfil, subirFotoPerfil, solicitarCancelacionCuent
 import { encolarFotos, desencolarFotos } from '../../src/services/offline';
 import { comprimirFoto, limpiarArchivoLocal } from '../../src/utils/comprimirFoto';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { tieneAmbasInterfaces, guardarInterfaz, limpiarInterfaz } from '../../src/utils/rolStaff';
 import { isBiometricEnabled, disableBiometric, getBiometricLabel } from '../../src/services/biometrics';
 import type { User } from '../../src/types';
 
 export default function PerfilScreen() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
-  const { clearUser } = useAuth();
+  const { user: usuarioAuth, clearUser } = useAuth();
 
   const [user,      setUser]      = useState<User | null>(null);
   const [editando,  setEditando]  = useState(false);
@@ -155,9 +156,16 @@ export default function PerfilScreen() {
   }
 
   // ── Logout ─────────────────────────────────────────────────────────────────
+  // Gestor y asesor a la vez: pasar a las pantallas de gestor sin cerrar sesión
+  async function cambiarAGestor() {
+    await guardarInterfaz('gestor');
+    router.replace('/(gestor)');
+  }
+
   async function handleLogout() {
     await logout();
     clearUser();
+    limpiarInterfaz().catch(() => {});
     router.replace('/(auth)/login');
   }
 
@@ -288,6 +296,13 @@ export default function PerfilScreen() {
 
           {/* ── Sesión ── */}
           <Card title="Sesión" subtitle="Cuenta" style={s.card}>
+            {tieneAmbasInterfaces(usuarioAuth) && (
+              <TouchableOpacity style={s.cambiarBtn} onPress={cambiarAGestor}>
+                <Ionicons name="swap-horizontal-outline" size={18} color={Colors.gold[700]} />
+                <Text style={s.cambiarText}>Cambiar a Gestor</Text>
+                <Ionicons name="chevron-forward" size={16} color={Colors.dark[400]} />
+              </TouchableOpacity>
+            )}
             {biometriaActiva && (
               <TouchableOpacity style={s.biometriaBtn} onPress={handleEliminarBiometria}>
                 <Text style={s.biometriaBtnText}>Eliminar credenciales de {biometricLabel}</Text>
@@ -412,6 +427,8 @@ const s = StyleSheet.create({
   biometriaBtnText: { color: Colors.dark[600], fontWeight: Typography.fontWeight.semibold, fontSize: Typography.fontSize.sm },
 
   // Logout
+  cambiarBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderColor: Colors.gold[400], borderRadius: Radius.sm, padding: Spacing.md, marginBottom: Spacing.md, backgroundColor: Colors.cream[50] },
+  cambiarText: { flex: 1, color: Colors.dark[800], fontWeight: Typography.fontWeight.semibold, fontSize: Typography.fontSize.sm },
   logoutBtn:  { backgroundColor: Colors.crimson[600], borderRadius: Radius.sm, padding: Spacing.md, alignItems: 'center' },
   logoutText: { color: Colors.white, fontWeight: Typography.fontWeight.bold, fontSize: Typography.fontSize.sm, letterSpacing: Typography.letterSpacing.wider },
   ayudaBtn:   { flexDirection: 'row', alignItems: 'center', gap: 10, padding: Spacing.md, backgroundColor: Colors.dark[800], borderRadius: Radius.sm },

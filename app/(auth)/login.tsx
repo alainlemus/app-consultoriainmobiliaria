@@ -23,7 +23,7 @@ import {
   type BiometricTipo,
 } from '../../src/services/biometrics';
 import { isSmallScreen, screenHeight } from '../../src/utils/responsive';
-import { inicioStaff } from '../../src/utils/rolStaff';
+import { inicioStaff, tieneAmbasInterfaces, guardarInterfaz } from '../../src/utils/rolStaff';
 
 type Modo = 'selector' | 'asesor' | 'acreditado' | 'gestor';
 
@@ -104,10 +104,13 @@ export default function LoginScreen() {
         registrarPushTokenAcreditado().catch(() => {});
         router.replace('/(acreditado)');
       } else {
-        // Asesor y gestor comparten sesión; el rol decide a qué pantallas va
+        // Asesor y gestor comparten sesión; el rol decide a qué pantallas va.
+        // Con ambos roles, la credencial biométrica recuerda con cuál se guardó.
         const state = await loginWithToken(result.token);
         registrarPushToken().catch(() => {});
-        router.replace(inicioStaff(state.user));
+        const interfaz = result.tipo === 'gestor' ? 'gestor' : 'asesor';
+        if (tieneAmbasInterfaces(state.user)) await guardarInterfaz(interfaz);
+        router.replace(inicioStaff(state.user, interfaz));
       }
     } catch {
       // El token guardado ya no sirve (expiró/fue revocado). Si dejamos la
@@ -171,7 +174,10 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const state = await login(email.trim().toLowerCase(), password);
-      const destino = inicioStaff(state.user);
+      // Con ambos roles, el botón que tocó («Soy Asesor» / «Soy Gestor») elige la interfaz.
+      const interfaz = modo === 'gestor' ? 'gestor' : 'asesor';
+      if (tieneAmbasInterfaces(state.user)) await guardarInterfaz(interfaz);
+      const destino = inicioStaff(state.user, interfaz);
       const tipoBio: BiometricTipo = destino === '/(gestor)' ? 'gestor' : 'asesor';
       if (biometricAvailable && biometricTipo !== tipoBio && state.token) {
         await preguntarGuardarBiometria(tipoBio, email.trim().toLowerCase());

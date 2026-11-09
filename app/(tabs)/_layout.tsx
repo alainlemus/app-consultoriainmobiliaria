@@ -7,7 +7,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Colors, Spacing, Typography } from '../../src/theme';
 import { useSyncContext } from '../../src/contexts/SyncContext';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { esGestor } from '../../src/utils/rolStaff';
+import { esSoloGestor } from '../../src/utils/rolStaff';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -244,8 +244,9 @@ export default function TabsLayout() {
   // (o cambiar de cuenta) hay que refrescarlo, si no `user` queda vacío y
   // pantallas como Mi ruta o las opciones de administrador no aparecen.
   useEffect(() => { refresh(); }, [refresh]);
+  // Quien es gestor Y asesor puede estar aquí a propósito (cambió de interfaz).
   useEffect(() => {
-    if (esGestor(user)) router.replace('/(gestor)');
+    if (esSoloGestor(user)) router.replace('/(gestor)');
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

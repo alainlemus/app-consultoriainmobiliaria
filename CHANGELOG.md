@@ -4,6 +4,9 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+### Agregado
+- Quien es gestor y asesor a la vez entra con el botón que elija («Soy Asesor» o «Soy Gestor») y puede cambiar de interfaz desde Perfil sin cerrar sesión. La app recuerda la última interfaz al volver a abrirla. Requiere backend 1.12.3.
+
 ## [2.10.0] - 2026-11-09
 
 ### Agregado
