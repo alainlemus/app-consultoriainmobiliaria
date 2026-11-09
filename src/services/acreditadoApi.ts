@@ -14,6 +14,8 @@ import {
   ExpedienteAcreditado,
   DocumentoAcreditado,
   ServicioTramite,
+  CodigoAsesor,
+  OrigenCodigoAsesor,
 } from '../types';
 
 const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
@@ -101,6 +103,10 @@ export async function registrarAcreditado(data: {
   password_confirmation: string;
   curp?: string;
   telefono?: string;
+  /** Código impreso junto al QR del asesor; el backend lo valida y liga la cuenta al asesor. */
+  codigo_asesor?: string;
+  /** Cómo llegó el código: lo tecleó la persona, lo entregó Play Store o lo cruzó el backend por huella. */
+  asesor_origen?: OrigenCodigoAsesor;
 }): Promise<AcreditadoAuthState & { expediente_vinculado?: ExpedienteAcreditado | null }> {
   const res = await acreditadoFetch<any>('/auth/registro', {
     method: 'POST',
@@ -108,6 +114,32 @@ export async function registrarAcreditado(data: {
   });
   await saveAcreditadoToken(res.token);
   return { acreditado: res.acreditado, token: res.token, expediente_vinculado: res.expediente_vinculado };
+}
+
+/**
+ * Valida un código de asesor (QR impreso) y devuelve el nombre del asesor.
+ * Público, sin token. Lanza si el código no existe o está pausado.
+ */
+export async function consultarCodigoAsesor(codigo: string): Promise<CodigoAsesor> {
+  const limpio = codigo.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return acreditadoFetch<CodigoAsesor>(`/codigo-asesor/${encodeURIComponent(limpio)}`);
+}
+
+/**
+ * Pide al backend que cruce esta instalación con los escaneos recientes del QR
+ * (misma IP, plataforma, versión del sistema y modelo). Público, sin token.
+ * Regresa el código "probable" o null si no hay match o es ambiguo.
+ */
+export async function atribuirInstalacion(data: {
+  plataforma: 'ios' | 'android';
+  os_version?: string;
+  modelo?: string;
+}): Promise<CodigoAsesor | null> {
+  const res = await acreditadoFetch<{ codigo: string | null; asesor: CodigoAsesor['asesor'] | null }>('/atribucion', {
+    method: 'POST',
+    body:   JSON.stringify(data),
+  });
+  return res?.codigo && res.asesor ? { codigo: res.codigo, asesor: res.asesor } : null;
 }
 
 export async function loginAcreditado(email: string, password: string): Promise<AcreditadoAuthState> {
