@@ -4,6 +4,8 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+## [2.10.0] - 2026-11-09
+
 ### Agregado
 - Acreditado: campo «Código de asesor» al crear la cuenta. Es el código impreso junto al QR de la lona, tarjeta o volante; al escribirlo la app confirma «Tu asesor será X» y la cuenta queda ligada a ese asesor, que lleva el trámite. Requiere backend 1.12.0.
 - Acreditado: tarjeta «Tu asesor» en la pantalla principal cuando la cuenta se creó con código.
