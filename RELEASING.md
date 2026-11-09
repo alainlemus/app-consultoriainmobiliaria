@@ -25,24 +25,19 @@ Guía única de versiones y despliegues. Punto de partida: **v2.2.1**.
 En duda entre patch y minor → patch. Minor y major reinician los números de la
 derecha (`2.8.2 → 2.9.0`, `2.9.3 → 3.0.0`).
 
-**Ojo:** subir la versión (aunque sea patch) cambia el fingerprint, así que al
-llegar a `main` genera **build nuevo + envío a App Store** (no update OTA). Si
-el cambio es solo de JS y debe llegar ya a los usuarios sin pasar por revisión
-de Apple, usa el flujo C (update OTA, sin cambiar versión) y súmalo al siguiente
-patch.
+**Toda subida a `develop` (staging) o `main` (producción) lleva versión nueva**,
+aunque sea un cambio mínimo. No se publica nada sin subir versión.
 
-## 3. ¿Update OTA o build nuevo?
+Subir la versión (aunque sea patch) cambia el fingerprint, así que genera **build
+nuevo + envío a App Store Connect / Play Console**, no update OTA. Los usuarios lo
+reciben cuando se aprueba en la tienda.
 
-**Update OTA (sin reinstalar, sin tienda, SIN cambiar versión)** si solo cambió:
-- Pantallas, lógica, textos, estilos, imágenes (`app/`, `src/`, `assets/`).
+## 3. Update OTA
 
-**Build nuevo (y versión nueva si va a tienda)** si cambió cualquier cosa nativa:
-- Se agregó/actualizó una librería con código nativo (`npx expo install …`).
-- `app.config.ts`: permisos, `infoPlist`, `plugins`, íconos, splash, bundle id.
-- Se actualizó el SDK de Expo.
-
-En duda → build. Con la política `fingerprint`, un update nunca llega a un
-build incompatible, así que equivocarse hacia "build" no rompe nada.
+Como toda subida lleva versión nueva, lo normal es **build + tienda**. El update OTA
+sin cambiar versión solo se usa si se pide expresamente para una emergencia (ver
+flujo D). Nunca llega a un build incompatible, porque la política `fingerprint`
+separa los runtimes.
 
 ## 4. Ramas
 
@@ -53,36 +48,37 @@ build incompatible, así que equivocarse hacia "build" no rompe nada.
 ## 5. Flujos (automáticos con EAS Workflows)
 
 Los flujos viven en `.eas/workflows/` y corren solos en EAS al hacer push a GitHub.
-Ambos calculan el fingerprint y deciden entre **update OTA** o **build**:
+Ambos calculan el fingerprint; con versión nueva siempre cambia y hacen build:
 
-| Push a | Nada nativo cambió | Cambió algo nativo o la versión |
+| Push a | Con versión nueva (lo normal) | Sin cambio de fingerprint (no debe pasar) |
 |---|---|---|
-| `develop` (`staging.yml`) | Update OTA al canal `staging` | Build `staging` (iOS + Android) para testers |
-| `main` (`production.yml`) | Update OTA al canal `production` (iOS) | Build `production` iOS + envío a App Store Connect |
+| `develop` (`staging.yml`) | Build `staging` (iOS + Android) para testers | Update OTA al canal `staging` |
+| `main` (`production.yml`) | Build `production` + envío a App Store Connect / Play Console | Update OTA al canal `production` |
 
-Todo push a esas ramas dispara el flujo (si nada nativo cambió, solo cuesta un update OTA).
-
-### A. Día a día (testers)
+### A. Publicar una versión (siempre así)
 ```bash
-git push origin develop        # EAS decide solo: update OTA o build nuevo
-```
-
-### B. Lanzamiento a App Store
-```bash
-git checkout main && git merge develop
-npm run release:patch          # por defecto; release:minor / release:major solo si aplica (ver §2) → commit "chore(release): vX.Y.Z" + tag
-# anotar los cambios en CHANGELOG.md (y amend al commit de release)
-git push origin main --follow-tags     # la versión nueva cambia el fingerprint → build + envío a App Store
-git checkout develop && git merge main && git push origin develop
+# en develop, con los cambios en commits y anotados en CHANGELOG.md bajo [Sin publicar]
+git status                     # debe estar limpio (npm version lo exige)
+npm run release:patch          # por defecto; release:minor / release:major solo si aplica (ver §2)
+# mover las notas de [Sin publicar] a [X.Y.Z] - fecha en CHANGELOG.md
+git add CHANGELOG.md && git commit --amend --no-edit
+git tag -f vX.Y.Z
+git push origin develop && git push origin vX.Y.Z     # build de staging
+gh pr create --base main --head develop --title "Versión X.Y.Z"
+gh pr merge <N> --merge --subject "Versión X.Y.Z (#N)"  # build de producción + envío
 ```
 El envío deja el build en App Store Connect / TestFlight; mandarlo a revisión de
 Apple sigue siendo un paso manual en App Store Connect.
 
-### C. Corrección urgente de JS en producción
-Commit en `main` (sin subir versión) y `git push origin main` → update OTA.
-Luego `git checkout develop && git merge main && git push origin develop`.
+### B. Con cada versión: textos para la tienda
+Aunque el cambio sea mínimo, se preparan las **Novedades** de App Store y las notas
+para el tester de TestFlight. Se escriben para el usuario, no con términos técnicos.
 
-### D. Manual (si EAS Workflows falla o para probar algo puntual)
+### C. Corrección urgente
+Igual que el flujo A, con `release:patch`. Si no puede esperar la revisión de Apple,
+ver el flujo D.
+
+### D. Manual (si EAS Workflows falla, o un OTA pedido expresamente)
 ```bash
 npm run update:staging -- --message "..."    # / update:production
 npm run build:staging                         # / build:production
@@ -100,4 +96,5 @@ Builds, updates y workflows leen los mismos valores, así el fingerprint siempre
 - Si publicas a mano, usa los scripts `update:*`, no `eas update` directo: sin
   `--environment` se usaría tu `.env.local`, que apunta el API a tu Mac.
 - Un update OTA **no** cambia la versión; se identifica por su mensaje.
+- Toda versión lleva sus Novedades para App Store, aunque el cambio sea mínimo.
 - Todo lanzamiento a tienda lleva su entrada en `CHANGELOG.md`.

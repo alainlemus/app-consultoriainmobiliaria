@@ -322,6 +322,17 @@ export interface Acreditado {
   tiene_expediente: boolean;
   /** Ya pidió asesoría desde la app (está registrado como prospecto). */
   solicitud_enviada?: boolean;
+  /** Asesor ligado por el código del QR impreso (lona, tarjeta…); null si llegó sin código. */
+  asesor?: { id: number; nombre: string | null } | null;
+}
+
+/** De dónde salió el código de asesor que se manda al registrarse. */
+export type OrigenCodigoAsesor = 'codigo_manual' | 'referrer' | 'huella';
+
+/** Respuesta de GET /acreditado/codigo-asesor/{codigo} */
+export interface CodigoAsesor {
+  codigo: string;
+  asesor: { id: number; nombre: string | null };
 }
 
 export interface AcreditadoAuthState {

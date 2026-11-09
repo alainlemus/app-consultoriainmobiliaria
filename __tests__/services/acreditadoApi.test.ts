@@ -16,6 +16,7 @@ import {
   loginAcreditado, loginWithTokenAcreditado, getMeAcreditado,
   getExpedienteAcreditado,
   registrarDispositivoAcreditado,
+  consultarCodigoAsesor, registrarAcreditado,
   ACREDITADO_CACHE_KEY,
 } from '../../src/services/acreditadoApi';
 
@@ -127,5 +128,49 @@ describe('registrarDispositivoAcreditado', () => {
     const [url, opts] = (global.fetch as jest.Mock).mock.calls.at(-1);
     expect(url).toContain('/v1/acreditado/dispositivos');
     expect(JSON.parse(opts.body)).toEqual({ fcm_token: 'expo-token-abc', plataforma: 'ios' });
+  });
+});
+
+// ── Código de asesor (QR impreso) ────────────────────────────────────────────
+
+describe('consultarCodigoAsesor', () => {
+  it('normaliza el código (mayúsculas, sin espacios ni guiones) y pide /codigo-asesor/{codigo} sin token', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(null);
+    mockFetch(200, { codigo: 'K7M2PX', asesor: { id: 3, nombre: 'Juan Pérez' } });
+
+    const res = await consultarCodigoAsesor(' k7m-2px ');
+
+    expect(res.asesor.nombre).toBe('Juan Pérez');
+    const [url, opts] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toMatch(/\/acreditado\/codigo-asesor\/K7M2PX$/);
+    expect(opts.headers.Authorization).toBeUndefined();
+  });
+
+  it('con un código inexistente lanza el mensaje del backend y no fuerza logout', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(null);
+    mockFetch(404, { message: 'Código de asesor no válido.' });
+
+    await expect(consultarCodigoAsesor('ZZZZZZ')).rejects.toThrow('Código de asesor no válido.');
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe('registrarAcreditado con código de asesor', () => {
+  it('manda codigo_asesor en el body y regresa el asesor ligado', async () => {
+    mockFetch(201, {
+      token: 'tok-nuevo',
+      acreditado: { ...MOCK_ACREDITADO, asesor: { id: 3, nombre: 'Juan Pérez' } },
+      expediente_vinculado: null,
+    });
+
+    const res = await registrarAcreditado({
+      name: 'María', email: 'maria@test.com', password: 'secreto123', password_confirmation: 'secreto123',
+      codigo_asesor: 'K7M2PX',
+    });
+
+    const [, opts] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(JSON.parse(opts.body).codigo_asesor).toBe('K7M2PX');
+    expect(res.acreditado?.asesor?.nombre).toBe('Juan Pérez');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('acreditado_token', 'tok-nuevo');
   });
 });

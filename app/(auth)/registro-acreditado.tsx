@@ -1,20 +1,28 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   KeyboardAvoidingView, Platform, TouchableOpacity, Linking, Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '../../src/theme';
 import Input  from '../../src/components/ui/Input';
 import Button from '../../src/components/ui/Button';
-import { registrarAcreditado } from '../../src/services/acreditadoApi';
+import { registrarAcreditado, consultarCodigoAsesor } from '../../src/services/acreditadoApi';
+import { obtenerCodigoDetectado, limpiarCodigoDetectado, type CodigoDetectado } from '../../src/services/atribucion';
 import { registrarPushTokenAcreditado } from '../../src/services/notifications';
+
+/** Mayúsculas, solo letras y números: igual que lo normaliza el backend. */
+function limpiarCodigo(v: string): string {
+  return v.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10);
+}
 
 export default function RegistroAcreditadoScreen() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
+  // Llega con ?codigo= cuando la app se abre desde la liga del QR (fase 2: universal links)
+  const { codigo: codigoParam } = useLocalSearchParams<{ codigo?: string }>();
 
   const [name,                  setName]                  = useState('');
   const [email,                 setEmail]                 = useState('');
@@ -24,6 +32,50 @@ export default function RegistroAcreditadoScreen() {
   const [telefono,              setTelefono]              = useState('');
   const [loading,               setLoading]               = useState(false);
   const [error,                 setError]                 = useState('');
+
+  // Código impreso junto al QR del asesor (lona, tarjeta, panfleto). Opcional:
+  // si lo escriben, la cuenta queda ligada a ese asesor y él lleva el trámite.
+  const [codigoAsesor,          setCodigoAsesor]          = useState(() => limpiarCodigo(codigoParam ?? ''));
+  const [asesorNombre,          setAsesorNombre]          = useState<string | null>(null);
+  const [codigoEstado,          setCodigoEstado]          = useState<'vacio' | 'buscando' | 'ok' | 'invalido' | 'sin_red'>('vacio');
+  const ultimaConsulta = useRef(0);
+
+  // Código detectado solo al instalar (Play Store o cruce por huella). Se
+  // precarga si la persona no trae uno en la liga ni escribió nada aún.
+  const [detectado, setDetectado] = useState<CodigoDetectado | null>(null);
+  useEffect(() => {
+    obtenerCodigoDetectado().then(d => {
+      if (!d) return;
+      setDetectado(d);
+      setCodigoAsesor(actual => actual || d.codigo);
+    });
+  }, []);
+
+  // Valida el código conforme se escribe (con pausa) para confirmar "Tu asesor será X".
+  // Si no hay señal no bloquea: el backend vuelve a validar al crear la cuenta.
+  useEffect(() => {
+    if (codigoAsesor.length < 4) {
+      setCodigoEstado('vacio');
+      setAsesorNombre(null);
+      return;
+    }
+    setCodigoEstado('buscando');
+    const id = ++ultimaConsulta.current;
+    const t = setTimeout(async () => {
+      try {
+        const res = await consultarCodigoAsesor(codigoAsesor);
+        if (id !== ultimaConsulta.current) return;
+        setAsesorNombre(res.asesor?.nombre ?? null);
+        setCodigoEstado('ok');
+      } catch (e: unknown) {
+        if (id !== ultimaConsulta.current) return;
+        setAsesorNombre(null);
+        const msg = e instanceof Error ? e.message : '';
+        setCodigoEstado(/no válido|404/i.test(msg) ? 'invalido' : 'sin_red');
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [codigoAsesor]);
 
   async function handleRegistro() {
     if (!name.trim() || !email.trim() || !password) {
@@ -38,6 +90,10 @@ export default function RegistroAcreditadoScreen() {
       setError('La contraseña debe tener al menos 8 caracteres.');
       return;
     }
+    if (codigoEstado === 'invalido') {
+      setError('El código de asesor no es válido. Revísalo o déjalo vacío.');
+      return;
+    }
 
     setError('');
     setLoading(true);
@@ -49,7 +105,12 @@ export default function RegistroAcreditadoScreen() {
         password_confirmation: passwordConfirmation,
         curp:                  curp.trim().toUpperCase() || undefined,
         telefono:              telefono.trim() || undefined,
+        codigo_asesor:         codigoAsesor || undefined,
+        // Si dejó el código tal como se detectó, se reporta cómo llegó; si lo
+        // cambió o lo escribió, cuenta como tecleado.
+        asesor_origen:         codigoAsesor && detectado && detectado.codigo === codigoAsesor ? detectado.origen : undefined,
       });
+      limpiarCodigoDetectado().catch(() => {});
 
       // registrarPushTokenAcreditado usa /v1/acreditado/dispositivos (con el
       // token del acreditado) — no el endpoint del asesor, que causaba un 401
@@ -66,6 +127,12 @@ export default function RegistroAcreditadoScreen() {
         Alert.alert(
           'Cuenta creada',
           'Tu cuenta fue creada exitosamente. No encontramos un expediente asociado a tu CURP. Si tienes un trámite activo, contacta a tu asesor para vincularlo.',
+          [{ text: 'Continuar', onPress: () => router.replace('/(acreditado)') }],
+        );
+      } else if (result.acreditado?.asesor?.nombre) {
+        Alert.alert(
+          'Cuenta creada',
+          `Tu asesor será ${result.acreditado.asesor.nombre}. Te acompañará en todo el trámite y se pondrá en contacto contigo.`,
           [{ text: 'Continuar', onPress: () => router.replace('/(acreditado)') }],
         );
       } else {
@@ -179,6 +246,51 @@ export default function RegistroAcreditadoScreen() {
             </Text>
           </View>
 
+          <View style={styles.separator}>
+            <View style={styles.separatorLine} />
+            <Text style={styles.separatorText}>¿Tienes un código de asesor?</Text>
+            <View style={styles.separatorLine} />
+          </View>
+
+          <Input
+            label="Código de asesor"
+            value={codigoAsesor}
+            onChangeText={v => setCodigoAsesor(limpiarCodigo(v))}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={10}
+            placeholder="El que viene junto al QR"
+            error={codigoEstado === 'invalido' ? 'Código no válido. Revísalo o déjalo vacío.' : undefined}
+            dark={false}
+          />
+
+          {codigoEstado === 'ok' && asesorNombre ? (
+            <View style={[styles.curpHint, styles.asesorOk]}>
+              <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+              <Text style={[styles.curpHintText, styles.asesorOkText]}>
+                Tu asesor será <Text style={styles.asesorNombre}>{asesorNombre}</Text>.
+                {detectado && detectado.codigo === codigoAsesor ? ' Lo tomamos del QR que escaneaste; puedes cambiarlo.' : ''}
+              </Text>
+            </View>
+          ) : codigoEstado === 'buscando' ? (
+            <View style={styles.curpHint}>
+              <Ionicons name="time-outline" size={16} color={Colors.dark[500]} />
+              <Text style={styles.curpHintText}>Buscando asesor…</Text>
+            </View>
+          ) : codigoEstado === 'sin_red' ? (
+            <View style={styles.curpHint}>
+              <Ionicons name="cloud-offline-outline" size={16} color={Colors.dark[500]} />
+              <Text style={styles.curpHintText}>Sin señal para comprobar el código; se verificará al crear la cuenta.</Text>
+            </View>
+          ) : (
+            <View style={styles.curpHint}>
+              <Ionicons name="qr-code-outline" size={16} color={Colors.dark[500]} />
+              <Text style={styles.curpHintText}>
+                Está impreso en la lona, tarjeta o volante donde viste el QR. Con él, ese asesor lleva tu trámite.
+              </Text>
+            </View>
+          )}
+
           <Button
             label="Crear cuenta"
             onPress={handleRegistro}
@@ -220,6 +332,9 @@ const styles = StyleSheet.create({
   separatorText:  { fontSize: Typography.fontSize.xs, color: Colors.dark[400], textAlign: 'center', flexShrink: 1 },
   curpHint:     { flexDirection: 'row', gap: Spacing.sm, backgroundColor: Colors.cream[50], padding: Spacing.base, borderRadius: 6, marginBottom: Spacing.lg, alignItems: 'flex-start' },
   curpHintText: { flex: 1, fontSize: Typography.fontSize.xs, color: Colors.dark[500], lineHeight: Typography.fontSize.xs * 1.6 },
+  asesorOk:     { backgroundColor: '#f0fdf4' },
+  asesorOkText: { color: '#166534' },
+  asesorNombre: { fontWeight: Typography.fontWeight.semibold },
   btn:      { marginTop: Spacing.base },
   loginRow: { marginTop: Spacing.lg, alignItems: 'center' },
   loginText: { fontSize: Typography.fontSize.sm, color: Colors.dark[600] },

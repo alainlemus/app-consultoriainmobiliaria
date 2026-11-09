@@ -103,6 +103,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       bundleIdentifier: 'com.consultoriainmobiliaria.app',
       supportsTablet: true,
+      // Universal links: la liga del QR (https://dominio/a/{codigo}) abre la app
+      // si ya está instalada. El dominio publica /.well-known/apple-app-site-association
+      // con el Team ID (Panel → App móvil). EAS activa la capacidad al compilar.
+      associatedDomains: [
+        'applinks:consultoriainmobiliaria.com.mx',
+        'applinks:dev.consultoriainmobiliaria.com.mx',
+      ],
       // Solo usa encriptación estándar/exenta (HTTPS). Declararlo aquí evita que
       // EAS Build lo pregunte e intente escribir la respuesta en este archivo
       // dinámico (falla con "Error reading Expo config ... Unexpected token '{'").
@@ -125,6 +132,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
      android: {
       package: 'com.consultoriainmobiliaria.app',
+      // App links: mismo fin que associatedDomains. Android verifica contra
+      // /.well-known/assetlinks.json (huella SHA-256 de Play en Panel → App móvil).
+      intentFilters: [
+        {
+          action: 'VIEW',
+          autoVerify: true,
+          data: [
+            { scheme: 'https', host: 'consultoriainmobiliaria.com.mx',     pathPrefix: '/a/' },
+            { scheme: 'https', host: 'dev.consultoriainmobiliaria.com.mx', pathPrefix: '/a/' },
+          ],
+          category: ['BROWSABLE', 'DEFAULT'],
+        },
+      ],
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#222121',

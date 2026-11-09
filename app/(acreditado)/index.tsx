@@ -144,13 +144,26 @@ export default function MiTramiteScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {acreditado?.asesor?.nombre && (
+            // Asesor ligado por el código del QR impreso (lona, tarjeta…): él lleva el trámite.
+            <View style={[styles.card, styles.asesorCard]}>
+              <View style={styles.asesorIcono}><Ionicons name="person-outline" size={22} color={Colors.gold[400]} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.asesorLabel}>TU ASESOR</Text>
+                <Text style={styles.asesorCardNombre}>{acreditado.asesor.nombre}</Text>
+                <Text style={styles.asesorTexto}>Te acompaña en todo el trámite.</Text>
+              </View>
+            </View>
+          )}
           {(solicitudEnviada || solicitudEnCola || acreditado?.solicitud_enviada) ? (
             // ── Estado post-solicitud ──────────────────────────────────────
             <>
               <Ionicons name="checkmark-circle" size={64} color={Colors.success} />
               <Text style={styles.emptyTitle}>¡Ya estás registrado!</Text>
               <Text style={styles.emptySubtitle}>
-                Recibimos tu solicitud y ya estás registrado con nosotros. Un asesor se pondrá en contacto contigo para iniciar tu trámite; cuando se abra tu expediente lo verás aquí.
+                {acreditado?.asesor?.nombre
+                  ? `Recibimos tu solicitud. ${acreditado.asesor.nombre} se pondrá en contacto contigo para iniciar tu trámite; cuando se abra tu expediente lo verás aquí.`
+                  : 'Recibimos tu solicitud y ya estás registrado con nosotros. Un asesor se pondrá en contacto contigo para iniciar tu trámite; cuando se abra tu expediente lo verás aquí.'}
               </Text>
               {solicitudEnCola && (
                 <View style={[styles.card, styles.guiaCard, styles.ppCard]}>
@@ -406,6 +419,11 @@ const styles = StyleSheet.create({
   ppBtn:           { backgroundColor: Colors.gold[400], borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.lg, minHeight: 48, justifyContent: 'center' },
   ppBtnText:       { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   ppLlamada:       { width: '100%', flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg },
+  asesorCard:      { width: '100%', flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.gold[400] + '55' },
+  asesorIcono:     { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.dark[700], alignItems: 'center', justifyContent: 'center' },
+  asesorLabel:     { fontSize: Typography.fontSize.xs, letterSpacing: 1.2, color: Colors.gold[400], fontWeight: Typography.fontWeight.semibold },
+  asesorCardNombre: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.cream[50], marginTop: 2 },
+  asesorTexto:     { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2 },
   ppIcono:         { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.dark[700], alignItems: 'center', justifyContent: 'center' },
   ppLlamadaTitulo: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.semibold, color: Colors.cream[50] },
   ppLlamadaTexto:  { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: 2 },

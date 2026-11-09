@@ -8,6 +8,9 @@ import { registrarPushToken, registrarPushTokenAcreditado, registrarListeners, l
 import { rutaParaNotificacion, esInicio, type DatosNotificacion } from '../src/utils/rutaNotificacion';
 import { getAcreditadoToken, removeAcreditadoToken } from '../src/services/acreditadoApi';
 import { inicioStaffCacheado } from '../src/utils/rolStaff';
+import { detectarCodigoAsesor } from '../src/services/atribucion';
+import * as Linking from 'expo-linking';
+import { codigoDesdeUrl } from '../src/utils/ligaQr';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -27,6 +30,10 @@ export default function RootLayout() {
   // erróneamente al acreditado si existe un token residual de sesión anterior.
   useEffect(() => {
     (async () => {
+      // Abierta desde la liga del QR (/a/{codigo}): esa pantalla decide a dónde
+      // ir según la sesión; aquí no redirigimos para no pisarla.
+      if (codigoDesdeUrl(await Linking.getInitialURL())) return;
+
       const asesorToken     = await SecureStore.getItemAsync('auth_token');
       const acreditadoToken = await getAcreditadoToken();
 
@@ -56,6 +63,10 @@ export default function RootLayout() {
 
       // ── Sin sesión → login ────────────────────────────────────────────────
       router.replace('/(auth)/login');
+
+      // Instalación nueva: averiguar de qué QR vino (Install Referrer / huella)
+      // para precargar el código de asesor en el registro. Silencioso.
+      detectarCodigoAsesor().catch(() => {});
     })();
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -94,6 +105,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)"                           options={{ headerShown: false }} />
         <Stack.Screen name="(acreditado)"                     options={{ headerShown: false }} />
         <Stack.Screen name="(gestor)"                         options={{ headerShown: false }} />
+        <Stack.Screen name="a/[codigo]"                       options={{ headerShown: false }} />
         <Stack.Screen name="ayuda-gestor"                     options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="gestor/[id]"                      options={{ headerShown: false }} />
         <Stack.Screen name="gestor/subir"                     options={{ headerShown: false, presentation: 'modal' }} />

@@ -1,0 +1,24 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.installreferrer'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.installreferrer"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // Play Install Referrer: entrega a la app el `referrer` con el que se abrió
+  // Play Store (nuestra liga /a/{codigo} lo manda con codigo_asesor=XXX).
+  implementation 'com.android.installreferrer:installreferrer:2.2'
+}

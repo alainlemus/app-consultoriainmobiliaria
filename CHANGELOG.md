@@ -4,6 +4,15 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+## [2.10.0] - 2026-11-09
+
+### Agregado
+- Acreditado: campo «Código de asesor» al crear la cuenta. Es el código impreso junto al QR de la lona, tarjeta o volante; al escribirlo la app confirma «Tu asesor será X» y la cuenta queda ligada a ese asesor, que lleva el trámite. Requiere backend 1.12.0.
+- Acreditado: tarjeta «Tu asesor» en la pantalla principal cuando la cuenta se creó con código.
+- El registro acepta `?codigo=` en la liga para precargar el código (preparado para abrir la app desde el QR).
+- El código de asesor se detecta solo al instalar: en Android lo entrega Play Store (Install Referrer, módulo nativo local `modules/install-referrer`); en iPhone, o si Play Store no trae dato, el backend lo cruza con los escaneos recientes. Se precarga en el registro con aviso «Lo tomamos del QR que escaneaste; puedes cambiarlo». Requiere build nuevo (módulo nativo) y backend 1.12.0.
+- Si la app ya está instalada, escanear un QR de asesor la abre directo (universal links en iPhone, app links en Android) y lleva al registro con el código puesto; con sesión abierta, va al inicio de cada quien.
+
 ## [2.9.0] - 2026-11-06
 
 ### Agregado
