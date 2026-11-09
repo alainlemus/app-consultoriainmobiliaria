@@ -21,6 +21,9 @@ export const esInicio = (ruta: string) => ruta === INICIO_ASESOR || ruta === INI
 export function rutaParaNotificacion(data: DatosNotificacion | undefined | null, esAcreditado: boolean): string {
   const d = data ?? {};
 
+  // Citas: misma pantalla para los tres roles
+  if (d.screen === 'cita') return d.id ? `/citas/${d.id}` : '/citas';
+
   if (esAcreditado) {
     // Aviso de documento solicitado: el aviso está en Mi Trámite
     if (d.screen === 'tramite') return INICIO_ACREDITADO;

@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
-import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Escuela, SemaforoEscuela, Anuncio, EstadoAnuncio, RutaAsesor, RutaDia, RutaPunto, AcreditadoQr, AcreditadosQrMeta } from '../types';
+import { ApiResponse, AuthState, SyncResponse, OperacionSync, PaginatedResponse, Contacto, Expediente, Ubicacion, Documento, Escuela, SemaforoEscuela, Anuncio, EstadoAnuncio, RutaAsesor, RutaDia, RutaPunto, AcreditadoQr, AcreditadosQrMeta, Notificacion, NotificacionesPagina, Seguimiento, CuvInfo, OficinaCita, HuecoCita, Cita } from '../types';
 
 // Selecciona la URL según plataforma en desarrollo
 // iOS simulador  → 127.0.0.1:8080
@@ -241,6 +241,78 @@ export async function getAsesores(): Promise<AsesorBasico[]> {
   const res = await apiFetch<{ data: AsesorBasico[] }>('/auth/asesores');
   return res.data;
 }
+
+// ── Bandeja de notificaciones (solo lectura, nunca se borran) ─────────────
+
+export async function getNotificaciones(pagina = 1): Promise<NotificacionesPagina> {
+  return apiFetch<NotificacionesPagina>(`/notificaciones?page=${pagina}`);
+}
+
+export async function getNotificacionesNoLeidas(): Promise<number> {
+  const r = await apiFetch<{ no_leidas: number }>('/notificaciones/no-leidas');
+  return r.no_leidas ?? 0;
+}
+
+export async function marcarNotificacionLeida(id: string): Promise<Notificacion> {
+  const r = await apiFetch<{ data: Notificacion }>(`/notificaciones/${id}/leer`, { method: 'PUT' });
+  return r.data;
+}
+
+export async function marcarTodasLeidas(): Promise<void> {
+  await apiFetch('/notificaciones/leer-todas', { method: 'PUT' });
+}
+
+// ── Seguimiento del trámite y CUV (super admin) ───────────────────────────
+
+/** Los dos pasos sin evento del sistema: en_unidad_valuacion | firma. */
+export async function avanzarSeguimiento(expedienteId: number, paso: 'en_unidad_valuacion' | 'firma'): Promise<Seguimiento> {
+  const r = await apiFetch<{ seguimiento: Seguimiento }>(`/expedientes/${expedienteId}/seguimiento`, {
+    method: 'POST', body: JSON.stringify({ paso }),
+  });
+  return r.seguimiento;
+}
+
+/** CUV de 16 dígitos con foto o PDF opcional. */
+export async function registrarCuv(expedienteId: number, cuv: string, archivo?: { uri: string; mimeType: string; nombre: string }): Promise<{ cuv_info: CuvInfo; seguimiento: Seguimiento }> {
+  const token = await getToken();
+  const form  = new FormData();
+  form.append('cuv', cuv);
+  if (archivo) form.append('archivo', { uri: archivo.uri, type: archivo.mimeType, name: archivo.nombre } as unknown as Blob);
+  const res = await fetch(`${API_BASE}/expedientes/${expedienteId}/cuv`, {
+    method: 'POST', headers: { Accept: 'application/json', Authorization: `Bearer ${token}` }, body: form,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.errors ? Object.values(body.errors as Record<string, string[]>).flat().join(' ') : (body?.message ?? `Error ${res.status}`));
+  return body;
+}
+
+// ── Citas ─────────────────────────────────────────────────────────────────
+
+export async function getOficinasCitas(): Promise<OficinaCita[]> {
+  return (await apiFetch<{ data: OficinaCita[] }>('/citas/oficinas')).data;
+}
+
+export async function getDisponibilidadCitas(coberturaId: number, fecha: string, tipo: 'oficina' | 'domicilio'): Promise<HuecoCita[]> {
+  return (await apiFetch<{ data: HuecoCita[] }>(`/citas/disponibilidad?cobertura_id=${coberturaId}&fecha=${fecha}&tipo=${tipo}`)).data;
+}
+
+export async function getCitas(params?: { desde?: string; hasta?: string; estado?: string }): Promise<{ data: Cita[]; meta: { total: number; solicitadas: number; hoy: number } }> {
+  const qs = new URLSearchParams(Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v) as [string, string][])).toString();
+  return apiFetch(`/citas${qs ? `?${qs}` : ''}`);
+}
+
+export async function getCita(id: number): Promise<Cita> {
+  return (await apiFetch<{ data: Cita }>(`/citas/${id}`)).data;
+}
+
+export async function crearCita(d: { cobertura_id: number; tipo: 'oficina' | 'domicilio'; inicia_at: string; contacto_id?: number; expediente_id?: number; direccion?: string; notas?: string }): Promise<Cita> {
+  return (await apiFetch<{ data: Cita }>('/citas', { method: 'POST', body: JSON.stringify(d) })).data;
+}
+
+export const confirmarCita = async (id: number): Promise<Cita> => (await apiFetch<{ data: Cita }>(`/citas/${id}/confirmar`, { method: 'PUT' })).data;
+export const reagendarCita = async (id: number, inicia_at: string): Promise<Cita> => (await apiFetch<{ data: Cita }>(`/citas/${id}/reagendar`, { method: 'PUT', body: JSON.stringify({ inicia_at }) })).data;
+export const cancelarCita  = async (id: number, motivo?: string): Promise<Cita> => (await apiFetch<{ data: Cita }>(`/citas/${id}/cancelar`, { method: 'PUT', body: JSON.stringify({ motivo }) })).data;
+export const marcarCita    = async (id: number, asistio: boolean): Promise<Cita> => (await apiFetch<{ data: Cita }>(`/citas/${id}/realizada`, { method: 'PUT', body: JSON.stringify({ asistio }) })).data;
 
 // ── Registrados con mi QR (cuentas de la app ligadas al asesor) ────────────
 

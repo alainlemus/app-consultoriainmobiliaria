@@ -125,6 +125,24 @@ export const entregarEncargo = (encargoId: number) => accionEncargo(encargoId, '
 /** Olvidó algo: el encargo vuelve a En trámite mientras la administración no lo cierre. */
 export const reabrirEncargo = (encargoId: number) => accionEncargo(encargoId, 'reabrir');
 
+// ── CUV (Clave Única de Vivienda) ────────────────────────────────────────────
+
+/** El gestor con encargo en trámite registra la CUV (16 dígitos) con foto o PDF opcional. */
+export async function registrarCuvGestor(encargoId: number, cuv: string, archivo?: { uri: string; mimeType: string; nombre: string }): Promise<void> {
+  const token = await getToken();
+  const form  = new FormData();
+  form.append('cuv', cuv);
+  if (archivo) form.append('archivo', { uri: archivo.uri, name: archivo.nombre, type: archivo.mimeType } as any);
+  const res = await fetch(`${API_BASE}/gestor/encargos/${encargoId}/cuv`, {
+    method: 'POST', headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: form,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const errores = body?.errors ? Object.values(body.errors as Record<string, string[]>).flat().join(' ') : '';
+    throw new Error(errores || body?.message || `Error ${res.status}`);
+  }
+}
+
 // ── Subidas (con cola sin señal) ─────────────────────────────────────────────
 
 export interface SubidaGestor {

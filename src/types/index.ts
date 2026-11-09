@@ -88,6 +88,79 @@ export type EstadoExpediente =
   | 'cerrado'
   | 'cancelado';
 
+/** Paso del seguimiento fijo del trámite (7 pasos, avanzan solos en el backend). */
+export interface Seguimiento {
+  paso:    string;
+  nombre:  string;
+  orden:   number;
+  total:   number;
+  mensaje: string;
+  fecha?:  string | null;
+  pasos:   { paso: string; nombre: string; orden: number }[];
+}
+
+/** CUV (Clave Única de Vivienda, 16 dígitos) registrada en el expediente. */
+export interface CuvInfo {
+  valor:  string;
+  fecha?: string | null;
+  por?:   string | null;
+}
+
+/** Notificación de la bandeja de la app (solo lectura). */
+export interface Notificacion {
+  id:     string;
+  titulo: string;
+  cuerpo: string;
+  tipo:   string;
+  color:  string;
+  leida:  boolean;
+  fecha:  string;
+  ruta?:  { screen?: string; id?: string; expediente_id?: string; contacto_id?: string; encargo_id?: string } | null;
+}
+
+export interface NotificacionesPagina {
+  data: Notificacion[];
+  meta: { pagina: number; ultima: number; total: number; no_leidas: number };
+}
+
+/** Oficina que recibe citas (Panel → Cobertura). */
+export interface OficinaCita {
+  id:                number;
+  nombre:            string;
+  direccion?:        string | null;
+  dias:              number[];     // ISO: 1 = lunes … 7 = domingo
+  inicio:            string;
+  fin:               string;
+  duracion_min:      number;
+  permite_domicilio: boolean;
+}
+
+export interface HuecoCita { inicia: string; termina: string; disponible: boolean }
+
+export type EstadoCita = 'solicitada' | 'confirmada' | 'cancelada' | 'realizada' | 'no_asistio';
+
+export interface Cita {
+  id:            number;
+  tipo:          'oficina' | 'domicilio';
+  estado:        EstadoCita;
+  estado_label:  string;
+  nombre:        string;
+  telefono?:     string | null;
+  inicia_at:     string;
+  termina_at:    string;
+  fecha_texto:   string;
+  oficina?:      { id: number; nombre: string; direccion?: string | null } | null;
+  direccion?:    string | null;
+  lugar:         string;
+  notas?:        string | null;
+  motivo_cancelacion?: string | null;
+  asesor?:       { id: number; nombre: string; telefono?: string | null } | null;
+  contacto_id?:  number | null;
+  expediente_id?: number | null;
+  folio?:        string | null;
+  creada_por:    'asesor' | 'acreditado' | 'admin';
+}
+
 export interface Expediente {
   id:                number;
   folio?:            string | null;
@@ -122,6 +195,8 @@ export interface Expediente {
   documentos_requeridos_total?:  number;
   documentos_subidos_total?:     number;
   documentos_pendientes_total?:  number;
+  seguimiento?:      Seguimiento;
+  cuv_info?:         CuvInfo | null;
   _local_id?:        string;
   _pendiente_sync?:  boolean;
   documentos_count?: number;
@@ -143,6 +218,12 @@ export interface Documento {
   uri_local?:      string;
   estado:          'pendiente' | 'recibido' | 'rechazado' | 'no_aplica';
   notas?:          string;
+  /** Ya validado por un administrador: el asesor solo lo ve. */
+  validado?:       boolean;
+  /** Lo subió un gestor (o es la CUV): el asesor solo lo ve. */
+  de_gestor?:      boolean;
+  /** Lo calcula el backend según el rol: puede reemplazar o borrar. */
+  puede_modificar?: boolean;
   /** Lo decide un administrador: en revisión, validado o rechazado (con motivo). */
   validacion?:     'en_revision' | 'validado' | 'rechazado';
   motivo_rechazo?: string | null;
@@ -375,6 +456,8 @@ export interface ExpedienteAcreditado {
   fecha_firma?:          string;
   fecha_esperada_pago?:  string;
   guia_paso_actual:      string;
+  seguimiento?:          Seguimiento;
+  cuv?:                  string | null;
   documentos_pendientes: number;
   /** Documentos que un administrador pidió y aún no sube (con la nota que explica cuál falta). */
   documentos_solicitados?: { id: number; tipo: string; nota: string; solicitado_at?: string }[];

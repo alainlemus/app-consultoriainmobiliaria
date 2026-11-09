@@ -10,9 +10,11 @@ import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import {
-  getEncargo, urlDocumento, enviarRevision, entregarEncargo, reabrirEncargo, subidasPendientes, esErrorDeRed,
+  getEncargo, urlDocumento, enviarRevision, entregarEncargo, reabrirEncargo, subidasPendientes, esErrorDeRed, registrarCuvGestor,
   type EncargoDetalle, type SubidaGestor,
 } from '@/src/services/gestorApi';
+import { Modal } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Badge, BadgeEstadoEncargo, fechaCorta, venceInfo } from '@/src/components/gestor/encargoUi';
 
 type Marca = { revision?: 'correcto' | 'incorrecto'; nota: string };
@@ -154,6 +156,27 @@ export default function EncargoGestorScreen() {
   const irASubir = (extra: Record<string, string> = {}) =>
     router.push({ pathname: '/gestor/subir', params: { encargoId: String(encargoId), folio: e?.expediente.folio ?? '', ...extra } });
 
+  // CUV: la registra el gestor con encargo en trámite
+  const [cuvModal, setCuvModal] = useState(false);
+  const [cuv, setCuv]           = useState('');
+  const [cuvFoto, setCuvFoto]   = useState<{ uri: string; mimeType: string; nombre: string } | null>(null);
+  const [guardandoCuv, setGuardandoCuv] = useState(false);
+  async function elegirFotoCuv() {
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (!r.canceled && r.assets[0]) setCuvFoto({ uri: r.assets[0].uri, mimeType: r.assets[0].mimeType ?? 'image/jpeg', nombre: r.assets[0].fileName ?? 'cuv.jpg' });
+  }
+  async function guardarCuv() {
+    if (!/^\d{16}$/.test(cuv)) { Alert.alert('CUV incompleta', 'La CUV son 16 dígitos.'); return; }
+    setGuardandoCuv(true);
+    try {
+      await registrarCuvGestor(encargoId, cuv, cuvFoto ?? undefined);
+      setCuvModal(false); setCuv(''); setCuvFoto(null);
+      Alert.alert('CUV registrada', 'Avisamos al acreditado, al asesor y a la administración.');
+    } catch (err: unknown) {
+      Alert.alert('No se pudo registrar', err instanceof Error ? err.message : 'Inténtalo de nuevo.');
+    } finally { setGuardandoCuv(false); }
+  }
+
   if (!e) {
     return (
       <View style={[s.flex, { paddingTop: insets.top }]}>
@@ -214,6 +237,16 @@ export default function EncargoGestorScreen() {
             </View>
           )}
           {e.estado === 'en_tramite' && <Aviso icon="checkmark-circle" tipo="ok" texto="Todos los documentos están correctos. Ya puedes tramitar y subir lo que obtengas." />}
+          {(e.estado === 'en_tramite' || e.estado === 'por_validar') && (
+            <TouchableOpacity style={cuvS.btn} onPress={() => setCuvModal(true)}>
+              <Ionicons name="home-outline" size={18} color={Colors.dark[900]} />
+              <View style={{ flex: 1 }}>
+                <Text style={cuvS.titulo}>Registrar CUV</Text>
+                <Text style={cuvS.sub}>Clave Única de Vivienda (16 dígitos) que te entregó la unidad de valuación</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.dark[700]} />
+            </TouchableOpacity>
+          )}
           {e.estado === 'por_validar' && <Aviso icon="hourglass-outline" tipo="oro" texto="Avisaste que terminaste. La administración está validando tus documentos; te avisaremos cuando termine o si rechaza alguno." />}
           {e.estado === 'terminado' && <Aviso icon="trophy-outline" tipo="ok" texto="Encargo terminado: la administración validó todo lo que subiste. ¡Gracias!" />}
           {e.estado === 'cancelado' && <Aviso icon="close-circle-outline" tipo="neutro" texto="La administración canceló este encargo. Ya no tienes que tramitarlo." />}
@@ -397,6 +430,26 @@ export default function EncargoGestorScreen() {
           )}
         </View>
       </View>
+      <Modal visible={cuvModal} transparent animationType="fade" onRequestClose={() => setCuvModal(false)}>
+        <View style={cuvS.fondo}>
+          <View style={cuvS.card}>
+            <Text style={cuvS.modalTitulo}>Registrar CUV</Text>
+            <Text style={cuvS.sub}>16 dígitos, tal como la entrega la unidad de valuación.</Text>
+            <TextInput style={cuvS.input} value={cuv} onChangeText={v => setCuv(v.replace(/\D/g, '').slice(0, 16))} keyboardType="number-pad" maxLength={16} placeholder="0000000000000000" placeholderTextColor={Colors.dark[400]} />
+            <Text style={cuvS.sub}>{cuv.length}/16</Text>
+            <TouchableOpacity style={cuvS.foto} onPress={elegirFotoCuv}>
+              <Ionicons name={cuvFoto ? 'checkmark-circle' : 'camera-outline'} size={18} color={cuvFoto ? '#15803d' : Colors.dark[700]} />
+              <Text style={cuvS.fotoText}>{cuvFoto ? 'Foto adjunta' : 'Adjuntar foto (opcional)'}</Text>
+            </TouchableOpacity>
+            <View style={cuvS.btns}>
+              <TouchableOpacity style={cuvS.cancel} onPress={() => setCuvModal(false)}><Text style={cuvS.cancelText}>Cancelar</Text></TouchableOpacity>
+              <TouchableOpacity style={cuvS.ok} onPress={guardarCuv} disabled={guardandoCuv}>
+                {guardandoCuv ? <ActivityIndicator color={Colors.dark[900]} /> : <Text style={cuvS.okText}>Guardar</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -436,6 +489,23 @@ function Boton({ label, icon, onPress, disabled, loading, outline }: { label: st
     </TouchableOpacity>
   );
 }
+
+const cuvS = StyleSheet.create({
+  btn:         { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.gold[400], borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.sm },
+  titulo:      { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
+  sub:         { fontSize: Typography.fontSize.xs, color: Colors.dark[700], marginTop: 1 },
+  fondo:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: Spacing.xl },
+  card:        { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.xl, gap: Spacing.sm },
+  modalTitulo: { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
+  input:       { borderWidth: 1, borderColor: Colors.cream[300], borderRadius: Radius.md, padding: Spacing.md, fontSize: Typography.fontSize.xl, letterSpacing: 3, fontFamily: 'monospace', color: Colors.dark[900], textAlign: 'center' },
+  foto:        { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: Spacing.sm },
+  fotoText:    { fontSize: Typography.fontSize.sm, color: Colors.dark[700] },
+  btns:        { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+  cancel:      { flex: 1, padding: Spacing.md, alignItems: 'center', borderRadius: Radius.md, backgroundColor: Colors.cream[100] },
+  cancelText:  { color: Colors.dark[700], fontWeight: Typography.fontWeight.semibold },
+  ok:          { flex: 1, padding: Spacing.md, alignItems: 'center', borderRadius: Radius.md, backgroundColor: Colors.gold[400] },
+  okText:      { color: Colors.dark[900], fontWeight: Typography.fontWeight.bold },
+});
 
 const s = StyleSheet.create({
   flex:       { flex: 1, backgroundColor: Colors.cream[50] },

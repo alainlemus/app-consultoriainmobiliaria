@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
+import CampanaNotificaciones from '@/src/components/CampanaNotificaciones';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { getEncargos, type EncargoResumen, type FiltroEncargos } from '@/src/services/gestorApi';
 import { BadgeEstadoEncargo, fechaCorta, venceInfo } from '@/src/components/gestor/encargoUi';
@@ -71,6 +72,7 @@ export default function GestorExpedientesScreen() {
             <Text style={s.headerSub}>GESTOR{nombre ? ` · HOLA, ${nombre}` : ''}</Text>
             <Text style={s.headerTitle}>Expedientes</Text>
           </View>
+          <CampanaNotificaciones tipo="staff" />
           <TouchableOpacity style={s.ayudaBtn} onPress={() => router.push('/ayuda-gestor')} accessibilityLabel="¿Cómo funciona?">
             <Ionicons name="help-circle-outline" size={22} color={Colors.cream[50]} />
           </TouchableOpacity>

@@ -341,6 +341,21 @@ export default function DetalleProspectoScreen() {
             <InfoRow label="Correo"    value={contacto.email ?? '—'} />
             <InfoRow label="CURP"      value={contacto.curp ?? '—'} last />
           </Card>
+          <View style={styles.contactoAcciones}>
+            {contacto.telefono ? (
+              <>
+                <TouchableOpacity style={styles.contactoBtn} onPress={() => Linking.openURL(`tel:${contacto.telefono}`)}>
+                  <Ionicons name="call-outline" size={18} color={Colors.gold[400]} /><Text style={styles.contactoBtnText}>Llamar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.contactoBtn} onPress={() => Linking.openURL(`https://wa.me/52${(contacto.telefono ?? '').replace(/\D/g, '')}`)}>
+                  <Ionicons name="logo-whatsapp" size={18} color="#25d366" /><Text style={styles.contactoBtnText}>WhatsApp</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+            <TouchableOpacity style={[styles.contactoBtn, styles.contactoBtnOro]} onPress={() => router.push({ pathname: '/citas/nueva', params: { contacto_id: String(contacto.id), nombre: contacto.nombre } })}>
+              <Ionicons name="calendar-outline" size={18} color={Colors.dark[900]} /><Text style={[styles.contactoBtnText, { color: Colors.dark[900] }]}>Agendar cita</Text>
+            </TouchableOpacity>
+          </View>
 
           {contacto.notas ? (
             <>
@@ -881,6 +896,10 @@ function FormField({ label, children, border, last }: { label: string; children:
 // ── Estilos ────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  contactoAcciones: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.sm },
+  contactoBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.dark[900], paddingHorizontal: Spacing.md, paddingVertical: 10, borderRadius: Radius.md },
+  contactoBtnOro:   { backgroundColor: Colors.gold[400] },
+  contactoBtnText:  { fontSize: Typography.fontSize.xs, color: Colors.cream[200], fontWeight: Typography.fontWeight.semibold },
   flex:     { flex: 1, backgroundColor: Colors.cream[50] },
   center:   { flex: 1, alignItems: 'center', justifyContent: 'center' },
   notFound: { textAlign: 'center', color: Colors.dark[400], marginTop: 40 },

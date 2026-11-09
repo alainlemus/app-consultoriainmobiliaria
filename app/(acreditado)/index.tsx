@@ -12,6 +12,8 @@ import { getExpedienteAcreditado, logoutAcreditado } from '@/src/services/acredi
 import { useAcreditadoAuth } from '@/src/contexts/AcreditadoAuthContext';
 import type { ExpedienteAcreditado } from '@/src/types';
 import PrimerosPasos from '@/src/screens/primerosPasos/PrimerosPasos';
+import CampanaNotificaciones from '@/src/components/CampanaNotificaciones';
+import SeguimientoTramite from '@/src/components/SeguimientoTramite';
 import {
   cargarProgreso, borrarProgreso, haySolicitudPendiente, NUMERO_PASO, NOMBRE_PASO, NOMBRE_CREDITO,
   type ProgresoPrimerosPasos,
@@ -131,10 +133,13 @@ export default function MiTramiteScreen() {
               <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? 'bienvenido'}</Text>
               <Text style={styles.headerSub}>Consultoría Inmobiliaria</Text>
             </View>
-            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={16} color={Colors.dark[400]} />
-              <Text style={styles.logoutText}>Salir</Text>
-            </TouchableOpacity>
+            <View style={styles.headerAcciones}>
+              <CampanaNotificaciones tipo="acreditado" color={Colors.dark[400]} size={20} />
+              <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+                <Ionicons name="log-out-outline" size={16} color={Colors.dark[400]} />
+                <Text style={styles.logoutText}>Salir</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
         <ScrollView
@@ -152,6 +157,10 @@ export default function MiTramiteScreen() {
                 <Text style={styles.asesorLabel}>TU ASESOR</Text>
                 <Text style={styles.asesorCardNombre}>{acreditado.asesor.nombre}</Text>
                 <Text style={styles.asesorTexto}>Te acompaña en todo el trámite.</Text>
+                <TouchableOpacity style={[styles.asesorBtn, { alignSelf: 'flex-start', marginTop: Spacing.sm }]} onPress={() => router.push({ pathname: '/citas/nueva', params: { tipo: 'acreditado' } })}>
+                  <Ionicons name="calendar-outline" size={18} color={Colors.gold[400]} />
+                  <Text style={styles.asesorBtnText}>Agendar cita</Text>
+                </TouchableOpacity>
                 {acreditado.asesor.telefono ? (
                   <View style={styles.asesorAcciones}>
                     <TouchableOpacity style={styles.asesorBtn} onPress={() => Linking.openURL(`tel:${acreditado.asesor!.telefono}`)}>
@@ -263,10 +272,13 @@ export default function MiTramiteScreen() {
             <Text style={styles.headerTitle}>Hola, {acreditado?.name?.split(' ')[0] ?? ''}</Text>
             <Text style={styles.headerSub}>Consultoría Inmobiliaria</Text>
           </View>
-          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={16} color={Colors.dark[400]} />
-            <Text style={styles.logoutText}>Salir</Text>
-          </TouchableOpacity>
+          <View style={styles.headerAcciones}>
+            <CampanaNotificaciones tipo="acreditado" color={Colors.dark[400]} size={20} />
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={16} color={Colors.dark[400]} />
+              <Text style={styles.logoutText}>Salir</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -290,13 +302,39 @@ export default function MiTramiteScreen() {
               )}
             </View>
 
-            {/* Guía del paso actual */}
-            <View style={[styles.card, styles.guiaCard]}>
-              <View style={styles.guiaHeader}>
-                <Ionicons name="information-circle" size={20} color={Colors.gold[400]} />
-                <Text style={styles.guiaTitle}>¿Qué está pasando?</Text>
+            {/* Seguimiento del trámite: los 7 pasos y el mensaje del paso actual */}
+            {expediente.seguimiento ? (
+              <SeguimientoTramite seguimiento={{ ...expediente.seguimiento, mensaje: expediente.guia_paso_actual || expediente.seguimiento.mensaje }} dark />
+            ) : (
+              <View style={[styles.card, styles.guiaCard]}>
+                <View style={styles.guiaHeader}>
+                  <Ionicons name="information-circle" size={20} color={Colors.gold[400]} />
+                  <Text style={styles.guiaTitle}>¿Qué está pasando?</Text>
+                </View>
+                <Text style={styles.guiaText}>{expediente.guia_paso_actual}</Text>
               </View>
-              <Text style={styles.guiaText}>{expediente.guia_paso_actual}</Text>
+            )}
+
+            {expediente.cuv ? (
+              <View style={[styles.card, styles.guiaCard]}>
+                <View style={styles.guiaHeader}>
+                  <Ionicons name="home" size={20} color={Colors.gold[400]} />
+                  <Text style={styles.guiaTitle}>Tu CUV</Text>
+                </View>
+                <Text style={styles.cuvValor}>{expediente.cuv}</Text>
+                <Text style={styles.guiaText}>Clave Única de Vivienda. Guárdala: la pedirán en el banco y en la notaría.</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.citasRow}>
+              <TouchableOpacity style={styles.citaBtn} onPress={() => router.push({ pathname: '/citas/nueva', params: { tipo: 'acreditado' } })}>
+                <Ionicons name="calendar-outline" size={18} color={Colors.dark[900]} />
+                <Text style={styles.citaBtnText}>Agendar cita</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.citaBtn, styles.citaBtnSec]} onPress={() => router.push({ pathname: '/citas', params: { tipo: 'acreditado' } })}>
+                <Ionicons name="list-outline" size={18} color={Colors.cream[50]} />
+                <Text style={[styles.citaBtnText, { color: Colors.cream[50] }]}>Mis citas</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Documento que un administrador pidió: la nota explica cuál falta */}
@@ -441,6 +479,12 @@ const styles = StyleSheet.create({
   ppBtn:           { backgroundColor: Colors.gold[400], borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.lg, minHeight: 48, justifyContent: 'center' },
   ppBtnText:       { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   ppLlamada:       { width: '100%', flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg },
+  headerAcciones:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  cuvValor:        { fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.bold, color: Colors.cream[50], letterSpacing: 2, marginBottom: Spacing.xs, fontFamily: 'monospace' },
+  citasRow:        { flexDirection: 'row', gap: Spacing.sm, width: '100%' },
+  citaBtn:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: Colors.gold[400], borderRadius: Radius.md, paddingVertical: Spacing.md },
+  citaBtnSec:      { backgroundColor: Colors.dark[700] },
+  citaBtnText:     { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   asesorCard:      { width: '100%', flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.gold[400] + '55' },
   asesorIcono:     { width: 44, height: 44, borderRadius: Radius.md, backgroundColor: Colors.dark[700], alignItems: 'center', justifyContent: 'center' },
   asesorLabel:     { fontSize: Typography.fontSize.xs, letterSpacing: 1.2, color: Colors.gold[400], fontWeight: Typography.fontWeight.semibold },

@@ -254,12 +254,21 @@ export default function DocumentosExpediente({ expedienteId, acreditadoEnApp = f
                     ? <ActivityIndicator size="small" color={Colors.dark[900]} />
                     : <View style={styles.accionFila}><Ionicons name="eye" size={16} color={Colors.dark[900]} /><Text style={styles.accionVerText}>Ver</Text></View>}
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.accion} onPress={() => reemplazar(doc)} activeOpacity={0.8}>
-                  <View style={styles.accionFila}><Ionicons name="swap-horizontal" size={16} color={Colors.dark[700]} /><Text style={styles.accionText}>Reemplazar</Text></View>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.accion} onPress={() => eliminar(doc)} activeOpacity={0.8}>
-                  <View style={styles.accionFila}><Ionicons name="trash-outline" size={16} color={Colors.crimson[600]} /><Text style={[styles.accionText, styles.accionEliminar]}>Eliminar</Text></View>
-                </TouchableOpacity>
+                {/* Validado, de gestor o CUV: el asesor solo lo ve (el backend también lo impide) */}
+                {(doc.puede_modificar ?? (isSuperAdmin || (doc.validacion !== 'validado' && !doc.de_gestor))) ? (
+                  <>
+                    <TouchableOpacity style={styles.accion} onPress={() => reemplazar(doc)} activeOpacity={0.8}>
+                      <View style={styles.accionFila}><Ionicons name="swap-horizontal" size={16} color={Colors.dark[700]} /><Text style={styles.accionText}>Reemplazar</Text></View>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.accion} onPress={() => eliminar(doc)} activeOpacity={0.8}>
+                      <View style={styles.accionFila}><Ionicons name="trash-outline" size={16} color={Colors.crimson[600]} /><Text style={[styles.accionText, styles.accionEliminar]}>Eliminar</Text></View>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <View style={[styles.accion, { opacity: 0.7 }]}>
+                    <View style={styles.accionFila}><Ionicons name="lock-closed-outline" size={14} color={Colors.dark[500]} /><Text style={styles.accionText}>{doc.de_gestor ? 'Del gestor · solo ver' : 'Validado · solo ver'}</Text></View>
+                  </View>
+                )}
               </View>
 
               {isSuperAdmin ? (

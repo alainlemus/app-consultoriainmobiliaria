@@ -3,12 +3,14 @@
  * (escanear o subir, ver, eliminar). Sin etapas ni estados: eso se lleva en el panel.
  */
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View, Linking, Modal, TextInput } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Radius, Spacing, Typography } from '../../src/theme';
-import { enviarCarpetaExpediente, getExpediente } from '../../src/services/api';
+import { enviarCarpetaExpediente, getExpediente, avanzarSeguimiento, registrarCuv } from '../../src/services/api';
+import SeguimientoTramite from '../../src/components/SeguimientoTramite';
 import type { Documento } from '../../src/types';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { getCacheExpediente } from '../../src/services/offline';
@@ -25,6 +27,41 @@ export default function DetalleExpedienteScreen() {
   const [exp, setExp]         = useState<Expediente | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError]     = useState<string | null>(null);
+
+  // CUV (super admin): 16 dígitos + foto opcional
+  const [cuvModal, setCuvModal] = useState(false);
+  const [cuv, setCuv]           = useState('');
+  const [cuvFoto, setCuvFoto]   = useState<{ uri: string; mimeType: string; nombre: string } | null>(null);
+  const [guardandoCuv, setGuardandoCuv] = useState(false);
+
+  async function elegirFotoCuv() {
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (!r.canceled && r.assets[0]) setCuvFoto({ uri: r.assets[0].uri, mimeType: r.assets[0].mimeType ?? 'image/jpeg', nombre: r.assets[0].fileName ?? 'cuv.jpg' });
+  }
+
+  async function guardarCuv() {
+    if (!/^\d{16}$/.test(cuv)) { Alert.alert('CUV incompleta', 'La CUV son 16 dígitos.'); return; }
+    if (!exp) return;
+    setGuardandoCuv(true);
+    try {
+      const r = await registrarCuv(exp.id, cuv, cuvFoto ?? undefined);
+      setExp({ ...exp, cuv_info: r.cuv_info, seguimiento: r.seguimiento });
+      setCuvModal(false); setCuv(''); setCuvFoto(null);
+      Alert.alert('CUV registrada', 'El acreditado y el asesor ya fueron avisados. El seguimiento pasó a «Recurso en gestión».');
+    } catch (e: unknown) {
+      Alert.alert('No se pudo registrar', e instanceof Error ? e.message : 'Inténtalo de nuevo.');
+    } finally { setGuardandoCuv(false); }
+  }
+
+  function marcarPaso(paso: 'en_unidad_valuacion' | 'firma', titulo: string) {
+    Alert.alert(titulo, 'El acreditado y el asesor recibirán el aviso de este paso.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Marcar', onPress: async () => {
+        try { const s = await avanzarSeguimiento(exp!.id, paso); setExp(e => e ? { ...e, seguimiento: s } : e); }
+        catch (e: unknown) { Alert.alert('No se pudo', e instanceof Error ? e.message : 'Inténtalo de nuevo.'); }
+      } },
+    ]);
+  }
 
   useEffect(() => {
     getExpediente(Number(id))
@@ -106,6 +143,62 @@ export default function DetalleExpedienteScreen() {
             </View>
           ) : null}
 
+          {/* Contacto con el cliente + agendar cita */}
+          <View style={styles.contactoAcciones}>
+            {contacto?.telefono ? (
+              <>
+                <TouchableOpacity style={styles.contactoBtn} onPress={() => Linking.openURL(`tel:${contacto.telefono}`)}>
+                  <Ionicons name="call-outline" size={18} color={Colors.gold[400]} /><Text style={styles.contactoBtnText}>Llamar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.contactoBtn} onPress={() => Linking.openURL(`https://wa.me/52${(contacto.telefono ?? '').replace(/\D/g, '')}`)}>
+                  <Ionicons name="logo-whatsapp" size={18} color="#25d366" /><Text style={styles.contactoBtnText}>WhatsApp</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+            <TouchableOpacity style={[styles.contactoBtn, styles.contactoBtnOro]} onPress={() => router.push({ pathname: '/citas/nueva', params: { expediente_id: String(exp.id), nombre: contacto?.nombre ?? '' } })}>
+              <Ionicons name="calendar-outline" size={18} color={Colors.dark[900]} /><Text style={[styles.contactoBtnText, { color: Colors.dark[900] }]}>Agendar cita</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Seguimiento del trámite (igual que lo ve el acreditado) */}
+          {exp.seguimiento ? <View style={{ marginTop: Spacing.md }}><SeguimientoTramite seguimiento={exp.seguimiento} /></View> : null}
+
+          {/* CUV: el asesor la ve; el super admin la registra */}
+          {(exp.cuv_info || isSuperAdmin) ? (
+            <View style={styles.cuvCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cuvLabel}>CUV · CLAVE ÚNICA DE VIVIENDA</Text>
+                {exp.cuv_info ? (
+                  <>
+                    <Text style={styles.cuvValor}>{exp.cuv_info.valor}</Text>
+                    <Text style={styles.cuvSub}>Registrada{exp.cuv_info.por ? ` por ${exp.cuv_info.por}` : ''}{exp.cuv_info.fecha ? ` · ${new Date(exp.cuv_info.fecha).toLocaleDateString('es-MX')}` : ''}</Text>
+                  </>
+                ) : <Text style={styles.cuvSub}>Aún no se registra. La entrega la unidad de valuación.</Text>}
+              </View>
+              {isSuperAdmin ? (
+                <TouchableOpacity style={styles.cuvBtn} onPress={() => { setCuv(exp.cuv_info?.valor ?? ''); setCuvModal(true); }}>
+                  <Ionicons name="home-outline" size={16} color={Colors.dark[900]} /><Text style={styles.cuvBtnText}>{exp.cuv_info ? 'Corregir' : 'Registrar'}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* Pasos que marca el super admin (no tienen evento en el sistema) */}
+          {isSuperAdmin && exp.seguimiento ? (
+            <View style={styles.pasosManuales}>
+              {exp.seguimiento.orden < 4 ? (
+                <TouchableOpacity style={styles.pasoBtn} onPress={() => marcarPaso('en_unidad_valuacion', 'Enviado a unidad de valuación')}>
+                  <Ionicons name="business-outline" size={16} color={Colors.dark[900]} /><Text style={styles.pasoBtnText}>Enviado a unidad de valuación</Text>
+                </TouchableOpacity>
+              ) : null}
+              {exp.seguimiento.orden < 6 ? (
+                <TouchableOpacity style={styles.pasoBtn} onPress={() => marcarPaso('firma', 'Marcar firma')}>
+                  <Ionicons name="create-outline" size={16} color={Colors.dark[900]} /><Text style={styles.pasoBtnText}>Marcar firma</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+
           {isSuperAdmin ? (
             <TouchableOpacity style={[styles.carpetaBtn, !carpetaLista && styles.carpetaBtnOff]} onPress={enviarCarpeta} disabled={enviando} activeOpacity={0.85}>
               {enviando
@@ -127,6 +220,28 @@ export default function DetalleExpedienteScreen() {
           />
         </ScrollView>
       )}
+
+      {/* Registrar CUV */}
+      <Modal visible={cuvModal} transparent animationType="fade" onRequestClose={() => setCuvModal(false)}>
+        <View style={styles.modalFondo}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitulo}>Registrar CUV</Text>
+            <Text style={styles.cuvSub}>Clave Única de Vivienda, 16 dígitos, tal como la entrega la unidad de valuación.</Text>
+            <TextInput style={styles.modalInput} value={cuv} onChangeText={v => setCuv(v.replace(/\D/g, '').slice(0, 16))} keyboardType="number-pad" maxLength={16} placeholder="0000000000000000" placeholderTextColor={Colors.dark[400]} />
+            <Text style={styles.cuvSub}>{cuv.length}/16</Text>
+            <TouchableOpacity style={styles.modalFoto} onPress={elegirFotoCuv}>
+              <Ionicons name={cuvFoto ? 'checkmark-circle' : 'camera-outline'} size={18} color={cuvFoto ? '#15803d' : Colors.dark[700]} />
+              <Text style={styles.modalFotoText}>{cuvFoto ? 'Foto adjunta' : 'Adjuntar foto (opcional)'}</Text>
+            </TouchableOpacity>
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setCuvModal(false)}><Text style={styles.modalCancelText}>Cancelar</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.modalOk} onPress={guardarCuv} disabled={guardandoCuv}>
+                {guardandoCuv ? <ActivityIndicator color={Colors.dark[900]} /> : <Text style={styles.modalOkText}>Guardar</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -154,6 +269,30 @@ const styles = StyleSheet.create({
   nombre:  { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
   sub:     { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
   datos:   { backgroundColor: Colors.white, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[200], padding: Spacing.md, marginTop: Spacing.xs, gap: 6 },
+  contactoAcciones: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.sm },
+  contactoBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.dark[900], paddingHorizontal: Spacing.md, paddingVertical: 10, borderRadius: Radius.md },
+  contactoBtnOro:   { backgroundColor: Colors.gold[400] },
+  contactoBtnText:  { fontSize: Typography.fontSize.xs, color: Colors.cream[200], fontWeight: Typography.fontWeight.semibold },
+  cuvCard:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.white, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.cream[200], padding: Spacing.md, marginTop: Spacing.md },
+  cuvLabel:    { fontSize: Typography.fontSize.xs, letterSpacing: 1, color: Colors.dark[500], fontWeight: Typography.fontWeight.bold },
+  cuvValor:    { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900], letterSpacing: 2, fontFamily: 'monospace', marginTop: 2 },
+  cuvSub:      { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
+  cuvBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.gold[400], paddingHorizontal: Spacing.md, paddingVertical: 10, borderRadius: Radius.md },
+  cuvBtnText:  { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
+  pasosManuales: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.md },
+  pasoBtn:     { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.cream[100], borderWidth: 1, borderColor: Colors.gold[400], paddingHorizontal: Spacing.md, paddingVertical: 10, borderRadius: Radius.md },
+  pasoBtnText: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.semibold, color: Colors.dark[900] },
+  modalFondo:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: Spacing.xl },
+  modalCard:   { backgroundColor: Colors.white, borderRadius: Radius.lg, padding: Spacing.xl, gap: Spacing.sm },
+  modalTitulo: { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
+  modalInput:  { borderWidth: 1, borderColor: Colors.cream[300], borderRadius: Radius.md, padding: Spacing.md, fontSize: Typography.fontSize.xl, letterSpacing: 3, fontFamily: 'monospace', color: Colors.dark[900], textAlign: 'center' },
+  modalFoto:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: Spacing.sm },
+  modalFotoText: { fontSize: Typography.fontSize.sm, color: Colors.dark[700] },
+  modalBtns:   { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+  modalCancel: { flex: 1, padding: Spacing.md, alignItems: 'center', borderRadius: Radius.md, backgroundColor: Colors.cream[100] },
+  modalCancelText: { color: Colors.dark[700], fontWeight: Typography.fontWeight.semibold },
+  modalOk:     { flex: 1, padding: Spacing.md, alignItems: 'center', borderRadius: Radius.md, backgroundColor: Colors.gold[400] },
+  modalOkText: { color: Colors.dark[900], fontWeight: Typography.fontWeight.bold },
   carpetaBtnOff: { opacity: 0.45 },
   carpetaBtn:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.gold[400], borderRadius: Radius.md, padding: Spacing.md, marginTop: Spacing.md },
   carpetaTitulo: { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
