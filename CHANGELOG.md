@@ -4,6 +4,8 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+## [2.11.0] - 2026-11-09
+
 ### Agregado
 - Notificaciones: campana con contador en el inicio del asesor, del gestor y del acreditado, y bandeja con el historial completo (leídas y no leídas, texto íntegro). Solo lectura: se marcan al abrir, no se borran. Requiere backend 1.15.0.
 - Seguimiento del trámite en 7 pasos, igual para el acreditado (en Mi trámite) y el asesor (en el expediente): Validación de documentos → Trámites en gestión → Trámites gestionados → En unidad de valuación → Recurso en gestión → Firma → Crédito entregado. El texto de cada paso lo edita la oficina.
