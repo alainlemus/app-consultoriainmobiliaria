@@ -4,6 +4,8 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+## [2.12.0] - 2026-11-18
+
 ### Agregado
 - Vehículos de la empresa (botón «Vehículos» en el inicio del asesor). El asesor pide una moto (o el vehículo que se configure) por horas o por todo el día, elige uno en particular o «el que esté libre» y puede ligar la visita a una cita, prospecto o expediente. El super admin autoriza desde el panel y la app avisa con notificación.
 - Salida y entrega con checklist: fotos del tablero y del vehículo, km, nivel de gasolina y daños. Al tomar la foto del tablero la app lee el kilometraje sola y el asesor solo lo confirma.
