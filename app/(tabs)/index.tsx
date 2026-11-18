@@ -1,12 +1,13 @@
 import { APP_VERSION } from '../../src/version';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet,
   TouchableOpacity, RefreshControl, StatusBar, Image,
   Switch, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { getEncargosAdmin } from '../../src/services/adminGestoresApi';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../../src/theme';
 import Badge, { ESTADO_PROSPECTO_BADGE } from '../../src/components/ui/Badge';
@@ -15,6 +16,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useRouteTracking } from '../../src/hooks/useRouteTracking';
 import AvisoRuta from '../../src/components/AvisoRuta';
 import CampanaNotificaciones from '../../src/components/CampanaNotificaciones';
+import CambiarInterfaz from '../../src/components/CambiarInterfaz';
 import type { User, Contacto } from '../../src/types';
 
 interface Stats {
@@ -42,6 +44,12 @@ export default function DashboardScreen() {
   // Usamos authLoading para no mostrar el botón hasta saber el rol real.
   const mostrarRutas = !authLoading && (isSuperAdmin || isAsesor);
   const [avisoRuta, setAvisoRuta] = useState(false);   // aviso antes de activar la ruta
+  // Super admin: encargos a gestores que ya pasaron su fecha (número en el botón «Gestores»)
+  const [gestoresVencidos, setGestoresVencidos] = useState(0);
+  useFocusEffect(useCallback(() => {
+    if (!isSuperAdmin) return;
+    getEncargosAdmin({ filtro: 'vencidos' }).then(r => setGestoresVencidos(r.meta.vencidos)).catch(() => {});
+  }, [isSuperAdmin]));
   const { estaActivo, pendientes: routePendientes, iniciando, error: routeError, activar, desactivar } = useRouteTracking(isAsesor);
 
   // Usar el user del AuthContext si está disponible (evita llamar getMe() de nuevo)
@@ -128,6 +136,7 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
           <View style={styles.goldBar} />
+          <CambiarInterfaz user={authUser} hacia="gestor" />
         </View>
 
         <View style={styles.body}>
@@ -158,6 +167,9 @@ export default function DashboardScreen() {
             <ActionTile icon="calendar" label={isSuperAdmin ? 'Mi agenda' : 'Citas'} onPress={() => router.push('/citas')} />
             {isAsesor && (
               <ActionTile icon="car" label="Vehículos" onPress={() => router.push('/vehiculos')} />
+            )}
+            {isSuperAdmin && (
+              <ActionTile icon="briefcase" label="Gestores" badge={gestoresVencidos} onPress={() => router.push('/admin-gestores')} />
             )}
             {mostrarRutas && (
               <ActionTile icon="trail-sign" label="Rutas" onPress={() => router.push('/rutas')} />
@@ -278,7 +290,7 @@ function KpiCard({ label, value, icon, accent, onPress }: { label: string; value
   );
 }
 
-function ActionTile({ icon, label, onPress, primary }: { icon: IconName; label: string; onPress: () => void; primary?: boolean }) {
+function ActionTile({ icon, label, onPress, primary, badge }: { icon: IconName; label: string; onPress: () => void; primary?: boolean; badge?: number }) {
   return (
     <TouchableOpacity
       style={[styles.actionTile, primary && styles.actionTilePrimary]}
@@ -287,6 +299,11 @@ function ActionTile({ icon, label, onPress, primary }: { icon: IconName; label: 
     >
       <Ionicons name={icon} size={30} color={primary ? Colors.gold[400] : Colors.dark[700]} />
       <Text style={[styles.actionLabel, primary && styles.actionLabelPrimary]}>{label}</Text>
+      {badge ? (
+        <View style={styles.actionBadge} accessibilityLabel={`${badge} vencidos`}>
+          <Text style={styles.actionBadgeText}>{badge > 99 ? '99+' : badge}</Text>
+        </View>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -371,6 +388,11 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
     minHeight:       90,           // área táctil mínima cómoda
   },
+  actionBadge: {
+    position: 'absolute', top: Spacing.sm, right: Spacing.sm, minWidth: 22, height: 22, borderRadius: 11,
+    paddingHorizontal: 6, backgroundColor: Colors.crimson[600], alignItems: 'center', justifyContent: 'center',
+  },
+  actionBadgeText: { color: Colors.white, fontSize: 12, fontWeight: Typography.fontWeight.bold },
   actionTilePrimary: {
     flexBasis:       '100%',   // la acción principal ocupa todo el ancho
     paddingVertical: Spacing.lg,

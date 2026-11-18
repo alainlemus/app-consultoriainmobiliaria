@@ -12,6 +12,9 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 - Cargas de gasolina con foto del ticket, pagadas con tarjeta o efectivo de la empresa o por reembolso, y la pantalla «Mis reembolsos» con lo que falta por cobrar.
 - Si la administración le da prioridad a otra visita, el asesor ve el motivo y puede tomar otro vehículo libre con un toque.
 - Recordatorios de salida y regreso por notificación. Requiere backend 1.17.0.
+- Un solo inicio de sesión para todos: ya no se elige «Soy Asesor», «Soy Acreditado» o «Soy Gestor». Con correo y contraseña la app abre la interfaz que le toca a cada cuenta (asesor, gestor, super admin o acreditado). Quien tiene varios roles entra a la última interfaz que usó y cambia desde el inicio o Perfil. «Olvidé mi contraseña» funciona para cualquier tipo de cuenta. Requiere backend 1.18.0.
+- Quien es gestor y asesor a la vez ya puede cambiar de interfaz desde el inicio con el botón «Cambiar a Gestor» o «Cambiar a Asesor», además de desde Perfil.
+- Super admin: botón «Gestores» en el inicio con todo lo que hacen los gestores (abiertos, vencidos, terminados y por gestor) y el número de encargos vencidos. Cada encargo muestra qué tramita, cómo revisó los documentos, lo que subió y su historial. En el expediente aparece la sección «Gestores», y los avisos de un gestor abren directo su encargo. Solo lectura; enviar, corregir y cancelar siguen en el panel web. Requiere backend 1.18.0.
 
 ### Cambiado
 - Inicio: el nombre del usuario se ve un poco más chico y, si es muy largo, se corta con «…» para no encimarse con la campana.

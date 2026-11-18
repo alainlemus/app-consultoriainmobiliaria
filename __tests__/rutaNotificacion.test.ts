@@ -47,6 +47,12 @@ describe('rutaParaNotificacion — gestor', () => {
   it('abre el encargo del gestor', () => {
     expect(rutaParaNotificacion({ screen: 'gestor_encargo', encargo_id: '7', expediente_id: '3' }, false)).toBe('/gestor/7');
   });
+  it('al super admin, el aviso de un encargo abre su detalle en Gestores', () => {
+    expect(rutaParaNotificacion({ screen: 'expedientes', encargo_id: '7', expediente_id: '3' }, false)).toBe('/admin-gestores/7');
+    // sin encargo sigue yendo al expediente
+    expect(rutaParaNotificacion({ screen: 'expedientes', expediente_id: '3' }, false)).toBe('/expedientes/3');
+  });
+
   it('sin encargo_id va a su inicio', () => {
     expect(rutaParaNotificacion({ screen: 'gestor_encargo' }, false)).toBe('/(gestor)');
   });
