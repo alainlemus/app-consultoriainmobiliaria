@@ -4,6 +4,18 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+### Agregado
+- Vehículos de la empresa (botón «Vehículos» en el inicio del asesor). El asesor pide una moto (o el vehículo que se configure) por horas o por todo el día, elige uno en particular o «el que esté libre» y puede ligar la visita a una cita, prospecto o expediente. El super admin autoriza desde el panel y la app avisa con notificación.
+- Salida y entrega con checklist: fotos del tablero y del vehículo, km, nivel de gasolina y daños. Al tomar la foto del tablero la app lee el kilometraje sola y el asesor solo lo confirma.
+- Llaves: se dejan en la oficina con foto o se pasan a otro asesor con un código de 4 dígitos que dura 5 minutos.
+- Guardar en casa (resguardo nocturno) y retomar al día siguiente, con fotos y km.
+- Cargas de gasolina con foto del ticket, pagadas con tarjeta o efectivo de la empresa o por reembolso, y la pantalla «Mis reembolsos» con lo que falta por cobrar.
+- Si la administración le da prioridad a otra visita, el asesor ve el motivo y puede tomar otro vehículo libre con un toque.
+- Recordatorios de salida y regreso por notificación. Requiere backend 1.17.0.
+
+### Cambiado
+- Inicio: el nombre del usuario se ve un poco más chico y, si es muy largo, se corta con «…» para no encimarse con la campana.
+
 ## [2.11.0] - 2026-11-09
 
 ### Agregado

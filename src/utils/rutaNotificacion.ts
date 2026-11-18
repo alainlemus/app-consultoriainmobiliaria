@@ -24,6 +24,9 @@ export function rutaParaNotificacion(data: DatosNotificacion | undefined | null,
   // Citas: misma pantalla para los tres roles
   if (d.screen === 'cita') return d.id ? `/citas/${d.id}` : '/citas';
 
+  // Préstamo de vehículos (solo asesores): detalle de la reserva
+  if (d.screen === 'vehiculo_reserva' && !esAcreditado) return d.id ? `/vehiculos/reserva/${d.id}` : '/vehiculos';
+
   if (esAcreditado) {
     // Aviso de documento solicitado: el aviso está en Mi Trámite
     if (d.screen === 'tramite') return INICIO_ACREDITADO;

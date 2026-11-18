@@ -108,7 +108,7 @@ export default function DashboardScreen() {
               />
               <View style={styles.headerTexts}>
                 <Text style={styles.headerGreeting}>Bienvenido</Text>
-                <Text style={styles.headerName} numberOfLines={2}>
+                <Text style={styles.headerName} numberOfLines={1} ellipsizeMode="tail">
                   {user?.name ?? '…'}
                 </Text>
               </View>
@@ -156,6 +156,9 @@ export default function DashboardScreen() {
             <ActionTile icon="map" label="Mapa"            onPress={() => router.push('/mapa')} />
             <ActionTile icon="qr-code" label="Registrados QR" onPress={() => router.push('/registros-qr')} />
             <ActionTile icon="calendar" label={isSuperAdmin ? 'Mi agenda' : 'Citas'} onPress={() => router.push('/citas')} />
+            {isAsesor && (
+              <ActionTile icon="car" label="Vehículos" onPress={() => router.push('/vehiculos')} />
+            )}
             {mostrarRutas && (
               <ActionTile icon="trail-sign" label="Rutas" onPress={() => router.push('/rutas')} />
             )}
@@ -311,14 +314,14 @@ const styles = StyleSheet.create({
     alignItems:    'center',
     gap:           Spacing.sm,
     flex:          1,              // ocupa todo el espacio disponible
-    marginRight:   Spacing.sm,    // deja espacio para el botón salir
+    marginRight:   48,             // deja espacio para la campana (40 px, posición absoluta)
   },
   headerTexts: {
     flex: 1,                       // el texto se comprime antes de encimarse con el botón
   },
   headerLogo:     { width: 44, height: 44, borderRadius: Radius.sm, flexShrink: 0 },
   headerGreeting: { fontSize: Typography.fontSize.xs, color: Colors.gold[400], letterSpacing: 2, fontWeight: Typography.fontWeight.semibold, textTransform: 'uppercase' },
-  headerName:     { fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.black, color: Colors.cream[50], marginTop: 2 },
+  headerName:     { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.black, color: Colors.cream[50], marginTop: 2 },
   goldBar:        { width: 28, height: 2, backgroundColor: Colors.gold[400], marginTop: Spacing.sm },
   campana: { position: 'absolute', right: 64, top: 0 },
   logoutBtn: {

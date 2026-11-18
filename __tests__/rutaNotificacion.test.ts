@@ -14,6 +14,11 @@ describe('rutaParaNotificacion', () => {
     expect(rutaParaNotificacion({ screen: 'cita', id: '5' }, true)).toBe('/citas/5');
     expect(rutaParaNotificacion({ screen: 'cita' }, true)).toBe('/citas');
   });
+  it('vehículos: abre la reserva del asesor', () => {
+    expect(rutaParaNotificacion({ screen: 'vehiculo_reserva', id: '8' }, false)).toBe('/vehiculos/reserva/8');
+    expect(rutaParaNotificacion({ screen: 'vehiculo_reserva' }, false)).toBe('/vehiculos');
+    expect(rutaParaNotificacion({ screen: 'vehiculo_reserva', id: '8' }, true)).toBe('/(acreditado)');
+  });
   it('asesor: registro con su QR abre la lista de registrados', () => {
     expect(rutaParaNotificacion({ screen: 'registros_qr', id: '12' }, false)).toBe('/registros-qr');
   });
