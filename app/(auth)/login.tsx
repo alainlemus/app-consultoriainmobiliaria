@@ -10,8 +10,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing } from '../../src/theme';
 import Input  from '../../src/components/ui/Input';
 import Button from '../../src/components/ui/Button';
-import { login, loginWithToken, obtenerTokenBiometrico } from '../../src/services/api';
-import { loginAcreditado, loginWithTokenAcreditado, obtenerTokenBiometricoAcreditado } from '../../src/services/acreditadoApi';
+import { loginWithToken, obtenerTokenBiometrico } from '../../src/services/api';
+import { entrar } from '../../src/services/entrar';
+import { loginWithTokenAcreditado, obtenerTokenBiometricoAcreditado } from '../../src/services/acreditadoApi';
 import { registrarPushToken, registrarPushTokenAcreditado } from '../../src/services/notifications';
 import {
   isBiometricAvailable,
@@ -23,9 +24,8 @@ import {
   type BiometricTipo,
 } from '../../src/services/biometrics';
 import { isSmallScreen, screenHeight } from '../../src/utils/responsive';
-import { inicioStaff, tieneAmbasInterfaces, guardarInterfaz } from '../../src/utils/rolStaff';
+import { inicioStaff, tieneAmbasInterfaces, guardarInterfaz, getInterfazGuardada } from '../../src/utils/rolStaff';
 
-type Modo = 'selector' | 'asesor' | 'acreditado' | 'gestor';
 
 // Módulo (no estado/ref del componente) para que sobreviva a que esta
 // pantalla se desmonte y remonte (p. ej. al cerrar sesión) dentro de la
@@ -38,7 +38,6 @@ export default function LoginScreen() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
 
-  const [modo,     setModo]     = useState<Modo>('selector');
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [loading,  setLoading]  = useState(false);
@@ -57,14 +56,10 @@ export default function LoginScreen() {
       setBiometricAvailable(disponible);
       setBiometricTipo(tipo);
       setBiometricLabel(await getBiometricLabel());
-      // Si ya hay biometría activada, saltar directo a esa pantalla (asesor
-      // o acreditado) en vez de esperar a que el usuario toque el botón —
-      // así Face ID se dispara solo al abrir la app, sin ese paso extra.
-      if (disponible && tipo) setModo(tipo);
     })();
   }, []);
 
-  // Auto-disparar biometría al entrar al modo que coincide con lo guardado —
+  // Auto-disparar biometría si hay una credencial guardada en este celular —
   // SOLO una vez por sesión de la app (ver autoIntentadoGlobal arriba), no
   // una vez por montaje de esta pantalla. Si no fuera así, cada vez que se
   // vuelve a este login (p. ej. tras cerrar sesión) Face ID se dispararía
@@ -72,11 +67,11 @@ export default function LoginScreen() {
   // sesión requiere que el usuario toque el botón "Entrar con Face ID".
   useEffect(() => {
     if (autoIntentadoGlobal) return;
-    if (biometricAvailable && modo !== 'selector' && biometricTipo === modo) {
+    if (biometricAvailable && biometricTipo) {
       autoIntentadoGlobal = true;
       handleBiometricLogin();
     }
-  }, [modo, biometricAvailable, biometricTipo]);
+  }, [biometricAvailable, biometricTipo]);
 
   const handleBiometricLogin = useCallback(async () => {
     setError('');
@@ -165,46 +160,35 @@ export default function LoginScreen() {
     [biometricLabel],
   );
 
-  // Asesor y gestor usan el mismo login (/v1/auth/login). A dónde va depende
-  // del rol que devuelve el backend, no del botón que tocó: un gestor que
-  // entra por "Soy Asesor" igual termina en sus pantallas.
-  async function handleLoginAsesor() {
+  // Login único: el backend dice si es empleado (asesor, gestor, super admin) o
+  // acreditado, y la app abre su interfaz. Quien es gestor y asesor entra a la
+  // última interfaz que usó (y cambia desde el inicio o Perfil).
+  async function handleLogin() {
     if (!email || !password) { setError('Ingresa correo y contraseña.'); return; }
     setError('');
     setLoading(true);
+    const emailNorm = email.trim().toLowerCase();
     try {
-      const state = await login(email.trim().toLowerCase(), password);
-      // Con ambos roles, el botón que tocó («Soy Asesor» / «Soy Gestor») elige la interfaz.
-      const interfaz = modo === 'gestor' ? 'gestor' : 'asesor';
-      if (tieneAmbasInterfaces(state.user)) await guardarInterfaz(interfaz);
-      const destino = inicioStaff(state.user, interfaz);
+      const r = await entrar(emailNorm, password);
+      if (r.tipo === 'acreditado') {
+        if (biometricAvailable && biometricTipo !== 'acreditado' && r.state.token) {
+          await preguntarGuardarBiometria('acreditado', emailNorm);
+        }
+        // registrarPushTokenAcreditado usa /v1/acreditado/dispositivos (con el
+        // token del acreditado) — no el endpoint del asesor, que causaba un 401.
+        registrarPushTokenAcreditado().catch(() => {});
+        router.replace('/(acreditado)');
+        return;
+      }
+      const user = r.state.user;
+      const destino = inicioStaff(user, await getInterfazGuardada());
       const tipoBio: BiometricTipo = destino === '/(gestor)' ? 'gestor' : 'asesor';
-      if (biometricAvailable && biometricTipo !== tipoBio && state.token) {
-        await preguntarGuardarBiometria(tipoBio, email.trim().toLowerCase());
+      if (tieneAmbasInterfaces(user)) await guardarInterfaz(tipoBio);
+      if (biometricAvailable && biometricTipo !== tipoBio && r.state.token) {
+        await preguntarGuardarBiometria(tipoBio, emailNorm);
       }
       registrarPushToken().catch(() => {});
       router.replace(destino);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Credenciales incorrectas.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleLoginAcreditado() {
-    if (!email || !password) { setError('Ingresa correo y contraseña.'); return; }
-    setError('');
-    setLoading(true);
-    try {
-      const state = await loginAcreditado(email.trim().toLowerCase(), password);
-      if (biometricAvailable && biometricTipo !== 'acreditado' && state.token) {
-        await preguntarGuardarBiometria('acreditado', email.trim().toLowerCase());
-      }
-      // registrarPushTokenAcreditado usa /v1/acreditado/dispositivos (con el
-      // token del acreditado) — no el endpoint del asesor, que causaba un 401
-      // y forzaba un logout global (ver acreditadoFetch/apiFetch).
-      registrarPushTokenAcreditado().catch(() => {});
-      router.replace('/(acreditado)');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Credenciales incorrectas.');
     } finally {
@@ -235,76 +219,7 @@ export default function LoginScreen() {
     </View>
   );
 
-  // ── Pantalla selector ───────────────────────────────────────────────────────
-  if (modo === 'selector') {
-    return (
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={[styles.container, {
-            paddingTop:    insets.top + (isSmallScreen ? Spacing.lg : Spacing['2xl']),
-            paddingBottom: insets.bottom + Spacing['2xl'],
-          }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {Branding}
-
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>¿CÓMO QUIERES ENTRAR?</Text>
-            <View style={styles.cardDivider} />
-            <Text style={styles.selectorSubtitle}>Selecciona tu tipo de acceso</Text>
-
-            <TouchableOpacity style={styles.selectorBtn} onPress={() => { setModo('asesor'); setError(''); }}>
-              <View style={styles.selectorIcon}>
-                <Ionicons name="briefcase-outline" size={28} color={Colors.gold[400]} />
-              </View>
-              <View style={styles.selectorText}>
-                <Text style={styles.selectorTitle}>Soy Asesor</Text>
-                <Text style={styles.selectorDesc}>Registra prospectos y los documentos de tus clientes</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.dark[400]} />
-            </TouchableOpacity>
-
-            <View style={styles.selectorSeparator} />
-
-            <TouchableOpacity style={styles.selectorBtn} onPress={() => { setModo('acreditado'); setError(''); }}>
-              <View style={[styles.selectorIcon, styles.selectorIconAlt]}>
-                <Ionicons name="home-outline" size={28} color={Colors.gold[400]} />
-              </View>
-              <View style={styles.selectorText}>
-                <Text style={styles.selectorTitle}>Soy Acreditado</Text>
-                <Text style={styles.selectorDesc}>Consulta el estado de tu trámite de crédito o verifica tu préstamo Infonavit/Fovissste</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.dark[400]} />
-            </TouchableOpacity>
-
-            <View style={styles.selectorSeparator} />
-
-            <TouchableOpacity style={styles.selectorBtn} onPress={() => { setModo('gestor'); setError(''); }}>
-              <View style={[styles.selectorIcon, styles.selectorIconGestor]}>
-                <Ionicons name="business-outline" size={28} color={Colors.gold[700]} />
-              </View>
-              <View style={styles.selectorText}>
-                <Text style={styles.selectorTitle}>Soy Gestor</Text>
-                <Text style={styles.selectorDesc}>Recibe expedientes, descarga sus documentos y sube los que tramites</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.dark[400]} />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.footer}>© 2026 Consultoría Inmobiliaria</Text>
-          <TouchableOpacity onPress={() => Linking.openURL('https://consultoriainmobiliaria.com.mx/aviso-de-privacidad')}>
-            <Text style={styles.privacyLink}>Aviso de Privacidad</Text>
-          </TouchableOpacity>
-          <Text style={styles.version}>v{APP_VERSION}</Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    );
-  }
-
-  // ── Login asesor / acreditado ───────────────────────────────────────────────
-  const esStaff  = modo === 'asesor' || modo === 'gestor';
-  const tituloAcceso = modo === 'asesor' ? 'ACCESO ASESOR' : modo === 'gestor' ? 'ACCESO GESTOR' : 'ACCESO ACREDITADO';
+  // ── Login (único para todos) ────────────────────────────────────────────────
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -319,16 +234,8 @@ export default function LoginScreen() {
         {Branding}
 
         <View style={styles.card}>
-          {/* Header con botón volver */}
-          <View style={styles.cardHeaderRow}>
-            <TouchableOpacity onPress={() => { setModo('selector'); setError(''); setEmail(''); setPassword(''); }} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={20} color={Colors.dark[500]} />
-            </TouchableOpacity>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{tituloAcceso}</Text>
-              <View style={styles.cardDivider} />
-            </View>
-          </View>
+          <Text style={styles.cardTitle}>ENTRA A TU CUENTA</Text>
+          <View style={styles.cardDivider} />
 
           {error ? (
             <View style={styles.errorBox}>
@@ -357,7 +264,7 @@ export default function LoginScreen() {
           />
 
           <TouchableOpacity
-            onPress={() => router.push(`/(auth)/forgot-password?modo=${modo}`)}
+            onPress={() => router.push('/(auth)/forgot-password')}
             style={styles.forgotRow}
           >
             <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
@@ -365,37 +272,29 @@ export default function LoginScreen() {
 
           <Button
             label="Iniciar sesión"
-            onPress={esStaff ? handleLoginAsesor : handleLoginAcreditado}
+            onPress={handleLogin}
             loading={loading}
             fullWidth
             size="lg"
             style={styles.loginBtn}
           />
 
-          {biometricAvailable && biometricTipo === modo && (
+          {biometricAvailable && biometricTipo && (
             <TouchableOpacity style={styles.biometricBtn} onPress={handleBiometricLogin} disabled={loading}>
               <Ionicons name={biometricIcon as any} size={32} color={Colors.gold[400]} />
               <Text style={styles.biometricText}>Entrar con {biometricLabel}</Text>
             </TouchableOpacity>
           )}
 
-          {modo === 'gestor' && (
-            <View style={styles.gestorNota}>
-              <Ionicons name="information-circle-outline" size={18} color={Colors.dark[600]} />
-              <Text style={styles.gestorNotaText}>Tu cuenta la crea la consultoría. Si no la tienes, pídesela a tu administrador.</Text>
-            </View>
-          )}
-
-          {modo === 'acreditado' && (
-            <TouchableOpacity
-              style={styles.registerRow}
-              onPress={() => router.push('/(auth)/registro-acreditado')}
-            >
-              <Text style={styles.registerText}>
-                ¿No tienes cuenta? <Text style={styles.registerLink}>Regístrate aquí</Text>
-              </Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={styles.registerRow}
+            onPress={() => router.push('/(auth)/registro-acreditado')}
+          >
+            <Text style={styles.registerText}>
+              ¿Tienes o quieres un crédito y aún no tienes cuenta? <Text style={styles.registerLink}>Regístrate aquí</Text>
+            </Text>
+            <Text style={styles.registerHint}>Asesores y gestores: tu cuenta la crea la consultoría.</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.footer}>© 2026 Consultoría Inmobiliaria</Text>
@@ -431,22 +330,9 @@ const styles = StyleSheet.create({
     borderTopWidth:  4,
     borderTopColor:  Colors.gold[400],
   },
-  cardHeaderRow:  { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, marginBottom: Spacing.sm },
-  backBtn:        { paddingTop: 4, paddingRight: Spacing.sm },
   cardTitle:      { fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.black, color: Colors.dark[900], letterSpacing: Typography.letterSpacing.widest, marginBottom: Spacing.xs },
   cardDivider:    { width: 32, height: 3, backgroundColor: Colors.gold[400], marginBottom: Spacing.xl, borderRadius: 2 },
 
-  selectorSubtitle: { fontSize: Typography.fontSize.sm, color: Colors.dark[500], marginBottom: Spacing.xl, textAlign: 'center' },
-  selectorBtn:      { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.lg, gap: Spacing.base },
-  selectorIcon:     { width: 48, height: 48, borderRadius: 12, backgroundColor: Colors.cream[50], alignItems: 'center', justifyContent: 'center' },
-  selectorIconAlt:  { backgroundColor: '#f0fdf4' },
-  selectorIconGestor: { backgroundColor: Colors.gold[100] },
-  gestorNota:     { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start', backgroundColor: Colors.cream[100], borderRadius: 8, padding: Spacing.md, marginTop: Spacing.lg },
-  gestorNotaText: { flex: 1, fontSize: Typography.fontSize.sm, color: Colors.dark[600], lineHeight: Typography.fontSize.sm * 1.4 },
-  selectorText:     { flex: 1 },
-  selectorTitle:    { fontSize: Typography.fontSize.base, fontWeight: Typography.fontWeight.bold, color: Colors.dark[900] },
-  selectorDesc:     { fontSize: Typography.fontSize.xs, color: Colors.dark[500], marginTop: 2 },
-  selectorSeparator:{ height: 1, backgroundColor: Colors.cream[200], marginHorizontal: -Spacing['2xl'] },
 
   errorBox:   { backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca', borderRadius: 6, padding: Spacing.md, marginBottom: Spacing.base },
   errorText:  { color: '#dc2626', fontSize: Typography.fontSize.base, lineHeight: Typography.fontSize.base * 1.4 },
@@ -457,6 +343,7 @@ const styles = StyleSheet.create({
   biometricText: { fontSize: Typography.fontSize.base, color: Colors.dark[700], fontWeight: Typography.fontWeight.semibold },
   registerRow:   { marginTop: Spacing.lg, alignItems: 'center', paddingTop: Spacing.base, borderTopWidth: 1, borderTopColor: Colors.cream[300] },
   registerText:  { fontSize: Typography.fontSize.sm, color: Colors.dark[600] },
+  registerHint:  { fontSize: Typography.fontSize.xs, color: Colors.dark[400], marginTop: Spacing.xs, textAlign: 'center' },
   registerLink:  { color: Colors.gold[600] ?? '#b45309', fontWeight: Typography.fontWeight.semibold },
 
   footer:      { marginTop: Spacing['2xl'], fontSize: Typography.fontSize.xs, color: Colors.dark[500], textAlign: 'center' },

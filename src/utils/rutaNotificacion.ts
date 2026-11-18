@@ -24,6 +24,9 @@ export function rutaParaNotificacion(data: DatosNotificacion | undefined | null,
   // Citas: misma pantalla para los tres roles
   if (d.screen === 'cita') return d.id ? `/citas/${d.id}` : '/citas';
 
+  // Préstamo de vehículos (solo asesores): detalle de la reserva
+  if (d.screen === 'vehiculo_reserva' && !esAcreditado) return d.id ? `/vehiculos/reserva/${d.id}` : '/vehiculos';
+
   if (esAcreditado) {
     // Aviso de documento solicitado: el aviso está en Mi Trámite
     if (d.screen === 'tramite') return INICIO_ACREDITADO;
@@ -37,6 +40,8 @@ export function rutaParaNotificacion(data: DatosNotificacion | undefined | null,
   if (d.screen === 'registros_qr') return '/registros-qr';
   // Avisos del gestor: abrir su encargo (los del super_admin traen screen 'expedientes')
   if (d.screen === 'gestor_encargo') return d.encargo_id ? `/gestor/${d.encargo_id}` : INICIO_GESTOR;
+  // Avisos de un encargo al super admin (screen 'expedientes' + encargo_id): su detalle en «Gestores»
+  if (d.screen === 'expedientes' && d.encargo_id) return `/admin-gestores/${d.encargo_id}`;
   if (d.expediente_id) return `/expedientes/${d.expediente_id}`;
   if (d.contacto_id)   return `/prospectos/${d.contacto_id}`;
   if (d.id && (d.screen === 'expedientes' || d.screen === 'expediente')) return `/expedientes/${d.id}`;

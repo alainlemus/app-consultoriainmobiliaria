@@ -28,14 +28,13 @@ export default function ForgotPasswordScreen() {
     setError('');
     setLoading(true);
     try {
-      if (esAcreditado) {
-        await forgotPasswordAcreditado(email.trim().toLowerCase());
-      } else {
-        await apiFetch('/auth/forgot-password', {
-          method: 'POST',
-          body:   JSON.stringify({ email: email.trim().toLowerCase() }),
-        });
-      }
+      const correo = email.trim().toLowerCase();
+      // Login único: no sabemos si es empleado o acreditado, así que se pide a
+      // los dos (cada uno responde igual exista o no el correo).
+      const staff = () => apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email: correo }) });
+      if (esAcreditado) await forgotPasswordAcreditado(correo);
+      else if (modo === 'asesor' || modo === 'gestor') await staff();
+      else await Promise.allSettled([staff(), forgotPasswordAcreditado(correo)]);
       setSent(true);
     } catch {
       // Siempre mostramos éxito para no revelar si el correo existe
@@ -98,7 +97,7 @@ export default function ForgotPasswordScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
-                placeholder={esAcreditado ? 'correo@ejemplo.com' : 'asesor@ejemplo.com'}
+                placeholder="correo@ejemplo.com"
                 dark={false}
               />
 

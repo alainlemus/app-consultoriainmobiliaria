@@ -62,7 +62,7 @@ export async function removeToken(): Promise<void> {
  * por instalación, cada teléfono conserva su propia sesión.
  */
 const DEVICE_NAME_KEY = 'device_session_name';
-async function nombreDispositivo(): Promise<string> {
+export async function nombreDispositivo(): Promise<string> {
   try {
     const guardado = await SecureStore.getItemAsync(DEVICE_NAME_KEY);
     if (guardado) return guardado;

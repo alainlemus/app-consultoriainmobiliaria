@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, Radius } from '@/src/theme';
 import CampanaNotificaciones from '@/src/components/CampanaNotificaciones';
+import CambiarInterfaz from '@/src/components/CambiarInterfaz';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { getEncargos, type EncargoResumen, type FiltroEncargos } from '@/src/services/gestorApi';
 import { BadgeEstadoEncargo, fechaCorta, venceInfo } from '@/src/components/gestor/encargoUi';
@@ -78,6 +79,7 @@ export default function GestorExpedientesScreen() {
           </TouchableOpacity>
         </View>
         <View style={s.goldLine} />
+        <CambiarInterfaz user={user} hacia="asesor" style={{ marginTop: Spacing.xs, marginBottom: Spacing.md }} />
         <View style={s.chips}>
           {([['activos', 'Por hacer'], ['terminados', 'Terminados']] as const).map(([f, l]) => (
             <TouchableOpacity key={f} style={[s.chip, filtro === f && s.chipOn]} onPress={() => cambiarFiltro(f)}>

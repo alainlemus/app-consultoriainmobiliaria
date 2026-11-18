@@ -4,6 +4,23 @@ Formato: cada versión publicada en tienda. Ver `RELEASING.md`.
 
 ## [Sin publicar]
 
+## [2.12.0] - 2026-11-18
+
+### Agregado
+- Vehículos de la empresa (botón «Vehículos» en el inicio del asesor). El asesor pide una moto (o el vehículo que se configure) por horas o por todo el día, elige uno en particular o «el que esté libre» y puede ligar la visita a una cita, prospecto o expediente. El super admin autoriza desde el panel y la app avisa con notificación.
+- Salida y entrega con checklist: fotos del tablero y del vehículo, km, nivel de gasolina y daños. Al tomar la foto del tablero la app lee el kilometraje sola y el asesor solo lo confirma.
+- Llaves: se dejan en la oficina con foto o se pasan a otro asesor con un código de 4 dígitos que dura 5 minutos.
+- Guardar en casa (resguardo nocturno) y retomar al día siguiente, con fotos y km.
+- Cargas de gasolina con foto del ticket, pagadas con tarjeta o efectivo de la empresa o por reembolso, y la pantalla «Mis reembolsos» con lo que falta por cobrar.
+- Si la administración le da prioridad a otra visita, el asesor ve el motivo y puede tomar otro vehículo libre con un toque.
+- Recordatorios de salida y regreso por notificación. Requiere backend 1.17.0.
+- Un solo inicio de sesión para todos: ya no se elige «Soy Asesor», «Soy Acreditado» o «Soy Gestor». Con correo y contraseña la app abre la interfaz que le toca a cada cuenta (asesor, gestor, super admin o acreditado). Quien tiene varios roles entra a la última interfaz que usó y cambia desde el inicio o Perfil. «Olvidé mi contraseña» funciona para cualquier tipo de cuenta. Requiere backend 1.18.0.
+- Quien es gestor y asesor a la vez ya puede cambiar de interfaz desde el inicio con el botón «Cambiar a Gestor» o «Cambiar a Asesor», además de desde Perfil.
+- Super admin: botón «Gestores» en el inicio con todo lo que hacen los gestores (abiertos, vencidos, terminados y por gestor) y el número de encargos vencidos. Cada encargo muestra qué tramita, cómo revisó los documentos, lo que subió y su historial. En el expediente aparece la sección «Gestores», y los avisos de un gestor abren directo su encargo. Solo lectura; enviar, corregir y cancelar siguen en el panel web. Requiere backend 1.18.0.
+
+### Cambiado
+- Inicio: el nombre del usuario se ve un poco más chico y, si es muy largo, se corta con «…» para no encimarse con la campana.
+
 ## [2.11.0] - 2026-11-09
 
 ### Agregado

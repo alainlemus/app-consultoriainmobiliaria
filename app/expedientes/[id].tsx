@@ -15,6 +15,7 @@ import type { Documento } from '../../src/types';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { getCacheExpediente } from '../../src/services/offline';
 import DocumentosExpediente, { expedienteCompleto } from '../../src/components/DocumentosExpediente';
+import GestoresExpediente from '../../src/components/gestor/GestoresExpediente';
 import type { Expediente } from '../../src/types';
 
 export default function DetalleExpedienteScreen() {
@@ -211,6 +212,8 @@ export default function DetalleExpedienteScreen() {
               <Ionicons name="paper-plane" size={20} color={Colors.dark[900]} />
             </TouchableOpacity>
           ) : null}
+
+          {isSuperAdmin ? <GestoresExpediente expedienteId={exp.id} /> : null}
 
           <Text style={styles.sectionLabel}>Documentos</Text>
           <DocumentosExpediente
